@@ -93,6 +93,17 @@ function normLldInfo(w) {
     example: String(r.example ?? '').slice(0, 60),
     rule:    String(r.rule ?? '').slice(0, 100)
   })) : [];
+  // Approbateurs et réviseurs affichés sur la page de garde du PDF.
+  const normSignatories = rows => Array.isArray(rows) ? rows
+    .filter(r => r && typeof r === 'object')
+    .map(r => ({
+      name: String(r.name ?? '').slice(0, 80),
+      position: String(r.position ?? '').slice(0, 80),
+      organization: String(r.organization ?? '').slice(0, 80),
+      approvedVersion: String(r.approvedVersion ?? '').slice(0, 30)
+    })) : [];
+  L.approvers = normSignatories(L.approvers);
+  L.reviewers = normSignatories(L.reviewers);
   L.revs = Array.isArray(L.revs) ? L.revs.filter(r => r && typeof r === 'object').map(r => ({
     rev: String(r.rev ?? '').slice(0, 10),
     date: String(r.date ?? '').slice(0, 10),
@@ -3538,6 +3549,12 @@ function setCablingMode(on) {
    ============================================================ */
 
 const LLD_REV_COLS = [['rev', 'Rév', 52], ['date', 'Date', 108], ['author', 'Auteur', 128], ['note', 'Modifications', 'flex']];
+const LLD_SIGNATORY_COLS = [
+  ['name', 'Nom', 130],
+  ['position', 'Position', 130],
+  ['organization', 'Organisation', 150],
+  ['approvedVersion', 'Version approuvée', 'flex']
+];
 // Colonne « Site » : libre pour l'instant, sera reliée aux sites déclarés au lot 2
 const LLD_VLAN_COLS = [['vid', 'VLAN', 44], ['name', 'Nom', 96], ['site', 'Site', 80], ['subnet', 'Subnet', 120], ['gw', 'Passerelle', 106], ['purpose', 'Usage', 'flex']];
 const LLD_NOMEN_COLS = [['type', "Type d'objet", 150], ['prefix', 'Préfixe', 78], ['example', 'Exemple', 140], ['rule', 'Règle de nommage', 'flex']];
@@ -3720,6 +3737,12 @@ function openLldModal() {
   $('#lld-objectif').value = L.objectif;
   $('#lld-existant').value = L.existant;
   $('#lld-architecture').value = L.architecture;
+  const approvers = $('#lld-approvers');
+  approvers.innerHTML = '';
+  L.approvers.forEach(r => lldAddRow(approvers, LLD_SIGNATORY_COLS, r));
+  const reviewers = $('#lld-reviewers');
+  reviewers.innerHTML = '';
+  L.reviewers.forEach(r => lldAddRow(reviewers, LLD_SIGNATORY_COLS, r));
   const revs = $('#lld-revs');
   revs.innerHTML = '';
   L.revs.forEach(r => lldAddRow(revs, LLD_REV_COLS, r));
@@ -3751,6 +3774,13 @@ $('#lld-cancel').addEventListener('click', () => $('#lld-modal').classList.add('
 $('#lld-modal').addEventListener('click', e => {
   if (e.target === $('#lld-modal')) $('#lld-modal').classList.add('hidden');
 });
+function addSignatoryRow(containerSelector) {
+  const container = $(containerSelector);
+  lldAddRow(container, LLD_SIGNATORY_COLS, {});
+  [...container.querySelectorAll('.lld-row')].pop().querySelector('input').focus();
+}
+$('#lld-add-approver').addEventListener('click', () => addSignatoryRow('#lld-approvers'));
+$('#lld-add-reviewer').addEventListener('click', () => addSignatoryRow('#lld-reviewers'));
 $('#lld-add-rev').addEventListener('click', () => {
   const revs = $('#lld-revs');
   const n = revs.querySelectorAll('.lld-row').length;
@@ -3840,6 +3870,10 @@ $('#lld-save').addEventListener('click', () => {
   L.objectif = $('#lld-objectif').value.slice(0, 4000);
   L.existant = $('#lld-existant').value.slice(0, 4000);
   L.architecture = $('#lld-architecture').value.slice(0, 4000);
+  L.approvers = lldRowsFrom($('#lld-approvers'))
+    .filter(r => r.name.trim() || r.position.trim() || r.organization.trim() || r.approvedVersion.trim());
+  L.reviewers = lldRowsFrom($('#lld-reviewers'))
+    .filter(r => r.name.trim() || r.position.trim() || r.organization.trim() || r.approvedVersion.trim());
   L.revs = lldRowsFrom($('#lld-revs')).filter(r => r.rev.trim() || r.note.trim());
   L.nomen = lldRowsFrom($('#lld-nomen')).filter(r => r.type.trim() || r.prefix.trim());
   L.vlans = lldRowsFrom($('#lld-vlans')).filter(v => v.vid.trim() || v.name.trim());
@@ -5382,7 +5416,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
 
   // ---- Page de garde ----
   newPage();
-  y -= 110;
+  y -= 60;
   txt(M, y, 'Dossier LLD', 30, true, [0.12, 0.31, 0.47]); y -= 20;
   txt(M, y, 'Low Level Design \u2014 Datacenter & Infrastructure', 12, false, [0.45, 0.5, 0.58]); y -= 36;
   txt(M, y, ws.name, 20, true); y -= 30;
@@ -5393,7 +5427,19 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     txt(M + 100, y, v, 10, true);
     y -= 16;
   });
-  y -= 22;
+  y -= 12;
+
+  // Gouvernance documentaire : les deux tableaux figurent directement sur
+  // la page de garde, même lorsqu'aucune personne n'est encore renseignée.
+  const signatoryTable = (title, rows) => {
+    txt(M, y, title, 11.5, true, [0.12, 0.31, 0.47]);
+    y -= 8;
+    const data = [['Nom', 'Position', 'Organisation', 'Version approuvée']];
+    rows.forEach(r => data.push([r.name, r.position, r.organization, r.approvedVersion]));
+    drawTable(data, [2.2, 2.2, 2.7, 1.9], 7.5);
+  };
+  signatoryTable('Approbateurs', L.approvers);
+  signatoryTable('Réviseurs', L.reviewers);
 
   const totU = ws.racks.reduce((s, r) => s + r.sizeU, 0);
   const usedU = ws.racks.reduce((s, r) => s + r.instances.reduce((a, i) => a + i.sizeU, 0), 0);
