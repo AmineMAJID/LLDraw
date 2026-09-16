@@ -339,8 +339,20 @@ body.cabling .port.connectable {
   gap: 8px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
 }
+.cp-head:hover { background: #f7f9fd; }
+.cp-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cp-head h3 { font-size: 13px; flex: 1; }
+.cp-chevron { display: inline-block; transition: transform .16s ease; }
+.cable-panel.collapsed { width: 220px; }
+.cable-panel.collapsed .cp-head { border-bottom: none; }
+.cable-panel.collapsed .cp-chevron { transform: rotate(-90deg); }
+.cable-panel.collapsed .cp-clear,
+.cable-panel.collapsed .cp-hint,
+.cable-panel.collapsed .cp-filters,
+.cable-panel.collapsed .cable-list { display: none; }
 .cp-count {
   background: var(--accent);
   color: #fff;

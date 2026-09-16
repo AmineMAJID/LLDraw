@@ -3653,6 +3653,26 @@ function focusOnCable(cable) {
   });
 }
 
+// Réduction du panneau : seule sa barre de titre reste visible afin de libérer
+// le board. Le bouton « Tout retirer » conserve naturellement son action.
+function toggleCablePanel() {
+  const panel = $('#cable-panel');
+  const toggle = $('#cable-panel-toggle');
+  const collapsed = panel.classList.toggle('collapsed');
+  toggle.setAttribute('aria-expanded', String(!collapsed));
+  toggle.title = collapsed ? 'Développer le panneau des connexions' : 'Réduire le panneau des connexions';
+}
+$('#cable-panel-toggle').addEventListener('click', e => {
+  if (e.target.closest('#cable-panel-clear')) return;
+  toggleCablePanel();
+});
+$('#cable-panel-toggle').addEventListener('keydown', e => {
+  if (e.target.closest('#cable-panel-clear')) return;
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  toggleCablePanel();
+});
+
 // Filtres visuels : ils n'altèrent pas les données et s'appliquent au board
 // comme à la liste des connexions.
 const cableColorFilterEl = $('#cable-filter-color');
