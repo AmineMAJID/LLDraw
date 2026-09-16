@@ -3214,6 +3214,32 @@ function renderCables() {
 
   const svgNS = 'http://www.w3.org/2000/svg';
 
+  // Survol délégué au SVG : contrairement à pointerenter sur chaque groupe,
+  // déplacer le groupe en fin de SVG ne laisse pas une classe « hovered »
+  // bloquée lorsque le pointeur quitte ensuite le câble.
+  let hoveredCable = null;
+  const clearCableHover = () => {
+    hoveredCable?.classList.remove('hovered');
+    hoveredCable = null;
+    svg.classList.remove('cable-hovering');
+  };
+  svg.onpointermove = e => {
+    const g = e.target.closest?.('g.cable') || null;
+    if (g === hoveredCable) return;
+    clearCableHover();
+    if (!g) return;
+    hoveredCable = g;
+    g.classList.add('hovered');
+    svg.classList.add('cable-hovering');
+    // Dernier élément SVG = peint au-dessus des autres câbles.
+    svg.appendChild(g);
+  };
+  svg.onpointerout = e => {
+    const next = e.relatedTarget?.closest?.('g.cable') || null;
+    if (!next) clearCableHover();
+  };
+  svg.onpointerleave = clearCableHover;
+
   ws.cables.forEach(cable => {
     if (!cableMatchesFilter(ws, cable)) return;
     const ea = resolveEndpoint(ws, cable.a);
@@ -3228,16 +3254,6 @@ function renderCables() {
     g.classList.add('cable');
     g.dataset.cableId = cable.id;
     g.style.setProperty('--cable-color', cable.color);
-    // Le câble survolé passe en dernier dans le SVG : il est donc peint au-dessus.
-    g.addEventListener('pointerenter', () => {
-      svg.appendChild(g);
-      svg.classList.add('cable-hovering');
-      g.classList.add('hovered');
-    });
-    g.addEventListener('pointerleave', () => {
-      svg.classList.remove('cable-hovering');
-      g.classList.remove('hovered');
-    });
 
     const shadow = document.createElementNS(svgNS, 'path');
     shadow.setAttribute('class', 'cable-shadow');
