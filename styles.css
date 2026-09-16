@@ -288,7 +288,10 @@ body {
   cursor: pointer;
 }
 #cable-svg g.cable { transition: opacity .14s; }
-#cable-svg.cable-hovering g.cable:not(.hovered) { opacity: .2; }
+#cable-svg g.cable.phantom { opacity: .24; }
+#cable-svg g.cable.focused .cable-jacket { stroke-width: 5.5; }
+#cable-svg.cable-hovering g.cable:not(.hovered) { opacity: .16; }
+#cable-svg.cable-hovering g.cable.hovered { opacity: 1; }
 #cable-svg g.cable:hover .cable-jacket,
 #cable-svg g.cable.dragging .cable-jacket { stroke-width: 6; filter: drop-shadow(0 0 3px var(--cable-color)); }
 #cable-svg g.cable.selected .cable-jacket { stroke-width: 6.5; }
@@ -399,9 +402,9 @@ body.cabling .port.connectable {
 }
 .cp-cable:last-child { border-bottom: none; }
 .cp-cable:hover { background: #f2f6ff; }
-.cp-cable.is-hidden { opacity: .48; background: #f8fafc; }
-.cp-cable.is-hidden .cp-cable-id { text-decoration: line-through; }
-.cp-cable.is-hidden .cp-dot { filter: grayscale(1); }
+.cp-cable.is-phantom { opacity: .5; background: #f8fafc; }
+.cp-cable.is-phantom .cp-dot { filter: grayscale(.8); }
+.cp-cable.is-focused { background: #eef5ff; box-shadow: inset 3px 0 0 var(--accent); }
 .cp-dot {
   width: 14px; height: 14px;
   border-radius: 50%;

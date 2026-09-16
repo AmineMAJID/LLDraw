@@ -1576,8 +1576,8 @@ function renderRack(rack) {
     e.dataTransfer.effectAllowed = 'move';
   });
 
-  // En mode câblage, un double-clic sur la face d'un device masque ou réaffiche
-  // en bloc tous ses cordons. Plusieurs devices peuvent être basculés à la suite.
+  // En mode câblage, un double-clic sur la face d'un device met ses cordons
+  // au premier plan et conserve tous les autres en affichage fantôme.
   inner.addEventListener('dblclick', e => {
     if (!cablingMode || e.target.closest('.port, .device-del')) return;
     const devEl = e.target.closest('.device');
@@ -1591,8 +1591,11 @@ function renderRack(rack) {
       .filter(c => c.a?.instId === instId || c.b?.instId === instId)
       .map(c => c.id);
     if (!ids.length) return;
-    const shouldHide = ids.some(id => !hiddenCableIds.has(id));
-    ids.forEach(id => shouldHide ? hiddenCableIds.add(id) : hiddenCableIds.delete(id));
+    // Premier double-clic : seuls les câbles de ce device restent forts.
+    // Second double-clic sur le même ensemble : retour à l'affichage normal.
+    const sameSelection = focusedCableIds.size === ids.length && ids.every(id => focusedCableIds.has(id));
+    focusedCableIds.clear();
+    if (!sameSelection) ids.forEach(id => focusedCableIds.add(id));
     renderCables();
     renderCableList();
   });
@@ -3157,13 +3160,14 @@ let cablePopoverCtx = null;
 let selectedCableColor = CABLE_COLORS[0].hex;
 let cableFilterDevice = '';
 let cableFilterColor = 'all';
-// Masquage visuel temporaire (non destructif) de câbles individuels.
-const hiddenCableIds = new Set();
+// Mise au premier plan temporaire et non destructive. Dès qu'au moins un câble
+// est sélectionné, les autres restent visibles mais deviennent « fantômes ».
+const focusedCableIds = new Set();
 let cableSingleClickTimer = null;
 
-function toggleCableVisibility(cableId) {
-  if (hiddenCableIds.has(cableId)) hiddenCableIds.delete(cableId);
-  else hiddenCableIds.add(cableId);
+function toggleCableFocus(cableId) {
+  if (focusedCableIds.has(cableId)) focusedCableIds.delete(cableId);
+  else focusedCableIds.add(cableId);
   hideCablePopover();
   renderCables();
   renderCableList();
@@ -3272,8 +3276,11 @@ function renderCables() {
   };
   svg.onpointerleave = clearCableHover;
 
+  const existingCableIds = new Set(ws.cables.map(c => c.id));
+  [...focusedCableIds].forEach(id => { if (!existingCableIds.has(id)) focusedCableIds.delete(id); });
+  const hasCableFocus = focusedCableIds.size > 0;
   ws.cables.forEach(cable => {
-    if (hiddenCableIds.has(cable.id) || !cableMatchesFilter(ws, cable)) return;
+    if (!cableMatchesFilter(ws, cable)) return;
     const ea = resolveEndpoint(ws, cable.a);
     const eb = resolveEndpoint(ws, cable.b);
     if (!ea || !eb) return;
@@ -3284,6 +3291,7 @@ function renderCables() {
 
     const g = document.createElementNS(svgNS, 'g');
     g.classList.add('cable');
+    if (hasCableFocus) g.classList.add(focusedCableIds.has(cable.id) ? 'focused' : 'phantom');
     g.dataset.cableId = cable.id;
     g.style.setProperty('--cable-color', cable.color);
 
@@ -3342,7 +3350,7 @@ function renderCables() {
           renderCableList();
         } else {
           // Attendre brièvement pour distinguer le clic simple du double-clic :
-          // simple = édition, double = masquer le câble sans ouvrir la pop-up.
+          // simple = édition, double = mise au premier plan sans ouvrir la pop-up.
           clearTimeout(cableSingleClickTimer);
           cableSingleClickTimer = setTimeout(() => {
             openCablePopover(cable, ev.clientX, ev.clientY);
@@ -3359,7 +3367,7 @@ function renderCables() {
       e.stopPropagation();
       clearTimeout(cableSingleClickTimer);
       cableSingleClickTimer = null;
-      toggleCableVisibility(cable.id);
+      toggleCableFocus(cable.id);
     });
     svg.appendChild(g);
   });
@@ -3568,11 +3576,12 @@ function renderCableList() {
     const eb = resolveEndpoint(ws, cable.b);
     if (!ea || !eb) return;
     const row = document.createElement('button');
-    const isHidden = hiddenCableIds.has(cable.id);
-    row.className = 'cp-cable' + (isHidden ? ' is-hidden' : '');
-    row.title = isHidden
-      ? 'Câble masqué — double-cliquez pour le réafficher'
-      : 'Cliquez pour centrer · double-cliquez pour masquer';
+    const hasFocus = focusedCableIds.size > 0;
+    const isFocused = focusedCableIds.has(cable.id);
+    row.className = 'cp-cable' + (hasFocus ? (isFocused ? ' is-focused' : ' is-phantom') : '');
+    row.title = isFocused
+      ? 'Câble sélectionné — double-cliquez pour retirer la sélection'
+      : 'Cliquez pour centrer · double-cliquez pour mettre au premier plan';
     row.innerHTML = `
       <span class="cp-dot" style="background:${cable.color}"></span>
       <span class="cp-cable-body">
@@ -3606,7 +3615,7 @@ function renderCableList() {
       e.preventDefault();
       clearTimeout(cableSingleClickTimer);
       cableSingleClickTimer = null;
-      toggleCableVisibility(cable.id);
+      toggleCableFocus(cable.id);
     });
     row.querySelector('.cp-cable-del').addEventListener('click', e => {
       e.stopPropagation();
@@ -3696,7 +3705,7 @@ function setCablingMode(on) {
   if (on) {
     // Les modes Créer/Modifier sont exclusifs
     if (labelMode) setLabelMode(null);
-    $('#mode-hint').textContent = 'Mode câblage : cliquez un câble pour l’éditer ; double-cliquez un câble ou un device pour masquer/réafficher ses connexions.';
+    $('#mode-hint').textContent = 'Mode câblage : cliquez un câble pour l’éditer ; double-cliquez un câble ou un device pour le mettre au premier plan.';
     pendingPort = null;
     pruneCables(active());
     renderBoard();    // rend les devices non déplaçables + dessine les câbles
