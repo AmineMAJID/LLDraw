@@ -1576,6 +1576,27 @@ function renderRack(rack) {
     e.dataTransfer.effectAllowed = 'move';
   });
 
+  // En mode câblage, un double-clic sur la face d'un device masque ou réaffiche
+  // en bloc tous ses cordons. Plusieurs devices peuvent être basculés à la suite.
+  inner.addEventListener('dblclick', e => {
+    if (!cablingMode || e.target.closest('.port, .device-del')) return;
+    const devEl = e.target.closest('.device');
+    if (!devEl) return;
+    e.preventDefault();
+    e.stopPropagation();
+    clearTimeout(cableSingleClickTimer);
+    cableSingleClickTimer = null;
+    const instId = devEl.dataset.instanceId;
+    const ids = (active()?.cables || [])
+      .filter(c => c.a?.instId === instId || c.b?.instId === instId)
+      .map(c => c.id);
+    if (!ids.length) return;
+    const shouldHide = ids.some(id => !hiddenCableIds.has(id));
+    ids.forEach(id => shouldHide ? hiddenCableIds.add(id) : hiddenCableIds.delete(id));
+    renderCables();
+    renderCableList();
+  });
+
   // --- Clics : retrait device / étiquetage ---
   inner.addEventListener('click', e => {
     const delBtn = e.target.closest('.device-del');
@@ -3136,6 +3157,17 @@ let cablePopoverCtx = null;
 let selectedCableColor = CABLE_COLORS[0].hex;
 let cableFilterDevice = '';
 let cableFilterColor = 'all';
+// Masquage visuel temporaire (non destructif) de câbles individuels.
+const hiddenCableIds = new Set();
+let cableSingleClickTimer = null;
+
+function toggleCableVisibility(cableId) {
+  if (hiddenCableIds.has(cableId)) hiddenCableIds.delete(cableId);
+  else hiddenCableIds.add(cableId);
+  hideCablePopover();
+  renderCables();
+  renderCableList();
+}
 
 function cableMatchesFilter(ws, cable) {
   if (cableFilterColor !== 'all' && cable.color !== cableFilterColor) return false;
@@ -3241,7 +3273,7 @@ function renderCables() {
   svg.onpointerleave = clearCableHover;
 
   ws.cables.forEach(cable => {
-    if (!cableMatchesFilter(ws, cable)) return;
+    if (hiddenCableIds.has(cable.id) || !cableMatchesFilter(ws, cable)) return;
     const ea = resolveEndpoint(ws, cable.a);
     const eb = resolveEndpoint(ws, cable.b);
     if (!ea || !eb) return;
@@ -3309,12 +3341,25 @@ function renderCables() {
           saveState();
           renderCableList();
         } else {
-          openCablePopover(cable, ev.clientX, ev.clientY);
+          // Attendre brièvement pour distinguer le clic simple du double-clic :
+          // simple = édition, double = masquer le câble sans ouvrir la pop-up.
+          clearTimeout(cableSingleClickTimer);
+          cableSingleClickTimer = setTimeout(() => {
+            openCablePopover(cable, ev.clientX, ev.clientY);
+            cableSingleClickTimer = null;
+          }, 260);
         }
       };
       hit.addEventListener('pointermove', move);
       hit.addEventListener('pointerup', up);
       hit.addEventListener('pointercancel', up);
+    });
+    hit.addEventListener('dblclick', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearTimeout(cableSingleClickTimer);
+      cableSingleClickTimer = null;
+      toggleCableVisibility(cable.id);
     });
     svg.appendChild(g);
   });
@@ -3523,7 +3568,11 @@ function renderCableList() {
     const eb = resolveEndpoint(ws, cable.b);
     if (!ea || !eb) return;
     const row = document.createElement('button');
-    row.className = 'cp-cable';
+    const isHidden = hiddenCableIds.has(cable.id);
+    row.className = 'cp-cable' + (isHidden ? ' is-hidden' : '');
+    row.title = isHidden
+      ? 'Câble masqué — double-cliquez pour le réafficher'
+      : 'Cliquez pour centrer · double-cliquez pour masquer';
     row.innerHTML = `
       <span class="cp-dot" style="background:${cable.color}"></span>
       <span class="cp-cable-body">
@@ -3545,8 +3594,19 @@ function renderCableList() {
 
     row.addEventListener('click', e => {
       if (e.target.closest('.cp-cable-del')) return;
-      // Centrer sur le câble
-      focusOnCable(cable);
+      // Différer le centrage pour laisser le double-clic agir sans effet simple.
+      clearTimeout(cableSingleClickTimer);
+      cableSingleClickTimer = setTimeout(() => {
+        focusOnCable(cable);
+        cableSingleClickTimer = null;
+      }, 260);
+    });
+    row.addEventListener('dblclick', e => {
+      if (e.target.closest('.cp-cable-del')) return;
+      e.preventDefault();
+      clearTimeout(cableSingleClickTimer);
+      cableSingleClickTimer = null;
+      toggleCableVisibility(cable.id);
     });
     row.querySelector('.cp-cable-del').addEventListener('click', e => {
       e.stopPropagation();
@@ -3636,7 +3696,7 @@ function setCablingMode(on) {
   if (on) {
     // Les modes Créer/Modifier sont exclusifs
     if (labelMode) setLabelMode(null);
-    $('#mode-hint').textContent = 'Mode câblage : cliquez un port, puis un autre port pour les relier par un câble. Cliquez un câble pour l\'éditer.';
+    $('#mode-hint').textContent = 'Mode câblage : cliquez un câble pour l’éditer ; double-cliquez un câble ou un device pour masquer/réafficher ses connexions.';
     pendingPort = null;
     pruneCables(active());
     renderBoard();    // rend les devices non déplaçables + dessine les câbles

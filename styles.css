@@ -399,6 +399,9 @@ body.cabling .port.connectable {
 }
 .cp-cable:last-child { border-bottom: none; }
 .cp-cable:hover { background: #f2f6ff; }
+.cp-cable.is-hidden { opacity: .48; background: #f8fafc; }
+.cp-cable.is-hidden .cp-cable-id { text-decoration: line-through; }
+.cp-cable.is-hidden .cp-dot { filter: grayscale(1); }
 .cp-dot {
   width: 14px; height: 14px;
   border-radius: 50%;
