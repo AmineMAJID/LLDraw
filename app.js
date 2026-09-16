@@ -463,7 +463,12 @@ function normalizeState(s) {
   s.workspaces.forEach(w => {
     w.racks = (Array.isArray(w.racks) ? w.racks : []).map(normalizeRack);
     if (!Array.isArray(w.cables)) w.cables = [];
-    w.cables.forEach(c => { if (typeof c.domain !== 'string') c.domain = ''; });
+    w.cables.forEach(c => {
+      if (typeof c.domain !== 'string') c.domain = '';
+      // Décalage du point de contrôle manipulable du câble (coordonnées board).
+      c.bendX = Number.isFinite(c.bendX) ? c.bendX : 0;
+      c.bendY = Number.isFinite(c.bendY) ? c.bendY : 0;
+    });
     // Matrice des flux réseau (ch. 14)
     if (!Array.isArray(w.flows)) w.flows = [];
     w.flows = w.flows.filter(f => f && typeof f === 'object').map(f => ({
@@ -3129,6 +3134,17 @@ let cablingMode = false;
 let pendingPort = null;   // 1er port sélectionné en attente du 2e
 let cablePopoverCtx = null;
 let selectedCableColor = CABLE_COLORS[0].hex;
+let cableFilterDevice = '';
+let cableFilterColor = 'all';
+
+function cableMatchesFilter(ws, cable) {
+  if (cableFilterColor !== 'all' && cable.color !== cableFilterColor) return false;
+  const q = cableFilterDevice.trim().toLocaleLowerCase('fr');
+  if (!q) return true;
+  const ea = resolveEndpoint(ws, cable.a);
+  const eb = resolveEndpoint(ws, cable.b);
+  return !!(ea && eb && (`${ea.inst.name} ${eb.inst.name}`).toLocaleLowerCase('fr').includes(q));
+}
 
 function cableSvg() { return $('#cable-svg'); }
 
@@ -3165,15 +3181,21 @@ function pruneCables(ws) {
   ws.cables = ws.cables.filter(c => resolveEndpoint(ws, c.a) && resolveEndpoint(ws, c.b));
 }
 
-// Tracé d'un cordon (Béziers symétrique qui pendouille)
-function cablePath(p1, p2) {
+// Tracé d'un cordon souple. Le milieu peut être déplacé par l'utilisateur ;
+// sans réglage, le câble pend naturellement selon sa longueur et son dénivelé.
+function cablePath(p1, p2, cable = null) {
   const dx = Math.abs(p2.x - p1.x);
   const sag = Math.min(150, Math.max(18, dx * 0.22 + Math.abs(p2.y - p1.y) * 0.2));
-  const c1 = { x: p1.x, y: p1.y + sag };
-  const c2 = { x: p2.x, y: p2.y + sag };
+  const control = {
+    x: (p1.x + p2.x) / 2 + (cable?.bendX || 0),
+    y: (p1.y + p2.y) / 2 + sag + (cable?.bendY || 0)
+  };
+  // Conversion d'une courbe quadratique (un point manipulable) en Bézier cubique.
+  const c1 = { x: p1.x + (control.x - p1.x) * 2 / 3, y: p1.y + (control.y - p1.y) * 2 / 3 };
+  const c2 = { x: p2.x + (control.x - p2.x) * 2 / 3, y: p2.y + (control.y - p2.y) * 2 / 3 };
   return {
     d: `M ${p1.x} ${p1.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${p2.x} ${p2.y}`,
-    mid: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 + sag * 0.75 }
+    mid: control
   };
 }
 
@@ -3193,17 +3215,29 @@ function renderCables() {
   const svgNS = 'http://www.w3.org/2000/svg';
 
   ws.cables.forEach(cable => {
+    if (!cableMatchesFilter(ws, cable)) return;
     const ea = resolveEndpoint(ws, cable.a);
     const eb = resolveEndpoint(ws, cable.b);
     if (!ea || !eb) return;
     const p1 = portBoardPosition(ws, ea.rack, ea.inst, ea.port);
     const p2 = portBoardPosition(ws, eb.rack, eb.inst, eb.port);
     if (!p1 || !p2) return;
-    const { d } = cablePath(p1, p2);
+    const { d } = cablePath(p1, p2, cable);
 
     const g = document.createElementNS(svgNS, 'g');
     g.classList.add('cable');
+    g.dataset.cableId = cable.id;
     g.style.setProperty('--cable-color', cable.color);
+    // Le câble survolé passe en dernier dans le SVG : il est donc peint au-dessus.
+    g.addEventListener('pointerenter', () => {
+      svg.appendChild(g);
+      svg.classList.add('cable-hovering');
+      g.classList.add('hovered');
+    });
+    g.addEventListener('pointerleave', () => {
+      svg.classList.remove('cable-hovering');
+      g.classList.remove('hovered');
+    });
 
     const shadow = document.createElementNS(svgNS, 'path');
     shadow.setAttribute('class', 'cable-shadow');
@@ -3231,8 +3265,40 @@ function renderCables() {
     g.appendChild(jacket);
     g.appendChild(hit);
     hit.addEventListener('pointerdown', e => {
+      e.preventDefault();
       e.stopPropagation();
-      openCablePopover(cable, e.clientX, e.clientY);
+      hit.setPointerCapture(e.pointerId);
+      const start = clientToBoard(e.clientX, e.clientY);
+      const bx = cable.bendX || 0, by = cable.bendY || 0;
+      let moved = false;
+
+      const move = ev => {
+        const p = clientToBoard(ev.clientX, ev.clientY);
+        if (!moved && Math.hypot(p.x - start.x, p.y - start.y) < 4 / view.scale) return;
+        if (!moved) { pushHistory(); moved = true; g.classList.add('dragging'); }
+        cable.bendX = bx + p.x - start.x;
+        cable.bendY = by + p.y - start.y;
+        const liveD = cablePath(p1, p2, cable).d;
+        shadow.setAttribute('d', liveD);
+        jacket.setAttribute('d', liveD);
+        hit.setAttribute('d', liveD);
+      };
+      const up = ev => {
+        hit.removeEventListener('pointermove', move);
+        hit.removeEventListener('pointerup', up);
+        hit.removeEventListener('pointercancel', up);
+        g.classList.remove('dragging');
+        if (moved) {
+          touchWorkspace(ws);
+          saveState();
+          renderCableList();
+        } else {
+          openCablePopover(cable, ev.clientX, ev.clientY);
+        }
+      };
+      hit.addEventListener('pointermove', move);
+      hit.addEventListener('pointerup', up);
+      hit.addEventListener('pointercancel', up);
     });
     svg.appendChild(g);
   });
@@ -3424,12 +3490,15 @@ function renderCableList() {
   const count = $('#cable-count');
   if (!list) return;
   const ws = active();
-  const cables = ws?.cables || [];
-  count.textContent = cables.length;
+  const allCables = ws?.cables || [];
+  const cables = allCables.filter(c => cableMatchesFilter(ws, c));
+  count.textContent = cables.length === allCables.length ? String(allCables.length) : `${cables.length}/${allCables.length}`;
   list.innerHTML = '';
 
   if (!cables.length) {
-    list.innerHTML = `<div class="cp-empty">Aucun câble.<br>Cliquez deux ports pour les relier.</div>`;
+    list.innerHTML = allCables.length
+      ? `<div class="cp-empty">Aucun câble ne correspond aux filtres.</div>`
+      : `<div class="cp-empty">Aucun câble.<br>Cliquez deux ports pour les relier.</div>`;
     return;
   }
 
@@ -3493,14 +3562,35 @@ function focusOnCable(cable) {
   applyView();
   renderBoard();
   requestAnimationFrame(() => {
-    const g = [...board.querySelectorAll('#cable-svg g.cable')].find(el => {
-      const hit = el.querySelector('.cable-hit');
-      return hit && cablePath(p1, p2).d === hit.getAttribute('d');
-    });
+    const g = board.querySelector(`#cable-svg g.cable[data-cable-id="${cable.id}"]`);
     g?.classList.add('selected');
     setTimeout(() => g?.classList.remove('selected'), 2000);
   });
 }
+
+// Filtres visuels : ils n'altèrent pas les données et s'appliquent au board
+// comme à la liste des connexions.
+const cableColorFilterEl = $('#cable-filter-color');
+cableColorFilterEl.innerHTML = '<option value="all">Toutes les couleurs</option>' +
+  CABLE_COLORS.map(c => `<option value="${c.hex}">${c.name}</option>`).join('');
+$('#cable-filter-device').addEventListener('input', e => {
+  cableFilterDevice = e.target.value;
+  renderCables();
+  renderCableList();
+});
+cableColorFilterEl.addEventListener('change', e => {
+  cableFilterColor = e.target.value;
+  renderCables();
+  renderCableList();
+});
+$('#cable-filter-reset').addEventListener('click', () => {
+  cableFilterDevice = '';
+  cableFilterColor = 'all';
+  $('#cable-filter-device').value = '';
+  cableColorFilterEl.value = 'all';
+  renderCables();
+  renderCableList();
+});
 
 $('#cable-panel-clear').addEventListener('click', () => {
   const ws = active();
@@ -4561,7 +4651,7 @@ async function renderPlanCanvas() {
     const ap = exportPortPos(ea, minX, minY);
     const bp = exportPortPos(eb, minX, minY);
     if (!ap || !bp) continue;
-    const { d } = cablePath(ap, bp);
+    const { d } = cablePath(ap, bp, cable);
 
     // ombre portée
     ctx.strokeStyle = 'rgba(0,0,0,.28)';
@@ -5429,18 +5519,6 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   });
   y -= 12;
 
-  // Gouvernance documentaire : les deux tableaux figurent directement sur
-  // la page de garde, même lorsqu'aucune personne n'est encore renseignée.
-  const signatoryTable = (title, rows) => {
-    txt(M, y, title, 11.5, true, [0.12, 0.31, 0.47]);
-    y -= 8;
-    const data = [['Nom', 'Position', 'Organisation', 'Version approuvée']];
-    rows.forEach(r => data.push([r.name, r.position, r.organization, r.approvedVersion]));
-    drawTable(data, [2.2, 2.2, 2.7, 1.9], 7.5);
-  };
-  signatoryTable('Approbateurs', L.approvers);
-  signatoryTable('Réviseurs', L.reviewers);
-
   const totU = ws.racks.reduce((s, r) => s + r.sizeU, 0);
   const usedU = ws.racks.reduce((s, r) => s + r.instances.reduce((a, i) => a + i.sizeU, 0), 0);
   const totW = ws.racks.reduce((s, r) => s + r.instances.reduce((a, i) => a + (i.watts || 0), 0), 0);
@@ -5473,6 +5551,19 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     L.revs.forEach(r => revRows.push([r.rev, r.date, r.author, r.note]));
     drawTable(revRows, [0.8, 1.6, 2.4, 5.2], 8);
   }
+
+  // Gouvernance documentaire, placée après l'historique des révisions.
+  const signatoryTable = (title, rows) => {
+    if (y < M + 55) newPage();
+    txt(M, y, title, 11.5, true, [0.12, 0.31, 0.47]);
+    y -= 8;
+    const data = [['Nom', 'Position', 'Organisation', 'Version approuvée']];
+    rows.forEach(r => data.push([r.name, r.position, r.organization, r.approvedVersion]));
+    drawTable(data, [2.2, 2.2, 2.7, 1.9], 7.5);
+  };
+  signatoryTable('Approbateurs', L.approvers);
+  signatoryTable('Réviseurs', L.reviewers);
+
   y = Math.min(y, M + 24);
   txt(M, y, 'G\u00e9n\u00e9r\u00e9 par LLDraw', 9, false, [0.6, 0.65, 0.72]);
 
@@ -5690,6 +5781,37 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     const iw = planW * k, ih = planH * k;
     const ix = M + (availW - iw) / 2, iy = y - ih;
     cur.push(`q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${ix.toFixed(2)} ${iy.toFixed(2)} cm /Im0 Do Q`);
+  }
+
+  // Toute fin du dossier : détail du câblage pour chaque device posé.
+  const placedDevices = sortedRackInstances(ws);
+  if (placedDevices.length) {
+    newPage();
+    txt(M, y - 13, 'Détail des connexions par device', 15, true, [0.12, 0.31, 0.47]);
+    hline(M, PW - M, y - 21);
+    y -= 33;
+    placedDevices.forEach(({ rack, inst }) => {
+      miniTitle(`${inst.name} — ${rack.name}${siteName(ws, rack) ? ` — ${siteName(ws, rack)}` : ''}`);
+      const rows = [['Câble', 'Port local', 'Origine', 'Destination', 'Domaine']];
+      (ws.cables || []).forEach(c => {
+        const isA = c.a?.instId === inst.id;
+        const isB = c.b?.instId === inst.id;
+        if (!isA && !isB) return;
+        const ea = resolveEndpoint(ws, c.a);
+        const eb = resolveEndpoint(ws, c.b);
+        if (!ea || !eb) return;
+        const endpointText = e => `${e.inst.name} / ${e.port.name} (${e.rack.name})`;
+        rows.push([
+          c.name || '',
+          isA ? ea.port.name : eb.port.name,
+          endpointText(ea),
+          endpointText(eb),
+          cableDomainLabel(c.domain)
+        ]);
+      });
+      if (rows.length > 1) drawTable(rows, [1.2, 1.4, 2.8, 2.8, 1.5], 7.5);
+      else note('Aucun câble branché sur ce device.');
+    });
   }
 
   // ================= Sommaire (inséré en page 2, après la garde) =================

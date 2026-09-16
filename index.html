@@ -10,7 +10,7 @@
   <link rel="shortcut icon" href="assets/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#3b82f6">
-  <link rel="stylesheet" href="styles.css?v=52">
+  <link rel="stylesheet" href="styles.css?v=53">
 </head>
 <body>
   <header class="topbar">
@@ -144,7 +144,12 @@
           <h3>🔌 Connexions <span id="cable-count" class="cp-count">0</span></h3>
           <button id="cable-panel-clear" class="cp-clear" title="Supprimer tous les câbles du workspace">Tout retirer</button>
         </div>
-        <p class="cp-hint">Cliquez un port, puis un autre port pour les relier.</p>
+        <p class="cp-hint">Cliquez un port, puis un autre port pour les relier. Faites glisser un câble pour modifier sa courbure.</p>
+        <div class="cp-filters">
+          <input id="cable-filter-device" type="search" placeholder="Filtrer par device…" aria-label="Filtrer les câbles par nom de device">
+          <select id="cable-filter-color" aria-label="Filtrer les câbles par couleur"></select>
+          <button id="cable-filter-reset" type="button" title="Effacer les filtres">✕</button>
+        </div>
         <div id="cable-list" class="cable-list"></div>
       </div>
 
@@ -385,6 +390,10 @@
             placeholder="Ex : Architecture deux sites interconnectés en IPsec via Internet, pare-feu en chaque site…"></textarea>
         </label>
 
+        <div class="d-inv-title">Historique des révisions</div>
+        <div class="lld-table" id="lld-revs"></div>
+        <button id="lld-add-rev" class="btn btn-ghost btn-sm">＋ Ajouter une révision</button>
+
         <div class="d-inv-title">Approbateurs</div>
         <div class="lld-table" id="lld-approvers"></div>
         <button id="lld-add-approver" class="btn btn-ghost btn-sm">＋ Ajouter un approbateur</button>
@@ -392,10 +401,6 @@
         <div class="d-inv-title">Réviseurs</div>
         <div class="lld-table" id="lld-reviewers"></div>
         <button id="lld-add-reviewer" class="btn btn-ghost btn-sm">＋ Ajouter un réviseur</button>
-
-        <div class="d-inv-title">Historique des révisions</div>
-        <div class="lld-table" id="lld-revs"></div>
-        <button id="lld-add-rev" class="btn btn-ghost btn-sm">＋ Ajouter une révision</button>
       </div>
 
       <!-- Onglet Réseau -->
@@ -640,6 +645,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=53"></script>
+  <script src="app.js?v=54"></script>
 </body>
 </html>
