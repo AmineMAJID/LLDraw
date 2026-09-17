@@ -2185,9 +2185,9 @@ body.topo-linking .topo-node { cursor: crosshair; }
   gap: 10px;
   background: var(--panel);
 }
-.ai-msg { display: flex; }
-.ai-msg-user { justify-content: flex-end; }
-.ai-msg-sys { justify-content: flex-start; opacity: .85; }
+.ai-msg { display: flex; flex-direction: column; align-items: flex-start; }
+.ai-msg-user { align-items: flex-end; }
+.ai-msg-sys { align-items: flex-start; opacity: .85; }
 .ai-bubble {
   max-width: 92%;
   padding: 9px 12px;
@@ -2255,6 +2255,7 @@ body.topo-linking .topo-node { cursor: crosshair; }
 /* Carte d'approbation des opérations proposées */
 .ai-ops {
   margin-top: 8px;
+  width: 100%;
   max-width: 92%;
   border: 1px solid rgba(37,99,235,.35);
   border-radius: 12px;
@@ -2270,7 +2271,7 @@ body.topo-linking .topo-node { cursor: crosshair; }
 }
 .ai-ops-head.ai-ops-done { background: rgba(22,163,74,.12); border-color: rgba(22,163,74,.3); }
 .ai-ops-head.ai-ops-rejected { background: rgba(107,114,128,.12); border-color: var(--border); color: var(--muted); }
-.ai-ops-list { max-height: 260px; overflow-y: auto; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; }
+.ai-ops-list { max-height: 260px; overflow-y: auto; overflow-x: hidden; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; }
 .ai-op-row {
   display: flex;
   align-items: baseline;
@@ -2283,8 +2284,8 @@ body.topo-linking .topo-node { cursor: crosshair; }
 }
 .ai-op-row:hover { background: rgba(37,99,235,.07); }
 .ai-op-row input { accent-color: var(--accent); flex: 0 0 auto; }
-.ai-op-desc { flex: 1 1 200px; }
-.ai-op-err { flex: 1 1 100%; color: var(--red); font-size: 11.5px; margin-left: 24px; }
+.ai-op-desc { flex: 1 1 200px; word-break: break-word; }
+.ai-op-err { flex: 1 1 100%; color: var(--red); font-size: 11.5px; margin-left: 24px; word-break: break-word; }
 .ai-op-bad { opacity: .85; }
 .ai-op-applied .ai-op-desc { color: var(--green); }
 .ai-ops-actions { display: flex; gap: 8px; padding: 8px 10px; border-top: 1px solid rgba(37,99,235,.15); }

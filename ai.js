@@ -75,9 +75,20 @@ function defaultSettings() {
     model: 'gpt-4o-mini',
     apiKey: '',
     route: 'auto',          // 'auto' | 'direct' | 'server'
-    agentEnabled: true      // l'IA peut PROPOSER des modifications (approbation requise)
+    agentEnabled: true,     // l'IA peut PROPOSER des modifications (approbation requise)
+    patience: 'normale'     // 'normale' | 'longue' | 'treslongue'
   };
 }
+
+// Délais réseau selon le profil : les modèles « reasoning » (o3, GLM
+// thinking, DeepSeek-R1…) réfléchissent longtemps avant d'émettre le
+// moindre octet — leur couper la parole à 30 s serait une erreur.
+const AI_PATIENCE = {
+  normale:    { first: 30000,  idle: 60000  },
+  longue:     { first: 120000, idle: 120000 },
+  treslongue: { first: 300000, idle: 180000 }
+};
+const aiPatience = () => AI_PATIENCE[aiSettings.patience] || AI_PATIENCE.normale;
 
 let aiSettings = defaultSettings();
 try {
@@ -456,14 +467,14 @@ async function consumeResponse(resp, fam, onDelta, signal) {
   const dec = new TextDecoder();
   let buf = '';
   let gotAny = false;
-  const FIRST_MS = 30000, IDLE_MS = 60000;
+  const { first: FIRST_MS, idle: IDLE_MS } = aiPatience();
   let timer = null, rejectIdle = null, first = true;
   const idlePromise = new Promise((res, rej) => { rejectIdle = rej; });
   const kick = () => {
     clearTimeout(timer);
     timer = setTimeout(() => rejectIdle(new Error(
-      first ? "Le fournisseur n'a pas commencé à répondre (30 s). Vérifiez le nom du modèle, l'endpoint et la route dans les réglages 🤖."
-            : "Le fournisseur ne répond plus (60 s sans données). Vérifiez le modèle/endpoint dans les réglages 🤖.")),
+      first ? `Le fournisseur n'a pas commencé à répondre (${Math.round(FIRST_MS / 1000)} s). Pour un modèle « reasoning », augmentez la Patience dans les réglages 🤖 ; sinon vérifiez modèle, endpoint et route.`
+            : `Le fournisseur ne répond plus (${Math.round(IDLE_MS / 1000)} s sans données). Pour un modèle « reasoning », augmentez la Patience dans les réglages 🤖.`)),
       first ? FIRST_MS : IDLE_MS);
   };
   const handleEvent = raw => {
@@ -537,7 +548,7 @@ async function aiStream(sysText, history, onDelta, signal) {
     if (!got) throw new Error('Réponse vide du fournisseur (flux SSE ouvert mais sans contenu).');
   } catch (e) {
     if (e && e.name === 'AbortError') throw e;
-    const retryable = /30 s|60 s|Réponse vide|HTTP 5\d\d|HTTP 429|ne répond/i.test(String(e.message || e));
+    const retryable = /pas commencé à répondre|ne répond plus|Réponse vide|HTTP 5\d\d|HTTP 429/i.test(String(e.message || e));
     if (!retryable) throw e;
     // Le flux SSE reste muet chez certains fournisseurs (certains edges
     // NVIDIA ne répondent qu'en mode non streamé, par ex.) : on retente
@@ -547,11 +558,12 @@ async function aiStream(sysText, history, onDelta, signal) {
     let delayed = false;
     const onOuter = () => ctl.abort();
     if (signal) { if (signal.aborted) ctl.abort(); else signal.addEventListener('abort', onOuter); }
-    const t = setTimeout(() => { delayed = true; ctl.abort(); }, 75000);
+    const capMs = Math.min(300000, aiPatience().idle + 30000);
+    const t = setTimeout(() => { delayed = true; ctl.abort(); }, capMs);
     try {
       got = await attempt(false, ctl.signal);
     } catch (e2) {
-      if (delayed && e2.name === 'AbortError') throw new Error("Le fournisseur ne répond ni en streaming ni sans streaming (75 s). Vérifiez modèle, endpoint et clé — ou réessayez plus tard.");
+      if (delayed && e2.name === 'AbortError') throw new Error(`Le fournisseur ne répond ni en streaming ni sans streaming (${Math.round(capMs / 1000)} s). Vérifiez modèle, endpoint et clé — ou réessayez plus tard.`);
       if (e2.name === 'AbortError' && signal && signal.aborted) throw e2;
       throw e2;
     } finally {
@@ -957,8 +969,40 @@ function dryRunOps(ops) {
     let r;
     try { r = applyOp(op, env); }
     catch (e) { r = fail(String(e && e.message || e)); }
-    return { idx, op, ok: !!r.ok, error: r.error || '', desc: r.desc || `${op.op}`, checked: !!r.ok };
+    return { idx, op, ok: !!r.ok, error: r.error || '', desc: r.desc || opFallbackDesc(op), checked: !!r.ok };
   });
+}
+
+// Description lisible MÊME quand l'opération est invalide (ids inconnus…) :
+// l'utilisateur comprend ce que l'IA voulait faire, en plus du motif ⛔.
+function opFallbackDesc(op) {
+  const s = (k, n) => String(op[k] ?? '').slice(0, n || 40);
+  const M = {
+    create_rack:        () => `🗄️ Créer le rack « ${s('name')} » (${s('sizeU')}U)`,
+    rename_rack:        () => `✏️ Renommer le rack « ${s('rackId')} » en « ${s('name')} »`,
+    resize_rack:        () => `↕️ Redimensionner le rack « ${s('rackId')} » en ${s('sizeU')}U`,
+    set_rack_budget:    () => `⚡ Budget du rack « ${s('rackId')} » (${s('maxWatts')} W / ${s('maxKg')} kg)`,
+    set_rack_site:      () => `🏢 Rattacher le rack « ${s('rackId')} » au site « ${s('siteId') || '—'} »`,
+    create_device_model:() => `📦 Créer le modèle « ${s('name')} » (${s('sizeU')}U${op.portsCount ? ', ' + op.portsCount + ' ports' : ''})`,
+    add_device:         () => `➕ Placer « ${s('deviceId')} » dans le rack « ${s('rackId')} », étage ${s('slot')}`,
+    move_device:        () => `↔️ Déplacer « ${s('instId')} »${op.rackId ? ` vers « ${s('rackId')} »` : ''}, étage ${s('slot')}`,
+    update_device:      () => `📝 Modifier la fiche de « ${s('instId')} »`,
+    remove_device:      () => `🗑️ Retirer « ${s('instId')} »`,
+    set_port:           () => `🔌 Port « ${s('portId')} » de « ${s('instId')} »`,
+    add_cable:          () => `🔗 Câbler « ${s('aInstId')} »·${s('aPortId')} ⇄ « ${s('bInstId')} »·${s('bPortId')}`,
+    remove_cable:       () => `✂️ Retirer le cordon « ${s('cableId')} »`,
+    add_flow:           () => `🔄 Ajouter le flux « ${s('name') || s('src') + ' → ' + s('dst')} »`,
+    remove_flow:        () => `🗑️ Retirer le flux « ${s('flowId')} »`,
+    fill_lld:           () => `📘 Rédiger la section LLD « ${s('field')} »`,
+    add_site:           () => `🏢 Ajouter le site « ${s('name')} »`,
+    update_site:        () => `🏢 Modifier le site « ${s('siteId')} »`,
+    remove_site:        () => `🗑️ Supprimer le site « ${s('siteId')} »`,
+    add_vlan:           () => `🏷️ Ajouter le VLAN ${s('vid')}`,
+    remove_vlan:        () => `🗑️ Retirer le VLAN ${s('vid')}`,
+    rename_workspace:   () => `📁 Renommer le workspace en « ${s('name')} »`
+  };
+  const f = M[op.op];
+  return f ? f() : `⚙️ ${op.op}`;
 }
 
 function applyApprovedOps(ops) {
@@ -1078,6 +1122,16 @@ document.body.insertAdjacentHTML('beforeend', `
         <small class="ai-hint">La clé reste dans ce navigateur (localStorage). La route « Serveur » évite les problèmes CORS et permet d'utiliser la clé du serveur (variable d'environnement <code>LLDRAW_AI_KEY</code>) si le champ clé est vide. Certains fournisseurs (NVIDIA NIM, API d'entreprise…) <strong>refusent les appels directs depuis un navigateur</strong> (CORS) : pour eux, utilisez « Serveur » ou « Auto ». L'endpoint « base » (ex. <code>…/v1</code>) est complété automatiquement en <code>…/v1/chat/completions</code>.</small>
       </label>
 
+      <label class="ai-field">
+        <span>Patience réseau (modèles lents / à raisonnement)</span>
+        <select id="ai-patience">
+          <option value="normale">Normale — 1ʳ octet 30 s, silence max 60 s</option>
+          <option value="longue">Longue — 2 min / 2 min (modèles à raisonnement)</option>
+          <option value="treslongue">Très longue — 5 min / 3 min</option>
+        </select>
+        <small class="ai-hint">Les modèles « reasoning » (o3, GLM thinking, DeepSeek-R1…) réfléchissent longtemps avant le premier octet : si vos réponses coupent en pleine réflexion, augmentez la patience.</small>
+      </label>
+
       <label class="ai-check">
         <input id="ai-agent" type="checkbox">
         <span>Mode agent — l'IA peut <strong>proposer</strong> des modifications du plan (toujours soumises à votre approbation, annulables avec Ctrl+Z)</span>
@@ -1163,6 +1217,7 @@ const inpEndpoint = document.getElementById('ai-endpoint');
 const inpModel    = document.getElementById('ai-model');
 const inpKey      = document.getElementById('ai-key');
 const selRoute    = document.getElementById('ai-route');
+const selPatience = document.getElementById('ai-patience');
 const chkAgent    = document.getElementById('ai-agent');
 const modelList   = document.getElementById('ai-model-list');
 
@@ -1177,6 +1232,7 @@ function loadSettingsForm() {
   inpModel.value = aiSettings.model || '';
   inpKey.value = aiSettings.apiKey || '';
   selRoute.value = aiSettings.route || 'auto';
+  selPatience.value = aiSettings.patience || 'normale';
   chkAgent.checked = aiSettings.agentEnabled !== false;
   fillModelList();
 }
@@ -1187,6 +1243,7 @@ function readSettingsForm() {
   aiSettings.model = inpModel.value.trim();
   aiSettings.apiKey = inpKey.value.trim();
   aiSettings.route = selRoute.value;
+  aiSettings.patience = selPatience.value;
   aiSettings.agentEnabled = chkAgent.checked;
   saveSettings();
   updateAiHeader();
@@ -1201,7 +1258,7 @@ selProvider.addEventListener('change', () => {
   fillModelList();
   readSettingsForm();
 });
-[inpEndpoint, inpModel, inpKey, selRoute].forEach(el => el.addEventListener('change', readSettingsForm));
+[inpEndpoint, inpModel, inpKey, selRoute, selPatience].forEach(el => el.addEventListener('change', readSettingsForm));
 [inpEndpoint, inpModel, inpKey].forEach(el => el.addEventListener('input', () => {
   // sauvegarde différée simple pendant la frappe
   clearTimeout(el._t); el._t = setTimeout(readSettingsForm, 400);
@@ -1232,11 +1289,12 @@ document.getElementById('ai-test').addEventListener('click', async () => {
   readSettingsForm();
   const res = document.getElementById('ai-test-result');
   const btn = document.getElementById('ai-test');
-  res.textContent = '⏳ test en cours… (45 s max)';
+  const capS = Math.round(aiPatience().first / 1000) + 15;
+  res.textContent = `⏳ test en cours… (${capS} s max)`;
   res.className = 'ai-test-result';
   btn.disabled = true;
   const ctl = new AbortController();
-  const to = setTimeout(() => ctl.abort(), 45000);   // plafond dur pour le test
+  const to = setTimeout(() => ctl.abort(), capS * 1000);   // plafond dur pour le test
   const t0 = performance.now();
   try {
     let got = '';
@@ -1246,7 +1304,7 @@ document.getElementById('ai-test').addEventListener('click', async () => {
     res.classList.add('ok');
   } catch (e) {
     res.textContent = '❌ ' + (e && e.name === 'AbortError'
-      ? 'Délai de 45 s dépassé sans réponse complète : vérifiez endpoint, modèle et route.'
+      ? `Délai de ${capS} s dépassé sans réponse complète : pour un modèle « reasoning », passez la Patience sur Longue/Très longue ; sinon vérifiez endpoint, modèle et route.`
       : ((e && e.message) || e));
     res.classList.add('ko');
   } finally {

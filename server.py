@@ -232,10 +232,11 @@ class Handler(SimpleHTTPRequestHandler):
             headers=_ai_upstream_headers(provider, api_key)
         )
         try:
-            # 65 s max par lecture réseau : aligné sur le timeout « idle » du
-            # client (60 s) — un fournisseur muet ne garde pas la connexion
-            # ouverte indéfiniment.
-            resp = _ai_opener.open(upstream, timeout=65)
+            # 300 s max par lecture réseau : les modèles « reasoning » peuvent
+            # réfléchir plusieurs minutes avant le premier octet. C'est le
+            # client qui gouverne l'attente visible (réglage « Patience ») ;
+            # ce plafond ne sert qu'à éviter un thread zombie infini.
+            resp = _ai_opener.open(upstream, timeout=300)
         except urllib.error.HTTPError as e:
             detail = ""
             try:
