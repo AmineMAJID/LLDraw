@@ -1269,7 +1269,7 @@ function renderRack(rack) {
     </select>
     <span class="rack-metrics"></span>
     <span class="rack-vents"></span>
-    <button class="mini-del" title="Supprimer le rack">✕</button>`;
+    <button class="mini-del rack-del" title="Supprimer le rack" aria-label="Supprimer le rack">🗑</button>`;
   el.appendChild(header);
 
   const titleEl = header.querySelector('.rack-title');
@@ -1423,8 +1423,11 @@ function renderRack(rack) {
     header.addEventListener('pointerup', onUp);
   });
 
-  header.querySelector('.mini-del').addEventListener('click', () => {
-    if (confirm(`Supprimer le rack « ${rack.name} » et tous les devices qu'il contient ?`)) {
+  header.querySelector('.rack-del').addEventListener('click', async () => {
+    const ok = await lldConfirm(
+      `Supprimer le rack « ${rack.name} » et tous les devices qu'il contient ?\nCette action est annulable avec Ctrl+Z.`,
+      { title: '🗑 Supprimer le rack', okLabel: 'Supprimer' });
+    if (ok) {
       pushHistory();
       const ws = active();
       ws.racks = ws.racks.filter(r => r.id !== rack.id);
@@ -3008,6 +3011,45 @@ function hideHome() {
   homeScreen.classList.add('hidden');
 }
 
+/* ---- Boîtes de dialogue maison (remplacent alert/confirm/prompt natifs) ----
+   Même langue visuelle que le reste du site : carte blanche, boutons bleus /
+   rouges, fond assombri. Renvoie une Promesse : true/false (confirm),
+   la saisie ou null (prompt). */
+function lldDialog(opts) {
+  const o = Object.assign({ title: '', message: '', input: null, okLabel: 'OK', cancelLabel: 'Annuler', danger: false }, opts);
+  return new Promise(resolve => {
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const ov = document.createElement('div');
+    ov.className = 'lld-dlg-overlay';
+    ov.innerHTML = `
+      <div class="lld-dlg" role="dialog" aria-modal="true">
+        ${o.title ? `<h3>${esc(o.title)}</h3>` : ''}
+        ${o.message ? `<p class="lld-dlg-msg">${esc(o.message).replace(/\n/g, '<br>')}</p>` : ''}
+        ${o.input !== null ? `<input class="lld-dlg-input" type="text" spellcheck="false" value="${esc(o.input)}">` : ''}
+        <div class="lld-dlg-btns">
+          <button class="btn lld-dlg-cancel" type="button">${esc(o.cancelLabel)}</button>
+          <button class="btn ${o.danger ? 'lld-dlg-danger' : 'lld-dlg-ok'}" type="button">${esc(o.okLabel)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const inp = ov.querySelector('.lld-dlg-input');
+    const okBtn = ov.querySelector('.lld-dlg-btns .btn:last-child');
+    let closed = false;
+    const done = val => { if (closed) return; closed = true; ov.remove(); resolve(val); };
+    ov.querySelector('.lld-dlg-cancel').addEventListener('click', () => done(o.input !== null ? null : false));
+    okBtn.addEventListener('click', () => done(o.input !== null ? inp.value : true));
+    ov.addEventListener('mousedown', e => { if (e.target === ov) done(o.input !== null ? null : false); });
+    ov.addEventListener('keydown', e => {
+      if (e.key === 'Escape') done(o.input !== null ? null : false);
+      if (e.key === 'Enter' && inp) done(inp.value);
+    });
+    (inp || okBtn).focus();
+    if (inp) inp.select();
+  });
+}
+const lldConfirm = (message, opts) => lldDialog(Object.assign({ message, okLabel: 'Confirmer', cancelLabel: 'Annuler', danger: true }, opts));
+const lldPrompt  = (message, value, opts) => lldDialog(Object.assign({ message, input: value ?? '', okLabel: 'Créer' }, opts));
+
 // Notifie l'assistant IA (ai.js) que le workspace courant a changé :
 // il recharge la conversation propre à ce workspace (une par workspace).
 function notifyWorkspaceChanged() {
@@ -3102,8 +3144,9 @@ function openWorkspace(id) {
   notifyWorkspaceChanged();
 }
 
-function createWorkspace() {
-  const name = prompt('Nom du nouveau workspace :', 'Workspace ' + (state.workspaces.length + 1));
+async function createWorkspace() {
+  const name = await lldPrompt('Nom du nouveau workspace :', 'Workspace ' + (state.workspaces.length + 1),
+    { title: '🏢 Nouveau workspace', okLabel: 'Créer' });
   if (name === null) return;
   const trimmed = name.trim();
   if (!trimmed) return;
@@ -3114,14 +3157,16 @@ function createWorkspace() {
   openWorkspace(ws.id);
 }
 
-function deleteWorkspace(id) {
+async function deleteWorkspace(id) {
   const ws = state.workspaces.find(w => w.id === id);
   if (!ws) return;
   const nbDevices = ws.racks.reduce((n, r) => n + r.instances.length, 0);
-  if (!confirm(
+  const ok = await lldConfirm(
     `Supprimer définitivement le workspace « ${ws.name} » ?\n\n` +
     `Il contient ${ws.racks.length} rack(s) et ${nbDevices} device(s) placé(s).\n\n` +
-    `La bibliothèque de devices (partagée) est conservée. Cette action est annulable avec Ctrl+Z.`)) return;
+    `La bibliothèque de devices (partagée) est conservée. Cette action est annulable avec Ctrl+Z.`,
+    { title: '🗑 Supprimer le workspace', okLabel: 'Supprimer' });
+  if (!ok) return;
 
   pushHistory();
   state.workspaces = state.workspaces.filter(w => w.id !== id);
