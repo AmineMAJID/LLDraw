@@ -461,6 +461,18 @@ async function aiStream(sysText, history, onDelta, signal) {
   const reader = resp.body.getReader();
   const dec = new TextDecoder();
   let buf = '';
+  let gotAny = false;
+  // Garde-fou : un fournisseur muet (modèle invalide, connexion gardée
+  // ouverte…) ne doit plus bloquer l'interface pendant des minutes.
+  const AI_IDLE_MS = 60000;
+  let idleTimer = null;
+  let idleReject = null;
+  const idlePromise = new Promise((res, rej) => { idleReject = rej; });
+  const kickIdle = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => idleReject(new Error(
+      "Le fournisseur ne répond plus (60 s sans données). Vérifiez le nom du modèle, l'endpoint et la route dans les réglages 🤖.")), AI_IDLE_MS);
+  };
   const handleEvent = raw => {
     for (const line of raw.split('\n')) {
       if (!line.startsWith('data:')) continue;
@@ -469,26 +481,35 @@ async function aiStream(sysText, history, onDelta, signal) {
       let obj;
       try { obj = JSON.parse(payload); } catch (e) { continue; }
       if (fam === 'anthropic') {
-        if (obj.type === 'content_block_delta') onDelta(obj.delta?.text || '');
+        if (obj.type === 'content_block_delta') { gotAny = true; onDelta(obj.delta?.text || ''); }
         else if (obj.type === 'error') throw new Error(obj.error?.message || 'Erreur Anthropic');
       } else {
+        // Certains fournisseurs signalent les erreurs DANS le flux, avec un HTTP 200
+        if (obj.error) throw new Error(obj.error.message || JSON.stringify(obj.error).slice(0, 300));
         if (obj.ok === false) throw new Error(obj.error || 'Erreur du proxy serveur');
         const delta = obj.choices?.[0]?.delta?.content;
-        if (delta) onDelta(delta);
+        if (delta) { gotAny = true; onDelta(delta); }
       }
     }
   };
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n');
-    let idx;
-    while ((idx = buf.indexOf('\n\n')) >= 0) {
-      const raw = buf.slice(0, idx);
-      buf = buf.slice(idx + 2);
-      handleEvent(raw);
+  try {
+    kickIdle();
+    while (true) {
+      const { done, value } = await Promise.race([reader.read(), idlePromise]);
+      kickIdle();
+      if (done) break;
+      buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) >= 0) {
+        const raw = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        handleEvent(raw);
+      }
     }
+  } finally {
+    clearTimeout(idleTimer);
   }
+  if (!gotAny) throw new Error('Réponse vide du fournisseur : le modèle demandé existe-t-il ? (vérifiez son nom exact dans le catalogue du fournisseur)');
 }
 
 /* ================= Moteur d'opérations ================= */
@@ -931,6 +952,7 @@ function buildHistory() {
   for (let i = aiChat.length - 1; i >= 0; i--) {
     const m = aiChat[i];
     if (!m || (m.role !== 'user' && m.role !== 'assistant')) continue;
+    if (m.error || m.note) continue;   // tours échoués/interrompus : non rejoués au modèle
     budget -= (m.content || '').length;
     if (budget < 0 && out.length >= 4) break;
     out.unshift({ role: m.role, content: m.content });
@@ -1158,18 +1180,27 @@ document.addEventListener('keydown', e => {
 document.getElementById('ai-test').addEventListener('click', async () => {
   readSettingsForm();
   const res = document.getElementById('ai-test-result');
-  res.textContent = '⏳ test en cours…';
+  const btn = document.getElementById('ai-test');
+  res.textContent = '⏳ test en cours… (45 s max)';
   res.className = 'ai-test-result';
+  btn.disabled = true;
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), 45000);   // plafond dur pour le test
   const t0 = performance.now();
   try {
     let got = '';
-    await aiStream('Tu es un assistant de test. Réponds uniquement "pong".', [{ role: 'user', content: 'ping' }], d => { got += d; }, undefined);
+    await aiStream('Tu es un assistant de test. Réponds uniquement "pong".', [{ role: 'user', content: 'ping' }], d => { got += d; }, ctl.signal);
     const ms = Math.round(performance.now() - t0);
     res.textContent = `✅ Connexion OK (${ms} ms) — reçu : « ${got.trim().slice(0, 40) || '…'} » via ${pickRoute() === 'server' ? 'server.py' : 'appel direct'}`;
     res.classList.add('ok');
   } catch (e) {
-    res.textContent = '❌ ' + (e.message || e);
+    res.textContent = '❌ ' + (e && e.name === 'AbortError'
+      ? 'Délai de 45 s dépassé sans réponse complète : vérifiez endpoint, modèle et route.'
+      : ((e && e.message) || e));
     res.classList.add('ko');
+  } finally {
+    clearTimeout(to);
+    btn.disabled = false;
   }
 });
 
@@ -1200,6 +1231,9 @@ function renderMsg(m) {
     const bubble = document.createElement('div');
     bubble.className = 'ai-bubble';
     bubble.innerHTML = aiMarkdown(stripOpsBlocks(m.content));
+    if (m.note) bubble.insertAdjacentHTML('beforeend', `<div class="ai-warn">${aiEsc(m.note)}</div>`);
+    if (m.error) bubble.insertAdjacentHTML('beforeend',
+      `<div class="ai-warn">❌ ${aiEsc(m.error)}<br><small>Vérifiez la clé API, le modèle et la route dans les réglages 🤖.</small></div>`);
     wrap.appendChild(bubble);
     if (m.ops && m.ops.list && m.ops.list.length) wrap.appendChild(renderOpsCard(m));
   } else {
@@ -1289,10 +1323,21 @@ aiInput.addEventListener('keydown', e => {
 });
 // La zone de saisie grandit vers le haut avec le contenu ; la barre de
 // défilement n'apparaît qu'au-delà de ~5 lignes (hauteur plafonnée).
+// NB : box-sizing est border-box ici → il faut rajouter les bordures à
+// scrollHeight, sinon 2 px de débordement affichent une scrollbar permanente.
 const AI_INPUT_MAX_H = 122;
 function aiInputAutoGrow() {
+  if (!aiInput.value) {                 // vide : hauteur naturelle (1 ligne)
+    aiInput.style.height = '';
+    aiInput.style.overflowY = '';
+    return;
+  }
   aiInput.style.height = 'auto';
-  aiInput.style.height = Math.min(AI_INPUT_MAX_H, aiInput.scrollHeight) + 'px';
+  const border = aiInput.offsetHeight - aiInput.clientHeight;
+  const need = aiInput.scrollHeight + border;
+  const capped = need > AI_INPUT_MAX_H;
+  aiInput.style.height = Math.min(AI_INPUT_MAX_H, need) + 'px';
+  aiInput.style.overflowY = capped ? 'auto' : 'hidden';  // scroll SEULEMENT au plafond
 }
 aiInput.addEventListener('input', aiInputAutoGrow);
 aiSendBtn.addEventListener('click', aiSend);
@@ -1340,13 +1385,16 @@ async function aiSend() {
       if (!rafPending) { rafPending = true; requestAnimationFrame(paint); }
     }, aiAbort.signal);
   } catch (e) {
+    // L'erreur (ou l'interruption) est ENREGISTRÉE dans la conversation :
+    // elle survit au re-render (fermeture des réglages, reload…).
     bubble.classList.remove('ai-streaming');
     if (e.name === 'AbortError') {
-      bubble.innerHTML = aiMarkdown(stripOpsBlocks(full)) + '<div class="ai-warn">⏹ Interrompu.</div>';
-      if (full.trim()) { aiChat.push({ role: 'assistant', content: full }); persistChat(); }
+      aiChat.push({ role: 'assistant', content: full, note: '⏹ Interrompu.' });
     } else {
-      bubble.innerHTML = `<div class="ai-warn">❌ ${aiEsc((e && e.message) || e)}<br><small>Vérifiez la clé API, le modèle et la route dans les réglages 🤖.</small></div>`;
+      aiChat.push({ role: 'assistant', content: full, error: String((e && e.message) || e) });
     }
+    persistChat();
+    renderChat();
     finishTurn();
     return;
   }

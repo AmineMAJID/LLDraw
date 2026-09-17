@@ -221,7 +221,9 @@ class Handler(SimpleHTTPRequestHandler):
             headers=_ai_upstream_headers(provider, api_key)
         )
         try:
-            resp = _ai_opener.open(upstream, timeout=600)
+            # 120 s max par lecture réseau : un fournisseur muet ne doit pas
+            # garder la connexion ouverte indéfiniment (le client coupe à 60 s)
+            resp = _ai_opener.open(upstream, timeout=120)
         except urllib.error.HTTPError as e:
             detail = ""
             try:
