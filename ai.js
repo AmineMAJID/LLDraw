@@ -313,6 +313,8 @@ RÉFÉRENCE DES OPÉRATIONS (bloc \`\`\`${AI_FENCE}) :
 - update_device {instId, name?, cat?, zone?, ipMgmt?, vlan?, serial?, brand?, model?, partRef?, watts?, weightKg?, warranty?, warrantyEnd?}
 - remove_device {instId}                        (retire aussi ses cordons)
 - set_port {instId, portId, name?, label?, ip?, vlan?}
+- add_port {instId, name?, label?, ip?, vlan?}   (crée un port sur un device DÉJÀ placé ; nom par défaut = numéro suivant)
+- remove_port {instId, portId}                   (retire aussi les cordons branchés dessus)
 - add_cable {aInstId, aPortId, bInstId, bPortId, color?, domain?}
     → color = hex parmi #e11d48 #2563eb #eab308 #16a34a #7c3aed #f97316 #111827 ; domain ∈ ""|fai|interco|firewall|switching|server|storage|ids|cctv|pointage
 - remove_cable {cableId}
@@ -817,6 +819,35 @@ function applyOp(op, env) {
       return { ok: true, desc: `🔌 « ${found.inst.name} » port ${p.name} : ${changes.join(', ')}` };
     }
 
+    case 'add_port': {
+      const found = envInst(env, op.instId);
+      if (!found) return fail(`add_port : device « ${op.instId} » introuvable.`);
+      const inst = found.inst;
+      if (!Array.isArray(inst.ports)) inst.ports = [];
+      const name = asStr(op.name, 30).trim() || String(inst.ports.length + 1);
+      if (inst.ports.some(p => p.name === name)) return fail(`add_port : un port nommé « ${name} » existe déjà sur « ${inst.name} ».`);
+      pushHistorySafe(env);
+      const n = inst.ports.length;
+      inst.ports.push({
+        id: uid(),
+        xPct: Math.min(92, 6 + (n % 8) * 11), yPct: n < 8 ? 50 : 20,   // répartition propre sur le façade
+        name, label: asStr(op.label, 60), size: 1,
+        ip: asStr(op.ip, 45), vlan: asStr(op.vlan, 30)
+      });
+      return { ok: true, desc: `🔌 Port « ${name} » créé sur « ${inst.name} »${op.ip ? ' (IP ' + op.ip + ')' : ''}` };
+    }
+
+    case 'remove_port': {
+      const found = envInst(env, op.instId);
+      if (!found) return fail(`remove_port : device « ${op.instId} » introuvable.`);
+      const p = (found.inst.ports || []).find(x => x.id === op.portId);
+      if (!p) return fail(`remove_port : port « ${op.portId} » introuvable sur « ${found.inst.name} ».`);
+      pushHistorySafe(env);
+      found.inst.ports.splice(found.inst.ports.indexOf(p), 1);
+      pruneCables(ws);   // cordons branchés sur ce port
+      return { ok: true, desc: `🔌 Port « ${p.name} » retiré de « ${found.inst.name} » (cordons retirés)` };
+    }
+
     case 'add_cable': {
       const A = envInst(env, op.aInstId), B = envInst(env, op.bInstId);
       if (!A) return fail(`add_cable : device A « ${op.aInstId} » introuvable.`);
@@ -970,6 +1001,8 @@ function opFallbackDesc(op) {
     rename_rack:        () => `✏️ Renommer le rack « ${s('rackId')} » en « ${s('name')} »`,
     resize_rack:        () => `↕️ Redimensionner le rack « ${s('rackId')} » en ${s('sizeU')}U`,
     remove_rack:        () => `🗑️ Supprimer le rack « ${s('rackId')} » et tout son contenu`,
+    add_port:           () => `🔌 Créer le port « ${s('name')} » sur « ${s('instId')} »`,
+    remove_port:        () => `🔌 Retirer le port « ${s('portId')} » de « ${s('instId')} »`,
     set_rack_budget:    () => `⚡ Budget du rack « ${s('rackId')} » (${s('maxWatts')} W / ${s('maxKg')} kg)`,
     set_rack_site:      () => `🏢 Rattacher le rack « ${s('rackId')} » au site « ${s('siteId') || '—'} »`,
     create_device_model:() => `📦 Créer le modèle « ${s('name')} » (${s('sizeU')}U${op.portsCount ? ', ' + op.portsCount + ' ports' : ''})`,
