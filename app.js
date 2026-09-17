@@ -5351,10 +5351,113 @@ $('#export-csv-flux').addEventListener('click', () => {
   downloadCsv(rows, 'flux');
 });
 
-/* ---------- Générateur Excel .xlsx (OOXML minimal, sans dépendance) ----------
-   Un classeur = un ZIP contenant des fichiers XML, écrit à la main :
-   ZIP « store » (sans compression) + CRC32 + cellules en chaînes inline.
-   En-têtes en gras sur fond bleu, largeurs de colonnes auto, 1re ligne figée. */
+
+// ---------- Données complémentaires pour l'export Excel structuré du dossier LLD ----------
+function projectOverviewRows(ws) {
+  const L = normLldInfo(ws || {});
+  const totU = ws.racks.reduce((s, r) => s + r.sizeU, 0);
+  const usedU = ws.racks.reduce((s, r) => s + r.instances.reduce((a, i) => a + i.sizeU, 0), 0);
+  const totW = ws.racks.reduce((s, r) => s + r.instances.reduce((a, i) => a + (i.watts || 0), 0), 0);
+  const totKg = ws.racks.reduce((s, r) => s + r.instances.reduce((a, i) => a + (i.weightKg || 0), 0), 0);
+  const totPorts = ws.racks.reduce((s, r) => s + r.instances.reduce((a, i) => a + (i.ports || []).length, 0), 0);
+  const wsm = warrantySummary(ws);
+
+  return [
+    ['Paramètre / Section', 'Valeur', 'Détails / Précisions'],
+    ['Nom du Workspace / Projet', ws.name || '', 'Titre du dossier technique'],
+    ['Organisation / Client', L.client || '', 'Bénéficiaire'],
+    ['Auteur / Rédacteur', L.author || '', 'Responsable de la conception'],
+    ['Version du dossier', L.version || '', 'Indice de révision actuel'],
+    ['Date de génération', new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }), 'Date d\'extraction'],
+    ['Nombre de Sites', (ws.sites || []).length || 1, 'Implantations géographiques déclarées'],
+    ['Nombre de Baies (Racks)', ws.racks.length, 'Baies actives'],
+    ['Équipements déployés', ws.racks.reduce((s, r) => s + r.instances.length, 0), 'Total des devices placés'],
+    ['Taux d\'occupation spatial (U)', `${usedU}U / ${totU}U`, `${totU ? Math.round(usedU / totU * 100) : 0}% d'occupation physique`],
+    ['Bilan électrique total estimé', fmtWatts(totW), `${Math.round(totW)} Watts cumulés`],
+    ['Charge mécanique estimée', `${Math.round(totKg)} kg`, 'Poids cumulé des matériels'],
+    ['Ports étiquetés & adressés', totPorts, 'Interfaces documentées'],
+    ['Cordons de câblage', (ws.cables || []).length, 'Liaisons physiques renseignées'],
+    ['Liens logiques (Topologie)', (ws.topology?.links || []).length, 'Interconnexions réseau'],
+    ['Suivi des garanties matérielles', `${wsm.in} en garantie / ${wsm.out} hors garantie`, `${wsm.soon} échéance(s) < 90 jours`],
+    ['Objectif du projet (chap. 1)', L.objectif || '', 'Synthèse des besoins et périmètre'],
+    ['Infrastructure existante (chap. 2.2)', L.existant || '', 'État des lieux initial'],
+    ['Architecture cible (chap. 3)', L.architecture || '', 'Principes directeurs retenus']
+  ];
+}
+
+function governanceRows(ws) {
+  const L = normLldInfo(ws || {});
+  const rows = [['Rôle / Nature', 'Nom / Rév', 'Fonction / Date', 'Organisation / Auteur', 'Version approuvée / Modifications']];
+  (L.approvers || []).forEach(a => {
+    rows.push(['Approbateur', a.name || '', a.position || '', a.organization || '', a.approvedVersion || '']);
+  });
+  (L.reviewers || []).forEach(r => {
+    rows.push(['Réviseur', r.name || '', r.position || '', r.organization || '', r.approvedVersion || '']);
+  });
+  (L.revs || []).forEach(rv => {
+    rows.push(['Historique Révision', rv.rev || '', rv.date || '', rv.author || '', rv.note || '']);
+  });
+  return rows;
+}
+
+function wanRows(ws) {
+  const L = normLldInfo(ws || {});
+  const F = L.fai || {};
+  const I = L.interco || {};
+  return [
+    ['Domaine', 'Caractéristique / Paramètre', 'Valeur', 'Complément / Remarques'],
+    ['Accès Internet & FAI', 'Opérateur télécom', F.operator || '', ''],
+    ['Accès Internet & FAI', 'Offre commerciale', F.offer || '', ''],
+    ['Accès Internet & FAI', 'Type de support / lien', F.linkType || '', ''],
+    ['Accès Internet & FAI', 'Débit descendant (Downlink)', F.down || '', ''],
+    ['Accès Internet & FAI', 'Débit montant (Uplink)', F.up || '', ''],
+    ['Accès Internet & FAI', 'Bloc d\'adresses IP publiques', F.publicBlock || '', ''],
+    ['Accès Internet & FAI', 'Équipement CPE opérateur (modèle)', F.cpe || '', ''],
+    ['Accès Internet & FAI', 'Adresse IP CPE / Passerelle WAN', F.cpeIp || '', ''],
+    ['Accès Internet & FAI', 'Notes & Consignes d\'exploitation', F.notes || '', ''],
+    ['Interconnexion Site-à-Site', 'Technologie retenue', I.tech || '', 'Ex : MPLS, SD-WAN, IPsec'],
+    ['Interconnexion Site-à-Site', 'Endpoint public Site A', I.epA || '', ''],
+    ['Interconnexion Site-à-Site', 'Endpoint public Site B', I.epB || '', ''],
+    ['Interconnexion Site-à-Site', 'Sous-réseaux locaux (Site A)', I.localSubnets || '', ''],
+    ['Interconnexion Site-à-Site', 'Sous-réseaux distants (Site B)', I.remoteSubnets || '', ''],
+    ['Interconnexion Site-à-Site', 'Protocole de routage dynamique', I.routing || '', 'Ex : BGP, OSPF, Statique'],
+    ['Interconnexion Site-à-Site', 'Chiffrement & Sécurité du tunnel', I.encryption || '', 'Ex : AES-256, IKEv2'],
+    ['Interconnexion Site-à-Site', 'Notes & Détails d\'interconnexion', I.notes || '', '']
+  ];
+}
+
+function catArchitectureRows(ws) {
+  const L = normLldInfo(ws || {});
+  const DOMAINS = [
+    ['firewall', 'Firewall & Sécurité'],
+    ['switching', 'Switching & Réseau Local'],
+    ['server', 'Serveurs & Virtualisation'],
+    ['storage', 'Stockage & Sauvegarde'],
+    ['ids', 'Intrusion (IDS/IPS)'],
+    ['cctv', 'Vidéosurveillance (CCTV)'],
+    ['pointage', 'Contrôle d\'accès & Pointage (SPO)']
+  ];
+  const rows = [['Domaine Technologique', 'Nombre d\'équipements', 'Zones réseau associées', 'Directives d\'architecture & Notes de configuration']];
+  DOMAINS.forEach(([dom, label]) => {
+    const cats = dom === 'switching' ? ['switch', 'ap'] : [dom];
+    const items = sortedRackInstances(ws || { racks: [] }).filter(x => cats.includes(normCat(x.inst.cat)));
+    const zones = dom === 'switching'
+      ? (L.swZones || []).map(z => z.name).join(', ')
+      : '';
+    rows.push([label, items.length, zones || '—', L.catNotes?.[dom] || '']);
+  });
+  return rows;
+}
+
+
+/* ---------- Générateur Excel .xlsx (Dossier LLD complet & organisé) ----------
+   Génère un classeur professionnel OpenXML structuré selon les 15 chapitres du LLD :
+   - Mise en page soignée : en-têtes contrastés bleu marine, hauteurs de lignes confortables,
+     lignes alternées (zèbre) subtiles, bordures fines nettes, alignements typographiques adaptés.
+   - Volet supérieur figé (freeze pane) sur toutes les feuilles de données.
+   - Largeurs de colonnes calculées automatiquement avec marges de lecture.
+   - Organisation complète : Synthèse & Gouvernance, Baies (Racks), Inventaire détaillé,
+     Garanties, Adressage & VLANs, Nomenclature, Câblage, Ports, FAI & WAN, Flux réseau, Sites. */
 const XLSX = (() => {
   const CRC_TABLE = (() => {
     const t = new Uint32Array(256);
@@ -5380,7 +5483,7 @@ const XLSX = (() => {
   }
 
   function sheetXml(rows) {
-    const nCols = Math.max(8, ...rows.map(r => r.length));
+    const nCols = Math.max(6, ...rows.map(r => r.length));
     const widths = [];
     for (let c = 0; c < nCols; c++) {
       let m = 8;
@@ -5388,20 +5491,22 @@ const XLSX = (() => {
         const v = r[c];
         if (v !== undefined && v !== null) m = Math.max(m, String(v).length);
       }
-      widths.push(Math.min(42, m + 2));
+      widths.push(Math.min(50, Math.max(12, m + 3)));
     }
     const cols = '<cols>' + widths.map((w, i) =>
       `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>';
     let body = '';
     rows.forEach((row, ri) => {
+      const isHeader = (ri === 0);
+      const isZebra = (ri % 2 === 0);
+      const rowStyle = isHeader ? '1' : (isZebra ? '3' : '2');
       const cells = row.map((v, ci) => {
         if (v === undefined || v === null || v === '') return '';
         const ref = colName(ci) + (ri + 1);
-        if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`;
-        return `<c r="${ref}" t="inlineStr"${ri === 0 ? ' s="1"' : ''}>` +
-               `<is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+        if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}" s="${rowStyle}"><v>${v}</v></c>`;
+        return `<c r="${ref}" t="inlineStr" s="${rowStyle}"><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
       }).join('');
-      body += `<row r="${ri + 1}">${cells}</row>`;
+      body += `<row r="${ri + 1}" ht="${isHeader ? 24 : 19}" customHeight="1">${cells}</row>`;
     });
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
@@ -5412,19 +5517,46 @@ const XLSX = (() => {
   const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
   const STYLES_XML = XML_DECL +
     '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-    '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>' +
-    '<font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font></fonts>' +
-    '<fills count="3"><fill><patternFill patternType="none"/></fill>' +
-    '<fill><patternFill patternType="gray125"/></fill>' +
-    '<fill><patternFill patternType="solid"><fgColor rgb="FF1F4E79"/><bgColor indexed="64"/></patternFill></fill></fills>' +
-    '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+    '<fonts count="5">' +
+    '<font><sz val="11"/><name val="Calibri"/><color rgb="FF1F2937"/></font>' + // 0: Normal
+    '<font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font>' + // 1: Blanc gras (header)
+    '<font><b/><sz val="15"/><name val="Calibri"/><color rgb="FF1F4E79"/></font>' + // 2: Titre
+    '<font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF1F4E79"/></font>' + // 3: Section
+    '<font><sz val="9.5"/><name val="Calibri"/><color rgb="FF6B7280"/><i/></font>' + // 4: Italique
+    '</fonts>' +
+    '<fills count="5">' +
+    '<fill><patternFill patternType="none"/></fill>' + // 0
+    '<fill><patternFill patternType="gray125"/></fill>' + // 1
+    '<fill><patternFill patternType="solid"><fgColor rgb="FF1F4E79"/><bgColor indexed="64"/></patternFill></fill>' + // 2: Header bleu marine
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFF8FAFC"/><bgColor indexed="64"/></patternFill></fill>' + // 3: Gris zèbre
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFEBF3FA"/><bgColor indexed="64"/></patternFill></fill>' + // 4: Bleu doux
+    '</fills>' +
+    '<borders count="3">' +
+    '<border><left/><right/><top/><bottom/><diagonal/></border>' + // 0
+    '<border>' + // 1: Ligne grise
+    '<left style="thin"><color rgb="FFE2E8F0"/></left>' +
+    '<right style="thin"><color rgb="FFE2E8F0"/></right>' +
+    '<top style="thin"><color rgb="FFE2E8F0"/></top>' +
+    '<bottom style="thin"><color rgb="FFE2E8F0"/></bottom>' +
+    '</border>' +
+    '<border>' + // 2: Header
+    '<left style="thin"><color rgb="FF1F4E79"/></left>' +
+    '<right style="thin"><color rgb="FF1F4E79"/></right>' +
+    '<top style="thin"><color rgb="FF1F4E79"/></top>' +
+    '<bottom style="medium"><color rgb="FF0F2B48"/></bottom>' +
+    '</border>' +
+    '</borders>' +
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-    '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
-    '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>' +
+    '<cellXfs count="5">' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' + // 0: Normal
+    '<xf numFmtId="0" fontId="1" fillId="2" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' + // 1: Header
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' + // 2: Donnée normale
+    '<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' + // 3: Donnée zèbre
+    '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf>' + // 4: Titre
+    '</cellXfs>' +
     '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
     '</styleSheet>';
 
-  // ZIP minimal (méthode « store », sans compression)
   function zip(files) {
     const chunks = [];
     const central = [];
@@ -5518,17 +5650,22 @@ $('#export-xlsx').addEventListener('click', () => {
   const ws = active();
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Export Excel' }); return; }
   const sheets = [
-    { name: 'Inventaire',    rows: invRows(ws) },
-    { name: 'Câblage',       rows: cablingRows(ws) },
-    { name: 'Ports',         rows: portsRows(ws) },
-    { name: 'Racks',         rows: racksRows(ws) },
-    { name: 'Sites',         rows: sitesRows(ws) },
-    { name: 'Nomenclature',  rows: nomenRows(ws) },
-    { name: 'Adressage IP',  rows: addressingRows(ws) },
-    { name: 'Garanties',     rows: warrantyRows(ws) },
-    { name: 'Flux',          rows: flowsRows(ws) }
-  ].filter(s => s.rows.length > 1);   // feuilles vides omises
-  downloadBlob(XLSX.build(sheets), exportFileBase() + '.xlsx');
+    { name: '1. Synthèse Projet',      rows: projectOverviewRows(ws) },
+    { name: '2. Gouvernance & Revs',   rows: governanceRows(ws) },
+    { name: '3. Baies (Racks)',        rows: racksRows(ws) },
+    { name: '4. Synthèse Catégories',  rows: catSummaryRows(ws) },
+    { name: '5. Inventaire Détaillé',  rows: invRows(ws) },
+    { name: '6. Suivi Garanties',      rows: warrantyRows(ws) },
+    { name: '7. Adressage IP & VLANs', rows: addressingRows(ws) },
+    { name: '8. Nomenclature',         rows: nomenRows(ws) },
+    { name: '9. Ports & Interfaces',   rows: portsRows(ws) },
+    { name: '10. Câblage Physique',    rows: cablingRows(ws) },
+    { name: '11. WAN & Interconnexion',rows: wanRows(ws) },
+    { name: '12. Architecture Blocs',  rows: catArchitectureRows(ws) },
+    { name: '13. Matrice des Flux',    rows: flowsRows(ws) },
+    { name: '14. Sites Déclarés',      rows: sitesRows(ws) }
+  ].filter(s => s.rows && s.rows.length > 1);
+  downloadBlob(XLSX.build(sheets), exportFileBase() + '-LLD.xlsx');
 });
 
 /* ============================================================
@@ -6093,6 +6230,435 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   for (const u of parts) { out.set(u, p); p += u.length; }
   return out;
 }
+
+
+/* ============================================================
+   DOCUMENT HLD (PDF multi-pages)
+   ------------------------------------------------------------
+   High Level Design : vue d'ensemble macro et exécutive
+   - Contexte, objectifs, périmètre
+   - Topologie logique globale (schéma pleine page)
+   - Principes d'architecture & choix technologiques par bloc
+   - Matrice des flux applicatifs & règles de sécurité
+   - Plan d'adressage macro (VLANs, WAN/FAI, Interco)
+   - Bilan capacitaire & dimensionnement des baies
+   ============================================================ */
+function buildHldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
+  const PW = 595.28, PH = 841.89, M = 42;
+  const pagesOps = [];
+  let cur = null, y = 0;
+
+  const textOp = (x, yy, s, size = 10, bold = false, color = [0.13, 0.16, 0.22]) =>
+    `BT ${color.map(c => (+c).toFixed(2)).join(' ')} rg /${bold ? 'F2' : 'F1'} ${(+size).toFixed(1)} Tf 1 0 0 1 ${(+x).toFixed(2)} ${(+yy).toFixed(2)} Tm (${pdfEsc(s)}) Tj ET`;
+  const lineOp = (x1, yy, x2, color = [0.82, 0.85, 0.89], lw = 0.7) =>
+    `${color.map(c => (+c).toFixed(2)).join(' ')} RG ${lw} w ${(+x1).toFixed(2)} ${(+yy).toFixed(2)} m ${(+x2).toFixed(2)} ${(+yy).toFixed(2)} l S`;
+
+  const txt = (x, yy, s, size, bold, color) => cur.push(textOp(x, yy, s, size, bold, color));
+  const rectFill = (x, yy, w, h, color) => {
+    cur.push(`${color.map(c => (+c).toFixed(2)).join(' ')} rg ${(+x).toFixed(2)} ${(+yy).toFixed(2)} ${(+w).toFixed(2)} ${(+h).toFixed(2)} re f`);
+  };
+  const hline = (x1, x2, yy) => cur.push(lineOp(x1, yy, x2));
+
+  const newPage = () => { cur = []; pagesOps.push(cur); y = PH - M; };
+
+  const tocEntries = [];
+  const GRAY = [0.45, 0.5, 0.58];
+  function chapter(label, title, opts = {}) {
+    if (opts.flow) {
+      if (y < M + 110) newPage(); else y -= 12;
+    } else {
+      newPage();
+    }
+    tocEntries.push({ label: String(label), title, level: 0, pageIdx: pagesOps.length - 1 });
+    txt(M, y - 13, `${label}. ${title}`, 15, true, [0.12, 0.31, 0.47]);
+    hline(M, PW - M, y - 21);
+    y -= 33;
+  }
+  function sub(label, title) {
+    if (y < M + 70) newPage();
+    tocEntries.push({ label: String(label), title, level: 1, pageIdx: pagesOps.length - 1 });
+    txt(M + 14, y - 10, `${label}. ${title}`, 12, true, [0.2, 0.35, 0.5]);
+    y -= 26;
+  }
+  function miniTitle(s) {
+    if (y < M + 60) newPage(); else y -= 4;
+    txt(M, y - 10, s, 11.5, true, [0.3, 0.4, 0.52]);
+    y -= 22;
+  }
+  function note(s) {
+    if (y < M + 40) newPage();
+    txt(M, y - 8, s, 9.5, false, GRAY);
+    y -= 22;
+  }
+  function paragraph(s, size = 10) {
+    const lh = 15;
+    const maxChars = Math.max(24, Math.floor((PW - 2 * M) / (size * 0.52)));
+    const lines = [];
+    String(s || '').split('\n').forEach(raw => {
+      if (!raw.trim()) { lines.push(''); return; }
+      let line = '';
+      for (const word of raw.trim().split(/\s+/)) {
+        const test = line ? line + ' ' + word : word;
+        if (test.length > maxChars) {
+          if (line) lines.push(line);
+          let w = word;
+          while (w.length > maxChars) { lines.push(w.slice(0, maxChars)); w = w.slice(maxChars); }
+          line = w;
+        } else line = test;
+      }
+      if (line) lines.push(line);
+    });
+    for (const l of lines) {
+      if (y - lh < M + 26) newPage();
+      if (l) txt(M, y - 8, l, size, false, [0.2, 0.24, 0.3]);
+      y -= lh;
+    }
+    y -= 5;
+  }
+
+  function drawTable(rows, widths, size = 8, opts = {}) {
+    const rowH = 15;
+    const W = PW - 2 * M;
+    const total = widths.reduce((a, b) => a + b, 0);
+    const cw = widths.map(w => w / total * W);
+    const drawHeader = () => {
+      rectFill(M, y - rowH + 3.5, W, rowH, [0.12, 0.31, 0.47]);
+      let x = M + 4;
+      rows[0].forEach((h, i) => { txt(x, y - rowH + 3.5 + 4, String(h), size, true, [1, 1, 1]); x += cw[i]; });
+      y -= rowH + 3.5;
+    };
+    drawHeader();
+    for (let ri = 1; ri < rows.length; ri++) {
+      if (y - rowH < M + 26) { newPage(); drawHeader(); }
+      let x = M + 4;
+      rows[ri].forEach((c, i) => {
+        let s = String(c ?? '');
+        const maxChars = Math.max(3, Math.floor(cw[i] / (size * 0.5)));
+        if (s.length > maxChars) s = s.slice(0, Math.max(2, maxChars - 1)) + '\u2026';
+        const col = opts.cellColor ? opts.cellColor(ri, i, c) : null;
+        txt(x, y - rowH + 4.5, s, size, false, col || undefined);
+        x += cw[i];
+      });
+      y -= rowH;
+      hline(M, M + W, y + 3.5, [0.9, 0.92, 0.94]);
+    }
+    y -= 8;
+  }
+
+  const L = normLldInfo(ws);
+  const dateStr = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const dateShort = new Date().toLocaleDateString('fr-FR');
+
+  // ---- Page de garde ----
+  newPage();
+  y -= 60;
+  txt(M, y, 'Dossier HLD', 30, true, [0.12, 0.31, 0.47]); y -= 20;
+  txt(M, y, 'High Level Design \u2014 Architecture Globale & Principes Directeurs', 12, false, [0.45, 0.5, 0.58]); y -= 36;
+  txt(M, y, ws.name, 20, true); y -= 30;
+  const meta = [['Client', L.client], ['Auteur', L.author], ['Version', L.version], ['Date', dateStr]];
+  meta.forEach(([k, v]) => {
+    if (!v) return;
+    txt(M, y, k, 10, false, [0.45, 0.5, 0.58]);
+    txt(M + 100, y, v, 10, true);
+    y -= 16;
+  });
+  y -= 12;
+
+  const totU = ws.racks.reduce((s, r) => s + r.sizeU, 0);
+  const usedU = ws.racks.reduce((s, r) => s + r.instances.reduce((a, i) => a + i.sizeU, 0), 0);
+  const totW = ws.racks.reduce((s, r) => s + r.instances.reduce((a, i) => a + (i.watts || 0), 0), 0);
+  const totKg = ws.racks.reduce((s, r) => s + r.instances.reduce((a, i) => a + (i.weightKg || 0), 0), 0);
+  const stats = [
+    ['Sites interconnectés', String((ws.sites || []).length || 1)],
+    ['Nombre de baies (racks)', String(ws.racks.length)],
+    ['Équipements déployés', String(ws.racks.reduce((s, r) => s + r.instances.length, 0))],
+    ['Taux d\'occupation U', `${usedU}U / ${totU}U (${totU ? Math.round(usedU / totU * 100) : 0}%)`],
+    ['Bilan électrique total', fmtWatts(totW)],
+    ['Charge mécanique estimée', `${Math.round(totKg)} kg`],
+    ['Flux applicatifs recensés', String((ws.flows || []).length)],
+    ['VLANs & zones logiques', String((L.vlans || []).length)]
+  ];
+  stats.forEach(([k, v]) => {
+    txt(M, y, k, 10, false, [0.45, 0.5, 0.58]);
+    txt(M + 170, y, v, 10, true);
+    y -= 17;
+  });
+
+  if (L.revs.length) {
+    y -= 16;
+    txt(M, y, 'Historique des révisions', 12, true, [0.12, 0.31, 0.47]); y -= 8;
+    const revRows = [['Rév', 'Date', 'Auteur', 'Modifications']];
+    L.revs.forEach(r => revRows.push([r.rev, r.date, r.author, r.note]));
+    drawTable(revRows, [0.8, 1.6, 2.4, 5.2], 8);
+  }
+
+  const signatoryTable = (title, rows) => {
+    if (y < M + 55) newPage();
+    txt(M, y, title, 11.5, true, [0.12, 0.31, 0.47]);
+    y -= 8;
+    const data = [['Nom', 'Position', 'Organisation', 'Version approuvée']];
+    rows.forEach(r => data.push([r.name, r.position, r.organization, r.approvedVersion]));
+    drawTable(data, [2.2, 2.2, 2.7, 1.9], 7.5);
+  };
+  signatoryTable('Approbateurs', L.approvers);
+  signatoryTable('Réviseurs', L.reviewers);
+
+  y = Math.min(y, M + 24);
+  txt(M, y, 'Généré par LLDraw', 9, false, [0.6, 0.65, 0.72]);
+
+  // ================= 1. Contexte & Objectifs =================
+  chapter('1', 'Contexte & Objectifs du Projet');
+  if (L.objectif.trim()) {
+    miniTitle('Objectifs stratégiques & opérationnels');
+    paragraph(L.objectif);
+  } else {
+    paragraph('Ce document de conception globale (High Level Design - HLD) décrit les choix d\'architecture, les principes structurants et les interconnexions cibles de l\'infrastructure.');
+  }
+
+  miniTitle('Périmètre géographique & sites');
+  const sites = ws.sites || [];
+  if (sites.length) {
+    const sr = [['Site', 'Adresse', 'Contacts', 'Rôle / Description']];
+    sites.forEach(s => sr.push([s.name, s.address, s.contact, s.desc]));
+    drawTable(sr, [1.6, 2.8, 2.2, 3.4], 8);
+  } else {
+    note('Aucun site distinct déclaré : déploiement sur un site central unique.');
+  }
+
+  if (L.existant.trim()) {
+    miniTitle('Rappel de l\'infrastructure existante');
+    paragraph(L.existant);
+  }
+
+  // ================= 2. Architecture Globale & Topologie =================
+  chapter('2', 'Architecture Globale & Topologie');
+  if (L.architecture.trim()) {
+    miniTitle('Vision d\'ensemble de l\'architecture');
+    paragraph(L.architecture);
+  }
+
+  miniTitle('Schéma de topologie logique');
+  if (topoJpeg && topoW && topoH) {
+    const availW = PW - 2 * M, availH = y - M - 20;
+    const k = Math.min(availW / topoW, availH / topoH);
+    const iw = topoW * k, ih = topoH * k;
+    const ix = M + (availW - iw) / 2, iy = y - ih;
+    cur.push(`q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${ix.toFixed(2)} ${iy.toFixed(2)} cm /Im1 Do Q`);
+    y = iy - 15;
+  } else {
+    note('Schéma de topologie non généré (ouvrir la vue Topologie pour l\'activer).');
+  }
+
+  // ================= 3. Principes Directeurs & Choix Technologiques =================
+  chapter('3', 'Principes Directeurs & Choix Technologiques');
+  miniTitle('Synthèse des briques technologiques par domaine');
+  const csr = catSummaryRows(ws);
+  if (csr.length > 1) drawTable(csr, [2.3, 0.6, 3.8, 2.1, 1.2], 8);
+  else note('Aucun équipement modélisé dans ce workspace.');
+
+  // WAN & Interconnexion
+  sub('3.1', 'Connectivité WAN & Fournisseurs d\'Accès (FAI)');
+  const F = L.fai;
+  const fr = [['Opérateur', F.operator], ['Offre / Débit', [F.offer, F.down && F.up ? `${F.down} / ${F.up}` : ''].filter(Boolean).join(' - ')],
+              ['Type de liaison', F.linkType], ['Bloc IP publiques', F.publicBlock],
+              ['Équipement CPE', [F.cpe, F.cpeIp].filter(Boolean).join(' - ')]]
+    .filter(([, v]) => v && v.trim());
+  if (fr.length) {
+    drawTable([['Paramètre', 'Valeur'], ...fr], [2.2, 4.8], 8.5);
+    if (F.notes.trim()) paragraph(F.notes);
+  } else {
+    note('Liaisons FAI non documentées (fiche du dossier, onglet WAN).');
+  }
+
+  sub('3.2', 'Interconnexion Inter-Sites & Sécurisation');
+  const I = L.interco;
+  const icr = [['Technologie retenue', I.tech],
+               ['Endpoints', [I.epA, I.epB].filter(Boolean).join(' <---> ')],
+               ['Sous-réseaux interconnectés', [I.localSubnets, I.remoteSubnets].filter(Boolean).join(' <---> ')],
+               ['Routage & Chiffrement', [I.routing, I.encryption].filter(Boolean).join(' / ')]]
+    .filter(([, v]) => v && v.trim());
+  if (icr.length) {
+    drawTable([['Paramètre', 'Valeur'], ...icr], [2.4, 4.6], 8.5);
+    if (I.notes.trim()) paragraph(I.notes);
+  } else {
+    note('Interconnexion de sites non documentée (fiche du dossier, onglet WAN).');
+  }
+
+  // Notes de configuration stratégiques par domaine (Firewall, Switching, Serveurs...)
+  const DOM_NOTES = [
+    ['Firewall & Sécurité périmétrique', L.catNotes?.firewall],
+    ['Switching & Segmentation réseau', L.catNotes?.switching],
+    ['Calcul & Virtualisation (Serveurs)', L.catNotes?.server],
+    ['Stockage & Sauvegarde', L.catNotes?.storage],
+    ['Sécurité physique & Détection (IDS / CCTV / SPO)', [L.catNotes?.ids, L.catNotes?.cctv, L.catNotes?.pointage].filter(Boolean).join('\n')]
+  ];
+  let hasDomNotes = false;
+  DOM_NOTES.forEach(([title, txtNote]) => {
+    if (txtNote && txtNote.trim()) {
+      if (!hasDomNotes) { miniTitle('Directives d\'architecture par sous-système'); hasDomNotes = true; }
+      sub('', title);
+      paragraph(txtNote);
+    }
+  });
+
+  // ================= 4. Matrice des Flux & Politiques de Sécurité =================
+  chapter('4', 'Matrice des Flux & Politiques de Sécurité');
+  paragraph('La matrice ci-dessous définit les flux d\'échanges autorisés entre les zones de sécurité, les serveurs et les partenaires extérieurs.');
+  const flw = flowsRows(ws);
+  if (flw.length > 1) {
+    drawTable(flw, [1.8, 2.3, 2.3, 1.8, 1.4, 2.4], 7.5);
+  } else {
+    note('Aucun flux applicatif répertorié (fiche du dossier, onglet Flux).');
+  }
+
+  // ================= 5. Plan d'Adressage Macro (VLANs & Sous-Réseaux) =================
+  chapter('5', 'Plan d\'Adressage Macro (VLANs & Sous-Réseaux)');
+  if (L.nomen.length) {
+    miniTitle('Règles de nomenclature globale');
+    const nr = [['Type d\'objet', 'Préfixe', 'Exemple', 'Règle de nommage']];
+    L.nomen.forEach(r => nr.push([r.type, r.prefix, r.example, r.rule]));
+    drawTable(nr, [2.4, 1.1, 2.6, 3.9], 8);
+  }
+  miniTitle('Registre des zones réseau & VLANs');
+  if (L.vlans.length) {
+    const vr = [['VLAN ID', 'Nom du réseau', 'Site rattaché', 'Sous-réseau', 'Passerelle', 'Usage']];
+    L.vlans.forEach(v => vr.push([v.vid, v.name, v.site, v.subnet, v.gw, v.purpose]));
+    drawTable(vr, [1.0, 2.1, 1.4, 2.5, 2.2, 2.8], 8);
+  } else {
+    note('Aucun VLAN enregistré (fiche du dossier, onglet Réseau).');
+  }
+
+  // ================= 6. Dimensionnement & Bilan d'Implantation =================
+  chapter('6', 'Dimensionnement & Bilan d\'Implantation');
+  paragraph('Ce chapitre synthétise l\'occupation spatiale, les besoins électriques et les contraintes mécaniques des baies d\'infrastructure.');
+  miniTitle('Synthèse capacitaire des baies');
+  drawTable(racksRows(ws), [2.4, 1.1, 0.9, 1, 0.9, 1.5, 1.5, 1.4, 1.4, 1], 7.5);
+
+  if (planJpeg && planW && planH) {
+    newPage();
+    miniTitle('Implantation physique globale (Élévation des baies)');
+    const availW = PW - 2 * M, availH = y - M - 20;
+    const k = Math.min(availW / planW, availH / planH);
+    const iw = planW * k, ih = planH * k;
+    const ix = M + (availW - iw) / 2, iy = y - ih;
+    cur.push(`q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${ix.toFixed(2)} ${iy.toFixed(2)} cm /Im0 Do Q`);
+    y = iy - 10;
+  }
+
+  // ================= Sommaire HLD =================
+  const tocOps = [];
+  let ty = PH - M - 30;
+  tocOps.push(textOp(M, ty, 'Sommaire', 22, true, [0.12, 0.31, 0.47]));
+  ty -= 12;
+  tocOps.push(lineOp(M, PW - M, ty, [0.82, 0.85, 0.89], 1));
+  ty -= 28;
+  for (const e of tocEntries) {
+    const pageNum = e.pageIdx + 2;
+    const x = e.level ? M + 16 : M;
+    const size = e.level ? 9.5 : 10.5;
+    tocOps.push(textOp(x, ty, `${e.label}. ${e.title}`, size, !e.level,
+      e.level ? [0.35, 0.4, 0.48] : [0.13, 0.16, 0.22]));
+    tocOps.push(textOp(PW - M - 20, ty, String(pageNum), size, !e.level, [0.35, 0.4, 0.48]));
+    ty -= e.level ? 14.5 : 18.5;
+  }
+  pagesOps.splice(1, 0, tocOps);
+
+  // ---- Pieds de page ----
+  const nPages = pagesOps.length;
+  const footerName = String(ws.name).slice(0, 60);
+  pagesOps.forEach((ops, i) => {
+    if (i === 0) return;
+    ops.push(lineOp(M, 34, PW - M, [0.85, 0.87, 0.9], 0.6));
+    ops.push(textOp(M, 22, `${footerName} \u2014 Dossier HLD`, 8, false, [0.55, 0.58, 0.64]));
+    ops.push(textOp(PW - M - 60, 22, `Page ${i + 1} / ${nPages}`, 8, false, [0.55, 0.58, 0.64]));
+    ops.push(textOp(PW / 2 - 22, 22, dateShort, 8, false, [0.55, 0.58, 0.64]));
+  });
+
+  // ================= Assemblage PDF =================
+  const parts = [];
+  let offset = 0;
+  const push = data => {
+    const u = typeof data === 'string' ? strBytes(data) : data;
+    parts.push(u);
+    offset += u.length;
+  };
+  const offsets = [];
+  const addObj = body => {
+    offsets.push(offset);
+    push(`${offsets.length} 0 obj\n${body}\nendobj\n`);
+  };
+
+  push('%PDF-1.4\n%\u00E2\u00E3\u00CF\u00D3\n');
+
+  const hasPlan = !!(planJpeg && planW && planH);
+  const hasTopo = !!(topoJpeg && topoW && topoH);
+  const firstPageObj = 5;
+  const contentObjs = [];
+  pagesOps.forEach((_, i) => contentObjs.push(firstPageObj + nPages + i));
+  const img0Num = firstPageObj + 2 * nPages;
+  const img1Num = img0Num + 1;
+
+  addObj(`<< /Type /Catalog /Pages 2 0 R >>`);
+  const kids = pagesOps.map((_, i) => `${firstPageObj + i} 0 R`).join(' ');
+  addObj(`<< /Type /Pages /Count ${nPages} /Kids [${kids}] >>`);
+  addObj(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>`);
+  addObj(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>`);
+
+  pagesOps.forEach((ops, i) => {
+    const xobjs = [];
+    if (hasPlan) xobjs.push(`/Im0 ${img0Num} 0 R`);
+    if (hasTopo) xobjs.push(`/Im1 ${img1Num} 0 R`);
+    let res = `<< /Font << /F1 3 0 R /F2 4 0 R >>`;
+    if (xobjs.length) res += ` /XObject << ${xobjs.join(' ')} >>`;
+    res += ` >>`;
+    addObj(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources ${res} /Contents ${contentObjs[i]} 0 R >>`);
+  });
+  pagesOps.forEach(ops => {
+    const body = ops.join('\n');
+    addObj(`<< /Length ${strBytes(body).length} >>\nstream\n${body}\nendstream`);
+  });
+  const addImage = (num, bytes, w, h) => {
+    offsets.push(offset);
+    push(`${num} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${bytes.length} >>\nstream\n`);
+    push(bytes);
+    push(`\nendstream\nendobj\n`);
+  };
+  if (hasPlan) addImage(img0Num, planJpeg, planW, planH);
+  if (hasTopo) addImage(img1Num, topoJpeg, topoW, topoH);
+
+  const xrefPos = offset;
+  let xref = `xref\n0 ${offsets.length + 1}\n0000000000 65535 f \n`;
+  for (const o of offsets) xref += String(o).padStart(10, '0') + ' 00000 n \n';
+  push(xref);
+  push(`trailer\n<< /Size ${offsets.length + 1} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`);
+
+  const total = parts.reduce((s, u) => s + u.length, 0);
+  const out = new Uint8Array(total);
+  let p = 0;
+  for (const u of parts) { out.set(u, p); p += u.length; }
+  return out;
+}
+
+$('#export-hld').addEventListener('click', async () => {
+  $('#export-menu').classList.add('hidden');
+  const ws = active();
+  if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📄 Export HLD (PDF)' }); return; }
+  const c = await renderPlanCanvas();
+  let jpeg = null, w = 0, h = 0;
+  if (c) {
+    jpeg = dataURLBytes(c.toDataURL('image/jpeg', 0.85));
+    w = c.width; h = c.height;
+  }
+  const tc = renderTopoCanvas();
+  let tj = null, tw = 0, th = 0;
+  if (tc) {
+    tj = dataURLBytes(tc.toDataURL('image/jpeg', 0.9));
+    tw = tc.width; th = tc.height;
+  }
+  const u8 = buildHldPdf(ws, jpeg, w, h, tj, tw, th);
+  downloadBlob(new Blob([u8], { type: 'application/pdf' }), exportFileBase() + '-HLD.pdf');
+});
+
 
 $('#export-lld').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
