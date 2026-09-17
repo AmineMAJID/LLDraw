@@ -267,15 +267,27 @@ function buildDigest() {
     }
   };
 
+  // Plafonds anti-explosion : certains edges fournisseurs tolèrent mal les
+  // très gros corps de requête (et coûtent cher). On dégrade par étapes.
   let s = JSON.stringify(d);
-  if (s.length > 110000) {
-    // Filet anti-explosion : on retire le détail des ports (les ids de ports
-    // restent disponibles via les câbles) puis les textes du dossier.
+  if (s.length > 60000) {
     d.workspaceActif.racks.forEach(r => r.instances.forEach(i => {
       i.portsCount = (i.ports || []).length; delete i.ports;
     }));
     s = JSON.stringify(d);
-    if (s.length > 110000) { delete d.workspaceActif.dossierLLD.catNotes; s = JSON.stringify(d); }
+  }
+  if (s.length > 60000) {
+    const L2 = d.workspaceActif.dossierLLD || {};
+    for (const k of ['objectif', 'existant', 'architecture']) L2[k] = truncText(L2[k], 150);
+    d.workspaceActif.topologie = {
+      nodes: ((d.workspaceActif.topologie || {}).nodes || []).length,
+      liens: ((d.workspaceActif.topologie || {}).links || []).length
+    };
+    s = JSON.stringify(d);
+  }
+  if (s.length > 60000) {
+    d.workspaceActif.cables = (d.workspaceActif.cables || []).length;
+    s = JSON.stringify(d);
   }
   return s;
 }
@@ -353,12 +365,16 @@ function buildBody(fam, sysText, history) {
     if (!msgs.length || msgs[0].role !== 'user') msgs.unshift({ role: 'user', content: 'Bonjour.' });
     return { model: aiSettings.model, max_tokens: 4096, system: sysText, messages: msgs, stream: true };
   }
-  return {
+  const b = {
     model: aiSettings.model,
     messages: [{ role: 'system', content: sysText }, ...history.map(m => ({ role: m.role, content: m.content }))],
     stream: true,
     temperature: 0.2
   };
+  // Attendu par plusieurs fournisseurs (NVIDIA NIM, Mistral…) ; les modèles
+  // OpenAI officiels gèrent mieux son absence (séries « o »).
+  if (aiSettings.provider !== 'openai') b.max_tokens = 4096;
+  return b;
 }
 
 function directHeaders(fam) {
@@ -379,13 +395,8 @@ async function extractApiError(resp) {   // (utilitaire conservé pour tests)
   return new Error(`HTTP ${resp.status} — ${detail || resp.statusText}`);
 }
 
-async function aiStream(sysText, history, onDelta, signal) {
-  if (!aiSettings.endpoint) throw new Error("Aucun endpoint configuré : ouvrez les réglages 🤖 dans la barre du haut.");
-  const fam = aiApiFamily();
-  const endpoint = normalizeEndpoint(fam);
-  const body = buildBody(fam, sysText, history);
-
-  // Requête via le proxy de server.py (renvoie null si proxy absent)
+// Envoie la requête via le proxy server.py si possible, sinon en direct.
+async function performRequest(fam, endpoint, body, signal) {
   const proxyRequest = async () => {
     try {
       const r = await fetch('/api/ai', {
@@ -403,75 +414,57 @@ async function aiStream(sysText, history, onDelta, signal) {
       return null;
     }
   };
-
-  let resp = null;
-  if (pickRoute() === 'server') resp = await proxyRequest();
-  if (!resp) {
-    const needsKey = aiSettings.provider !== 'ollama';
-    if (needsKey && !aiSettings.apiKey) throw new Error("Clé API manquante : ouvrez les réglages 🤖 (ou définissez LLDRAW_AI_KEY côté serveur avec la route « Serveur »).");
-    try {
-      resp = await fetch(endpoint, {
-        method: 'POST',
-        headers: directHeaders(fam),
-        body: JSON.stringify(body),
-        signal
-      });
-    } catch (e) {
-      if (e && e.name === 'AbortError') throw e;
-      // Échec réseau ou CORS en appel direct : repli automatique par le
-      // proxy serveur (des fournisseurs comme NVIDIA NIM refusent les
-      // appels venant d'un navigateur). On retente le proxy à chaque
-      // échec direct : un redémarrage de server.py est ainsi pris en
-      // compte sans recharger la page.
-      if (typeof serverAvailable !== 'undefined' && serverAvailable) {
-        resp = await proxyRequest();
-      }
-      if (!resp) {
-        throw new Error("Échec de l'appel direct (« " + ((e && e.message) || e) + " »). Cause fréquente : CORS — ce fournisseur n'accepte pas les appels depuis un navigateur (ex. NVIDIA NIM). Passez la route sur « Serveur » ou « Auto » dans les réglages 🤖 (nécessite server.py), ou vérifiez l'endpoint.");
-      }
+  if (pickRoute() === 'server') {
+    const r = await proxyRequest();
+    if (r) return r;
+  }
+  const needsKey = aiSettings.provider !== 'ollama';
+  if (needsKey && !aiSettings.apiKey) throw new Error("Clé API manquante : ouvrez les réglages 🤖 (ou définissez LLDRAW_AI_KEY côté serveur avec la route « Serveur »).");
+  try {
+    return await fetch(endpoint, { method: 'POST', headers: directHeaders(fam), body: JSON.stringify(body), signal });
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw e;
+    // Échec réseau ou CORS en appel direct : repli automatique par le
+    // proxy serveur (des fournisseurs comme NVIDIA NIM refusent les
+    // appels venant d'un navigateur). On retente le proxy à chaque
+    // échec direct : un redémarrage de server.py est ainsi pris en
+    // compte sans recharger la page.
+    if (typeof serverAvailable !== 'undefined' && serverAvailable) {
+      const r = await proxyRequest();
+      if (r) return r;
     }
+    throw new Error("Échec de l'appel direct (« " + ((e && e.message) || e) + " »). Cause fréquente : CORS — ce fournisseur n'accepte pas les appels depuis un navigateur (ex. NVIDIA NIM). Passez la route sur « Serveur » ou « Auto » dans les réglages 🤖 (nécessite server.py), ou vérifiez l'endpoint.");
   }
-  if (!resp.ok) {
-    // Corps d'erreur lu UNE fois (fournisseur ou proxy serveur)
-    let detail = '';
-    try { detail = (await resp.text()).slice(0, 700); } catch (e) {}
-    let msg = detail;
-    try {
-      const j = JSON.parse(detail);
-      if (j && j.ok === false) msg = String(j.error || '') + (j.detail ? ' — ' + String(j.detail).slice(0, 300) : '');
-      else msg = j.error?.message || j.error || j.detail || detail;
-    } catch (e) { /* détail non JSON : tel quel */ }
-    throw new Error(`HTTP ${resp.status} — ${msg || resp.statusText}`);
-  }
+}
 
+// Consomme la réponse (flux SSE ou JSON simple). Renvoie true si du texte
+// a été reçu. Garde-fou : un fournisseur muet ne bloque plus l'interface
+// (30 s pour le premier octet, 60 s entre deux morceaux).
+async function consumeResponse(resp, fam, onDelta, signal) {
   const ctype = resp.headers.get('Content-Type') || '';
   if (ctype.includes('application/json')) {
-    // Réponse non streamée (certains proxys) : on la donne d'un bloc
     const j = await resp.json();
     if (j.ok === false) throw new Error(j.error || 'Erreur du proxy serveur');
     const txt = fam === 'anthropic'
       ? (j.content || []).map(c => c.text || '').join('')
       : (j.choices?.[0]?.message?.content || '');
     if (txt) onDelta(txt);
-    return;
+    return !!txt;
   }
-
-  // ---- Lecture du flux SSE ----
   if (!resp.body) throw new Error('Flux indisponible (navigateur trop ancien ?).');
   const reader = resp.body.getReader();
   const dec = new TextDecoder();
   let buf = '';
   let gotAny = false;
-  // Garde-fou : un fournisseur muet (modèle invalide, connexion gardée
-  // ouverte…) ne doit plus bloquer l'interface pendant des minutes.
-  const AI_IDLE_MS = 60000;
-  let idleTimer = null;
-  let idleReject = null;
-  const idlePromise = new Promise((res, rej) => { idleReject = rej; });
-  const kickIdle = () => {
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => idleReject(new Error(
-      "Le fournisseur ne répond plus (60 s sans données). Vérifiez le nom du modèle, l'endpoint et la route dans les réglages 🤖.")), AI_IDLE_MS);
+  const FIRST_MS = 30000, IDLE_MS = 60000;
+  let timer = null, rejectIdle = null, first = true;
+  const idlePromise = new Promise((res, rej) => { rejectIdle = rej; });
+  const kick = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => rejectIdle(new Error(
+      first ? "Le fournisseur n'a pas commencé à répondre (30 s). Vérifiez le nom du modèle, l'endpoint et la route dans les réglages 🤖."
+            : "Le fournisseur ne répond plus (60 s sans données). Vérifiez le modèle/endpoint dans les réglages 🤖.")),
+      first ? FIRST_MS : IDLE_MS);
   };
   const handleEvent = raw => {
     for (const line of raw.split('\n')) {
@@ -481,22 +474,22 @@ async function aiStream(sysText, history, onDelta, signal) {
       let obj;
       try { obj = JSON.parse(payload); } catch (e) { continue; }
       if (fam === 'anthropic') {
-        if (obj.type === 'content_block_delta') { gotAny = true; onDelta(obj.delta?.text || ''); }
+        if (obj.type === 'content_block_delta') { gotAny = true; first = false; onDelta(obj.delta?.text || ''); }
         else if (obj.type === 'error') throw new Error(obj.error?.message || 'Erreur Anthropic');
       } else {
         // Certains fournisseurs signalent les erreurs DANS le flux, avec un HTTP 200
         if (obj.error) throw new Error(obj.error.message || JSON.stringify(obj.error).slice(0, 300));
         if (obj.ok === false) throw new Error(obj.error || 'Erreur du proxy serveur');
         const delta = obj.choices?.[0]?.delta?.content;
-        if (delta) { gotAny = true; onDelta(delta); }
+        if (delta) { gotAny = true; first = false; onDelta(delta); }
       }
     }
   };
   try {
-    kickIdle();
+    kick();
     while (true) {
       const { done, value } = await Promise.race([reader.read(), idlePromise]);
-      kickIdle();
+      kick();
       if (done) break;
       buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n');
       let idx;
@@ -507,9 +500,67 @@ async function aiStream(sysText, history, onDelta, signal) {
       }
     }
   } finally {
-    clearTimeout(idleTimer);
+    clearTimeout(timer);
   }
-  if (!gotAny) throw new Error('Réponse vide du fournisseur : le modèle demandé existe-t-il ? (vérifiez son nom exact dans le catalogue du fournisseur)');
+  return gotAny;
+}
+
+async function aiStream(sysText, history, onDelta, signal) {
+  if (!aiSettings.endpoint) throw new Error("Aucun endpoint configuré : ouvrez les réglages 🤖 dans la barre du haut.");
+  const fam = aiApiFamily();
+  const endpoint = normalizeEndpoint(fam);
+  const body = buildBody(fam, sysText, history);
+
+  const readError = async resp => {
+    let detail = '';
+    try { detail = (await resp.text()).slice(0, 700); } catch (e) {}
+    let msg = detail;
+    try {
+      const j = JSON.parse(detail);
+      if (j && j.ok === false) msg = String(j.error || '') + (j.detail ? ' — ' + String(j.detail).slice(0, 300) : '');
+      else msg = j.error?.message || j.error || j.detail || detail;
+    } catch (e) {}
+    return new Error(`HTTP ${resp.status} — ${msg || resp.statusText}`);
+  };
+
+  const attempt = async (useStream, sig) => {
+    const b = useStream ? body : Object.assign({}, body, { stream: false });
+    const resp = await performRequest(fam, endpoint, b, sig);
+    if (!resp.ok) throw await readError(resp);
+    return consumeResponse(resp, fam, onDelta, sig);
+  };
+
+  let got = false;
+  let fallback = false;
+  try {
+    got = await attempt(true, signal);
+    if (!got) throw new Error('Réponse vide du fournisseur (flux SSE ouvert mais sans contenu).');
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw e;
+    const retryable = /30 s|60 s|Réponse vide|HTTP 5\d\d|HTTP 429|ne répond/i.test(String(e.message || e));
+    if (!retryable) throw e;
+    // Le flux SSE reste muet chez certains fournisseurs (certains edges
+    // NVIDIA ne répondent qu'en mode non streamé, par ex.) : on retente
+    // automatiquement UNE fois sans streaming.
+    fallback = true;
+    const ctl = new AbortController();
+    let delayed = false;
+    const onOuter = () => ctl.abort();
+    if (signal) { if (signal.aborted) ctl.abort(); else signal.addEventListener('abort', onOuter); }
+    const t = setTimeout(() => { delayed = true; ctl.abort(); }, 75000);
+    try {
+      got = await attempt(false, ctl.signal);
+    } catch (e2) {
+      if (delayed && e2.name === 'AbortError') throw new Error("Le fournisseur ne répond ni en streaming ni sans streaming (75 s). Vérifiez modèle, endpoint et clé — ou réessayez plus tard.");
+      if (e2.name === 'AbortError' && signal && signal.aborted) throw e2;
+      throw e2;
+    } finally {
+      clearTimeout(t);
+      if (signal) signal.removeEventListener('abort', onOuter);
+    }
+  }
+  if (!got) throw new Error('Réponse vide du fournisseur : le modèle demandé existe-t-il ? (vérifiez son nom exact dans le catalogue du fournisseur)');
+  return { fallback };
 }
 
 /* ================= Moteur d'opérations ================= */
@@ -948,7 +999,7 @@ function persistChat() {
 function buildHistory() {
   // Limite grossière : on garde les derniers messages dans un budget de caractères
   const out = [];
-  let budget = 120000;
+  let budget = 64000;
   for (let i = aiChat.length - 1; i >= 0; i--) {
     const m = aiChat[i];
     if (!m || (m.role !== 'user' && m.role !== 'assistant')) continue;
@@ -1231,7 +1282,8 @@ function renderMsg(m) {
     const bubble = document.createElement('div');
     bubble.className = 'ai-bubble';
     bubble.innerHTML = aiMarkdown(stripOpsBlocks(m.content));
-    if (m.note) bubble.insertAdjacentHTML('beforeend', `<div class="ai-warn">${aiEsc(m.note)}</div>`);
+    if (m.note) bubble.insertAdjacentHTML('beforeend',
+      `<div class="${String(m.note).startsWith('⏹') ? 'ai-warn' : 'ai-note'}">${aiEsc(m.note)}</div>`);
     if (m.error) bubble.insertAdjacentHTML('beforeend',
       `<div class="ai-warn">❌ ${aiEsc(m.error)}<br><small>Vérifiez la clé API, le modèle et la route dans les réglages 🤖.</small></div>`);
     wrap.appendChild(bubble);
@@ -1379,8 +1431,9 @@ async function aiSend() {
   };
 
   aiAbort = new AbortController();
+  let meta = null;
   try {
-    await aiStream(systemPrompt() + '\n\n<PLAN>\n' + buildDigest() + '\n</PLAN>', buildHistory(), delta => {
+    meta = await aiStream(systemPrompt() + '\n\n<PLAN>\n' + buildDigest() + '\n</PLAN>', buildHistory(), delta => {
       full += delta;
       if (!rafPending) { rafPending = true; requestAnimationFrame(paint); }
     }, aiAbort.signal);
@@ -1401,6 +1454,7 @@ async function aiSend() {
 
   bubble.classList.remove('ai-streaming');
   const msg = { role: 'assistant', content: full };
+  if (meta && meta.fallback) msg.note = 'ℹ️ Réponse reçue sans streaming : le flux SSE du fournisseur est resté muet.';
   const ops = aiSettings.agentEnabled ? extractOpsBlocks(full) : [];
   if (ops.length) msg.ops = { list: ops, state: 'pending', results: null };
   aiChat.push(msg);
