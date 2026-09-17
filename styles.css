@@ -2310,24 +2310,26 @@ body.topo-linking .topo-node { cursor: crosshair; }
   padding: 10px 12px 12px;
   background: var(--panel-2);
 }
+.ai-composer-row { display: flex; align-items: flex-end; gap: 8px; }
 .ai-composer textarea {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   border: 1px solid var(--border-2);
   border-radius: 10px;
   padding: 9px 11px;
   font-family: inherit;
   font-size: 13px;
+  line-height: 1.5;
   resize: none;
   outline: none;
   background: var(--panel);
-  max-height: 140px;
+  max-height: 122px;      /* ~5 lignes : au-delà, barre de défilement */
+  overflow-y: auto;
 }
 .ai-composer textarea:focus { border-color: var(--accent); background: #fff; }
-.ai-composer-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-.ai-route-hint { flex: 1; font-size: 11px; color: var(--muted); }
-.ai-btn-send { background: var(--accent); border-color: var(--accent); color: #fff; width: 38px; height: 32px; padding: 0; }
+.ai-btn-send { background: var(--accent); border-color: var(--accent); color: #fff; width: 38px; height: 38px; padding: 0; border-radius: 10px; flex: 0 0 auto; }
 .ai-btn-send:hover { background: var(--accent-2); }
-.ai-btn-stop { background: var(--red); border-color: var(--red); color: #fff; width: 38px; height: 32px; padding: 0; }
+.ai-btn-stop { background: var(--red); border-color: var(--red); color: #fff; width: 38px; height: 38px; padding: 0; border-radius: 10px; flex: 0 0 auto; }
 
 /* Modale réglages IA */
 .ai-settings-box { width: 480px; max-width: 94vw; max-height: 90vh; overflow-y: auto; }

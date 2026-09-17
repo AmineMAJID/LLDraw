@@ -959,11 +959,10 @@ document.body.insertAdjacentHTML('beforeend', `
     </header>
     <div id="ai-msgs" class="ai-msgs"></div>
     <footer class="ai-composer">
-      <textarea id="ai-input" rows="1" placeholder="Posez une question ou demandez une modification… (Entrée pour envoyer)"></textarea>
       <div class="ai-composer-row">
-        <span id="ai-route-hint" class="ai-route-hint"></span>
+        <textarea id="ai-input" rows="1" title="Entrée : envoyer · Maj+Entrée : nouvelle ligne" placeholder="Posez une question ou une modification…"></textarea>
         <button id="ai-stop" class="ai-btn ai-btn-stop hidden" title="Interrompre">⏹</button>
-        <button id="ai-send" class="ai-btn ai-btn-send" title="Envoyer">➤</button>
+        <button id="ai-send" class="ai-btn ai-btn-send" title="Envoyer (Entrée)">➤</button>
       </div>
     </footer>
   </aside>
@@ -1031,7 +1030,6 @@ const aiStopBtn = document.getElementById('ai-stop');
 const aiFab     = document.getElementById('ai-fab');
 const aiBadge   = document.getElementById('ai-fab-badge');
 const aiSub     = document.getElementById('ai-head-sub');
-const aiRouteHint = document.getElementById('ai-route-hint');
 const aiModal   = document.getElementById('ai-settings-modal');
 
 let aiBusy = false;
@@ -1044,8 +1042,6 @@ function providerLabel() {
 
 function updateAiHeader() {
   aiSub.textContent = aiConfigured() ? providerLabel() : 'non configuré — cliquez ⚙️';
-  const route = pickRoute();
-  aiRouteHint.textContent = route === 'server' ? 'via server.py' : 'appel direct navigateur';
 }
 
 function pendingCount() {
@@ -1291,10 +1287,14 @@ function doApplyOps(m, card) {
 aiInput.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); aiSend(); }
 });
-aiInput.addEventListener('input', () => {
+// La zone de saisie grandit vers le haut avec le contenu ; la barre de
+// défilement n'apparaît qu'au-delà de ~5 lignes (hauteur plafonnée).
+const AI_INPUT_MAX_H = 122;
+function aiInputAutoGrow() {
   aiInput.style.height = 'auto';
-  aiInput.style.height = Math.min(140, aiInput.scrollHeight) + 'px';
-});
+  aiInput.style.height = Math.min(AI_INPUT_MAX_H, aiInput.scrollHeight) + 'px';
+}
+aiInput.addEventListener('input', aiInputAutoGrow);
 aiSendBtn.addEventListener('click', aiSend);
 aiStopBtn.addEventListener('click', () => { if (aiAbort) aiAbort.abort(); });
 
@@ -1308,7 +1308,7 @@ async function aiSend() {
     return;
   }
   aiInput.value = '';
-  aiInput.style.height = 'auto';
+  aiInputAutoGrow();
   aiChat.push({ role: 'user', content: text });
   persistChat();
   renderChat();
