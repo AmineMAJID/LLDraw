@@ -646,7 +646,7 @@ function mergeDemoInto(local, demo) {
 async function loadDemoWorkspace() {
   const demo = await loadBundledDemoState();
   if (!demo.workspaces.length) {
-    alert('La démo n’est pas disponible : le fichier demo/demo-state.json est introuvable.\n' +
+    lldAlert('La démo n’est pas disponible : le fichier demo/demo-state.json est introuvable.\n' +
           '(Sur un hébergement statique, vérifiez que le dossier demo/ est bien publié.)');
     return;
   }
@@ -1121,8 +1121,11 @@ function renderPalette() {
 
     // Bouton supprimer (seulement pour les devices non-permanents)
     if (!d.permanent) {
-      card.querySelector('.mini-del').addEventListener('click', () => {
-        if (confirm(`Supprimer le modèle "${d.name}" de la bibliothèque ?\n(Les exemplaires déjà placés sont conservés.)`)) {
+      card.querySelector('.mini-del').addEventListener('click', async () => {
+        const ok = await lldConfirm(
+          `Supprimer le modèle « ${d.name} » de la bibliothèque ?\n(Les exemplaires déjà placés sont conservés.)`,
+          { title: '🗑 Supprimer le modèle', okLabel: 'Supprimer' });
+        if (ok) {
           pushHistory();
           // Les exemplaires posés qui affichent la photo du modèle la
           // conservent : on la leur matérialise avant de retirer le modèle.
@@ -1321,16 +1324,17 @@ function renderRack(rack) {
   }
 
   // Définition des budgets de capacité (double-clic sur un badge)
-  metricsEl.addEventListener('dblclick', e => {
+  metricsEl.addEventListener('dblclick', async e => {
     const rm = e.target.closest('.rm[data-metric]');
     if (!rm) return;
     e.stopPropagation();
     const field = rm.dataset.metric;
     const isW = field === 'maxWatts';
-    const val = prompt(isW
-      ? 'Budget électrique du rack en watts (vide = aucun budget) :'
-      : 'Charge maximale du rack en kg (vide = aucune limite) :',
-      String(rack[field] || ''));
+    const val = await lldPrompt(
+      isW ? 'Budget électrique du rack en watts (vide = aucun budget) :'
+          : 'Charge maximale du rack en kg (vide = aucune limite) :',
+      String(rack[field] || ''),
+      { title: isW ? '⚡ Budget électrique' : '⚖ Charge maximale', okLabel: 'Appliquer' });
     if (val === null) return;
     const n = Math.max(0, parseFloat(String(val).replace(',', '.')) || 0);
     if (n === (rack[field] || 0)) return;
@@ -1342,9 +1346,9 @@ function renderRack(rack) {
   });
 
   // Renommage : double-clic sur le titre
-  titleEl.addEventListener('dblclick', e => {
+  titleEl.addEventListener('dblclick', async e => {
     e.stopPropagation();
-    const name = prompt('Nom du rack :', rack.name);
+    const name = await lldPrompt('Nom du rack :', rack.name, { title: '✏️ Renommer le rack', okLabel: 'Renommer' });
     if (name === null) return;
     const trimmed = name.trim();
     if (!trimmed || trimmed === rack.name) return;
@@ -1356,16 +1360,20 @@ function renderRack(rack) {
   });
 
   // Changement de taille
-  sizeSel.addEventListener('change', e => {
+  sizeSel.addEventListener('change', async e => {
     const newSize = parseInt(e.target.value, 10) || rack.sizeU;
     if (newSize === rack.sizeU) return;
 
     // Vérifier que les devices placés tiennent toujours
     const overflow = rack.instances.filter(i => i.slot + i.sizeU > newSize);
-    if (overflow.length &&
-        !confirm(`Passer en ${newSize}U va déloger ${overflow.length} device(s) qui ne tient/tiendront plus. Continuer ?`)) {
-      sizeSel.value = String(rack.sizeU);
-      return;
+    if (overflow.length) {
+      const ok = await lldConfirm(
+        `Passer en ${newSize}U va déloger ${overflow.length} device(s) qui ne tient/tiendront plus. Continuer ?`,
+        { title: '⚠️ Changement de taille', okLabel: 'Continuer' });
+      if (!ok) {
+        sizeSel.value = String(rack.sizeU);
+        return;
+      }
     }
     pushHistory();
     rack.sizeU = newSize;
@@ -1604,12 +1612,26 @@ function renderRack(rack) {
   });
 
   // --- Clics : retrait device / étiquetage ---
-  inner.addEventListener('click', e => {
+  inner.addEventListener('click', async e => {
     const delBtn = e.target.closest('.device-del');
     if (delBtn) {
       const devEl = delBtn.closest('.device');
+      const inst = rack.instances.find(i => i.id === devEl.dataset.instanceId);
+      if (!inst) return;
+      const ws = active();
+      const likelyCables = (ws?.cables || []).filter(c => c.a?.instId === inst.id || c.b?.instId === inst.id).length;
+      const cableNote = likelyCables
+        ? `\n${likelyCables} câble(s) relié(s) à ce device seront également retiré(s).`
+        : '';
+      const ok = await lldConfirm(
+        `Retirer « ${inst.name} » (${inst.sizeU}U) de ce rack ?` +
+        cableNote +
+        `\nCette action est annulable avec Ctrl+Z.`,
+        { title: '✕ Retirer le device', okLabel: 'Retirer' });
+      if (!ok) return;
       pushHistory();
-      rack.instances = rack.instances.filter(i => i.id !== devEl.dataset.instanceId);
+      rack.instances = rack.instances.filter(i => i.id !== inst.id);
+      pruneCables(ws);   // retire les câbles dont une extrémité a disparu
       touchWorkspace(active());
       saveState();
       renderBoard();
@@ -3025,7 +3047,7 @@ function lldDialog(opts) {
         ${o.message ? `<p class="lld-dlg-msg">${esc(o.message).replace(/\n/g, '<br>')}</p>` : ''}
         ${o.input !== null ? `<input class="lld-dlg-input" type="text" spellcheck="false" value="${esc(o.input)}">` : ''}
         <div class="lld-dlg-btns">
-          <button class="btn lld-dlg-cancel" type="button">${esc(o.cancelLabel)}</button>
+          <button class="btn lld-dlg-cancel${o.hideCancel ? ' hidden' : ''}" type="button">${esc(o.cancelLabel)}</button>
           <button class="btn ${o.danger ? 'lld-dlg-danger' : 'lld-dlg-ok'}" type="button">${esc(o.okLabel)}</button>
         </div>
       </div>`;
@@ -3047,6 +3069,7 @@ function lldDialog(opts) {
 }
 const lldConfirm = (message, opts) => lldDialog(Object.assign({ message, okLabel: 'Confirmer', cancelLabel: 'Annuler', danger: true }, opts));
 const lldPrompt  = (message, value, opts) => lldDialog(Object.assign({ message, input: value ?? '', okLabel: 'Créer' }, opts));
+const lldAlert   = (message, opts) => lldDialog(Object.assign({ message, okLabel: 'OK', cancelLabel: 'OK', hideCancel: true }, opts));
 
 function formatDate(ts) {
   if (!ts) return 'Jamais modifié';
@@ -3742,10 +3765,13 @@ $('#cable-filter-reset').addEventListener('click', () => {
   renderCableList();
 });
 
-$('#cable-panel-clear').addEventListener('click', () => {
+$('#cable-panel-clear').addEventListener('click', async () => {
   const ws = active();
   if (!ws?.cables.length) return;
-  if (confirm(`Retirer les ${ws.cables.length} câble(s) de ce workspace ?`)) {
+  const ok = await lldConfirm(
+    `Retirer les ${ws.cables.length} câble(s) de ce workspace ?`,
+    { title: '🗑 Retirer les câbles', okLabel: 'Retirer' });
+  if (ok) {
     pushHistory();
     ws.cables = [];
     touchWorkspace(ws);
@@ -4066,11 +4092,11 @@ $('#lld-gen-nomen').addEventListener('click', () => {
     if (!found[pfx] || n.length < found[pfx].length) found[pfx] = n;
   });
   const missing = Object.keys(found).filter(p => !known.has(p)).sort();
-  if (!missing.length) { alert('Aucun nouveau préfixe détecté (ou tous sont déjà dans la nomenclature).'); return; }
+  if (!missing.length) { lldAlert('Aucun nouveau préfixe détecté (ou tous sont déjà dans la nomenclature).', { title: '🔍 Détection des préfixes' }); return; }
   missing.forEach(p => lldAddRow($('#lld-nomen'), LLD_NOMEN_COLS, {
     type: NOMEN_GUESS[p] || '', prefix: p, example: found[p]
   }));
-  alert(`${missing.length} préfixe(s) ajouté(s) à la nomenclature : ${missing.join(', ')}.\nVérifiez le type d'objet et complétez la règle de nommage.`);
+  lldAlert(`${missing.length} préfixe(s) ajouté(s) à la nomenclature : ${missing.join(', ')}.\nVérifiez le type d'objet et complétez la règle de nommage.`, { title: '🔍 Détection des préfixes' });
 });
 
 // Ajoute au registre les VLANs utilisés sur les ports mais pas encore enregistrés
@@ -4093,10 +4119,10 @@ $('#lld-detect-vlans').addEventListener('click', () => {
     });
   });
   const missing = [...found].filter(v => !known.has(v)).sort((a, b) => a - b);
-  if (!missing.length) { alert('Tous les VLANs utilisés sont déjà dans le registre.'); return; }
+  if (!missing.length) { lldAlert('Tous les VLANs utilisés sont déjà dans le registre.', { title: '🔍 Détection des VLANs' }); return; }
   const vlans = $('#lld-vlans');
   missing.forEach(vid => lldAddRow(vlans, LLD_VLAN_COLS, { vid }));
-  alert(`${missing.length} VLAN(s) ajouté(s) au registre : ${missing.join(', ')}\nRenseignez leur nom, subnet et passerelle.`);
+  lldAlert(`${missing.length} VLAN(s) ajouté(s) au registre : ${missing.join(', ')}\nRenseignez leur nom, subnet et passerelle.`, { title: '🔍 Détection des VLANs' });
 });
 
 $('#lld-save').addEventListener('click', () => {
@@ -4132,7 +4158,7 @@ $('#lld-save').addEventListener('click', () => {
     if (i.zone && !zoneIds.has(i.zone)) { i.zone = ''; dezoned++; }
   }));
   if (dezoned) {
-    alert(`${dezoned} device(s) switching étaient rattaché(s) à une zone supprimée :\nils sont maintenant « hors zone ».`);
+    lldAlert(`${dezoned} device(s) switching étaient rattaché(s) à une zone supprimée :\nils sont maintenant « hors zone ».`, { title: 'ℹ️ Zones de switching' });
   }
 
   // Flux réseau (ch. 14)
@@ -4165,7 +4191,7 @@ $('#lld-save').addEventListener('click', () => {
   let detached = 0;
   ws.racks.forEach(r => { if (r.siteId && !newIds.has(r.siteId)) { r.siteId = ''; detached++; } });
   if (detached) {
-    alert(`${detached} rack(s) étaient rattaché(s) à un site supprimé :\nils sont maintenant « sans site ».`);
+    lldAlert(`${detached} rack(s) étaient rattaché(s) à un site supprimé :\nils sont maintenant « sans site ».`, { title: 'ℹ️ Sites' });
   }
 
   touchWorkspace(ws);
@@ -4503,7 +4529,7 @@ $('#topo-import-cables').addEventListener('click', () => {
     candidates.push({ na, nb, name: c.name || '' });
   }
   if (!candidates.length) {
-    alert('Aucun câble importable (vérifiez que les noeuds existent — « ⚡ Générer » d\'abord).');
+    lldAlert('Aucun câble importable (vérifiez que les noeuds existent — « ⚡ Générer » d\'abord).', { title: '🔌 Importer les câbles' });
     return;
   }
   pushHistory();
@@ -4519,7 +4545,7 @@ $('#topo-new-link').addEventListener('click', () => {
   if (!ws) return;
   const topo = ensureTopology(ws);
   if (!topo.nodes.length) {
-    alert('Aucun noeud pour l\'instant : cliquez « ⚡ Générer depuis les racks » d\'abord.');
+    lldAlert('Aucun noeud pour l\'instant : cliquez « ⚡ Générer depuis les racks » d\'abord.', { title: '🕸️ Nouveau lien' });
     return;
   }
   exitTopoLinking();
@@ -5015,14 +5041,14 @@ document.addEventListener('pointerdown', e => {
 $('#export-png').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
   const c = await renderPlanCanvas();
-  if (!c) { alert('Ce workspace ne contient aucun rack à exporter.'); return; }
+  if (!c) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '🖼️ Export PNG' }); return; }
   c.toBlob(blob => blob && downloadBlob(blob, exportFileBase() + '.png'), 'image/png');
 });
 
 $('#export-pdf').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
   const c = await renderPlanCanvas();
-  if (!c) { alert('Ce workspace ne contient aucun rack à exporter.'); return; }
+  if (!c) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📄 Export PDF' }); return; }
   // Le PDF embarque le rendu en JPEG (une seule page)
   const jpeg = dataURLBytes(c.toDataURL('image/jpeg', 0.92));
   const blob = canvasToPdfBlob(c.width, c.height, jpeg);
@@ -5280,48 +5306,48 @@ function racksRows(ws) {
 $('#export-csv-inv').addEventListener('click', () => {
   $('#export-menu').classList.add('hidden');
   const rows = invRows(active());
-  if (rows.length < 2) { alert("Aucun device placé dans ce workspace : l'inventaire serait vide."); return; }
+  if (rows.length < 2) { lldAlert("Aucun device placé dans ce workspace : l'inventaire serait vide.", { title: '📊 Export Inventaire' }); return; }
   downloadCsv(rows, 'inventaire');
 });
 
 $('#export-csv-cab').addEventListener('click', () => {
   $('#export-menu').classList.add('hidden');
   const rows = cablingRows(active());
-  if (rows.length < 2) { alert('Aucun câble dans ce workspace : le tableau de câblage serait vide.'); return; }
+  if (rows.length < 2) { lldAlert('Aucun câble dans ce workspace : le tableau de câblage serait vide.', { title: '📊 Export Câblage' }); return; }
   downloadCsv(rows, 'cablage');
 });
 
 $('#export-csv-ports').addEventListener('click', () => {
   $('#export-menu').classList.add('hidden');
   const rows = portsRows(active());
-  if (rows.length < 2) { alert('Aucun port étiqueté dans ce workspace : l\'export serait vide.'); return; }
+  if (rows.length < 2) { lldAlert('Aucun port étiqueté dans ce workspace : l\'export serait vide.', { title: '📊 Export Ports' }); return; }
   downloadCsv(rows, 'ports');
 });
 
 $('#export-csv-sites').addEventListener('click', () => {
   $('#export-menu').classList.add('hidden');
   const rows = sitesRows(active());
-  if (rows.length < 2) { alert('Aucun site déclaré dans ce workspace : l\'export serait vide.'); return; }
+  if (rows.length < 2) { lldAlert('Aucun site déclaré dans ce workspace : l\'export serait vide.', { title: '📊 Export Sites' }); return; }
   downloadCsv(rows, 'sites');
 });
 
 $('#export-csv-warranty').addEventListener('click', () => {
   $('#export-menu').classList.add('hidden');
   const rows = warrantyRows(active());
-  if (rows.length < 2) { alert("Aucune garantie renseignée : ouvrez la fiche d'un device placé (double-clic sur « Fin de garantie ») ou la fiche d'inventaire de son modèle."); return; }
+  if (rows.length < 2) { lldAlert("Aucune garantie renseignée : ouvrez la fiche d'un device placé (double-clic sur « Fin de garantie ») ou la fiche d'inventaire de son modèle.", { title: '📊 Export Garanties' }); return; }
   downloadCsv(rows, 'garanties');
 });
 $('#export-csv-nomen').addEventListener('click', () => {
   $('#export-menu').classList.add('hidden');
   const rows = [...nomenRows(active()), ...addressingRows(active()).slice(1)];
-  if (rows.length < 3) { alert('Nomenclature et registre VLANs non renseignés (fiche du dossier, onglet Réseau) : l\'export serait vide.'); return; }
+  if (rows.length < 3) { lldAlert('Nomenclature et registre VLANs non renseignés (fiche du dossier, onglet Réseau) : l\'export serait vide.', { title: '📊 Export Nomenclature & Adressage' }); return; }
   downloadCsv(rows, 'nomenclature-adressage');
 });
 
 $('#export-csv-flux').addEventListener('click', () => {
   $('#export-menu').classList.add('hidden');
   const rows = flowsRows(active());
-  if (rows.length < 2) { alert('Aucun flux défini dans ce workspace (fiche du dossier, onglet Flux) : l\'export serait vide.'); return; }
+  if (rows.length < 2) { lldAlert('Aucun flux défini dans ce workspace (fiche du dossier, onglet Flux) : l\'export serait vide.', { title: '📊 Export Flux' }); return; }
   downloadCsv(rows, 'flux');
 });
 
@@ -5490,7 +5516,7 @@ const XLSX = (() => {
 $('#export-xlsx').addEventListener('click', () => {
   $('#export-menu').classList.add('hidden');
   const ws = active();
-  if (!ws || !ws.racks.length) { alert('Ce workspace ne contient aucun rack à exporter.'); return; }
+  if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Export Excel' }); return; }
   const sheets = [
     { name: 'Inventaire',    rows: invRows(ws) },
     { name: 'Câblage',       rows: cablingRows(ws) },
@@ -6071,7 +6097,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
 $('#export-lld').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
   const ws = active();
-  if (!ws || !ws.racks.length) { alert('Ce workspace ne contient aucun rack à exporter.'); return; }
+  if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📄 Export LLD (PDF)' }); return; }
   const c = await renderPlanCanvas();
   let jpeg = null, w = 0, h = 0;
   if (c) {
