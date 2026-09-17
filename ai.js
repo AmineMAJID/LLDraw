@@ -78,20 +78,10 @@ function defaultSettings() {
     model: 'gpt-4o-mini',
     apiKey: '',
     route: 'auto',          // 'auto' | 'direct' | 'server'
-    agentEnabled: true,     // l'IA peut PROPOSER des modifications (approbation requise)
-    patience: 'normale'     // 'normale' | 'longue' | 'treslongue'
+    agentEnabled: true      // l'IA peut PROPOSER des modifications (approbation requise)
   };
 }
 
-// Délais réseau selon le profil : les modèles « reasoning » (o3, GLM
-// thinking, DeepSeek-R1…) réfléchissent longtemps avant d'émettre le
-// moindre octet — leur couper la parole à 30 s serait une erreur.
-const AI_PATIENCE = {
-  normale:    { first: 30000,  idle: 60000  },
-  longue:     { first: 120000, idle: 120000 },
-  treslongue: { first: 300000, idle: 180000 }
-};
-const aiPatience = () => AI_PATIENCE[aiSettings.patience] || AI_PATIENCE.normale;
 
 let aiSettings = defaultSettings();
 try {
@@ -314,6 +304,7 @@ RÉFÉRENCE DES OPÉRATIONS (bloc \`\`\`${AI_FENCE}) :
 - resize_rack {rackId, sizeU}
 - set_rack_budget {rackId, maxWatts?, maxKg?}   (0 = pas de budget)
 - set_rack_site {rackId, siteId}                (siteId "" = détacher)
+- remove_rack {rackId}   (supprime le rack, tous les devices qu'il contient et leurs cordons)
 - create_device_model {tempId?, name, sizeU, cat?, brand?, model?, partRef?, watts?, weightKg?, warranty?, warrantyEnd?, ipMgmt?, vlan?, portsCount?}
     → crée un modèle dans la bibliothèque (sans photo) ; cat ∈ router|firewall|switch|wifi|server|storage|ids|cctv|pointage|ups|patch|other (devinée depuis le nom si absente) ; portsCount génère des ports nommés 1..N
 - add_device {rackId, deviceId, slot, name?, zone?, ipMgmt?, vlan?, serial?, watts?, weightKg?, warrantyEnd?}
@@ -470,16 +461,10 @@ async function consumeResponse(resp, fam, onDelta, signal) {
   const dec = new TextDecoder();
   let buf = '';
   let gotAny = false;
-  const { first: FIRST_MS, idle: IDLE_MS } = aiPatience();
-  let timer = null, rejectIdle = null, first = true;
-  const idlePromise = new Promise((res, rej) => { rejectIdle = rej; });
-  const kick = () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => rejectIdle(new Error(
-      first ? `Le fournisseur n'a pas commencé à répondre (${Math.round(FIRST_MS / 1000)} s). Pour un modèle « reasoning », augmentez la Patience dans les réglages 🤖 ; sinon vérifiez modèle, endpoint et route.`
-            : `Le fournisseur ne répond plus (${Math.round(IDLE_MS / 1000)} s sans données). Pour un modèle « reasoning », augmentez la Patience dans les réglages 🤖.`)),
-      first ? FIRST_MS : IDLE_MS);
-  };
+  // AUCUN minuteur ici : seuls l'utilisateur (bouton ⏹) ou une erreur réseau
+  // peuvent interrompre la lecture. Les modèles « reasoning » peuvent
+  // réfléchir plusieurs minutes avant le premier octet — les couper serait
+  // une erreur.
   const handleEvent = raw => {
     for (const line of raw.split('\n')) {
       if (!line.startsWith('data:')) continue;
@@ -488,33 +473,27 @@ async function consumeResponse(resp, fam, onDelta, signal) {
       let obj;
       try { obj = JSON.parse(payload); } catch (e) { continue; }
       if (fam === 'anthropic') {
-        if (obj.type === 'content_block_delta') { gotAny = true; first = false; onDelta(obj.delta?.text || ''); }
+        if (obj.type === 'content_block_delta') { gotAny = true; onDelta(obj.delta?.text || ''); }
         else if (obj.type === 'error') throw new Error(obj.error?.message || 'Erreur Anthropic');
       } else {
         // Certains fournisseurs signalent les erreurs DANS le flux, avec un HTTP 200
         if (obj.error) throw new Error(obj.error.message || JSON.stringify(obj.error).slice(0, 300));
         if (obj.ok === false) throw new Error(obj.error || 'Erreur du proxy serveur');
         const delta = obj.choices?.[0]?.delta?.content;
-        if (delta) { gotAny = true; first = false; onDelta(delta); }
+        if (delta) { gotAny = true; onDelta(delta); }
       }
     }
   };
-  try {
-    kick();
-    while (true) {
-      const { done, value } = await Promise.race([reader.read(), idlePromise]);
-      kick();
-      if (done) break;
-      buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n');
-      let idx;
-      while ((idx = buf.indexOf('\n\n')) >= 0) {
-        const raw = buf.slice(0, idx);
-        buf = buf.slice(idx + 2);
-        handleEvent(raw);
-      }
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+    let idx;
+    while ((idx = buf.indexOf('\n\n')) >= 0) {
+      const raw = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      handleEvent(raw);
     }
-  } finally {
-    clearTimeout(timer);
   }
   return gotAny;
 }
@@ -551,26 +530,21 @@ async function aiStream(sysText, history, onDelta, signal) {
     if (!got) throw new Error('Réponse vide du fournisseur (flux SSE ouvert mais sans contenu).');
   } catch (e) {
     if (e && e.name === 'AbortError') throw e;
-    const retryable = /pas commencé à répondre|ne répond plus|Réponse vide|HTTP 5\d\d|HTTP 429/i.test(String(e.message || e));
+    const retryable = /Réponse vide|HTTP 5\d\d|HTTP 429/i.test(String(e.message || e));
     if (!retryable) throw e;
     // Le flux SSE reste muet chez certains fournisseurs (certains edges
     // NVIDIA ne répondent qu'en mode non streamé, par ex.) : on retente
     // automatiquement UNE fois sans streaming.
     fallback = true;
     const ctl = new AbortController();
-    let delayed = false;
     const onOuter = () => ctl.abort();
     if (signal) { if (signal.aborted) ctl.abort(); else signal.addEventListener('abort', onOuter); }
-    const capMs = Math.min(300000, aiPatience().idle + 30000);
-    const t = setTimeout(() => { delayed = true; ctl.abort(); }, capMs);
     try {
-      got = await attempt(false, ctl.signal);
+      got = await attempt(false, ctl.signal);   // sans limite de temps non plus
     } catch (e2) {
-      if (delayed && e2.name === 'AbortError') throw new Error(`Le fournisseur ne répond ni en streaming ni sans streaming (${Math.round(capMs / 1000)} s). Vérifiez modèle, endpoint et clé — ou réessayez plus tard.`);
       if (e2.name === 'AbortError' && signal && signal.aborted) throw e2;
       throw e2;
     } finally {
-      clearTimeout(t);
       if (signal) signal.removeEventListener('abort', onOuter);
     }
   }
@@ -689,6 +663,17 @@ function applyOp(op, env) {
       pushHistorySafe(env);
       r.siteId = siteId;
       return { ok: true, desc: `🏢 Rack « ${r.name} » rattaché au site « ${site ? site.name : '— aucun —'} »` };
+    }
+
+    case 'remove_rack': {
+      const rack = envRack(env, op.rackId);
+      if (!rack) return fail(`remove_rack : rack « ${op.rackId} » introuvable.`);
+      const n = rack.instances.length;
+      pushHistorySafe(env);
+      ws.racks.splice(ws.racks.indexOf(rack), 1);
+      pruneCables(ws);      // cordons des devices supprimés
+      pruneTopology(ws);
+      return { ok: true, desc: `🗑️ Rack « ${rack.name} » supprimé (${n} device(s) contenu(s), cordons inclus)` };
     }
 
     case 'create_device_model': {
@@ -984,6 +969,7 @@ function opFallbackDesc(op) {
     create_rack:        () => `🗄️ Créer le rack « ${s('name')} » (${s('sizeU')}U)`,
     rename_rack:        () => `✏️ Renommer le rack « ${s('rackId')} » en « ${s('name')} »`,
     resize_rack:        () => `↕️ Redimensionner le rack « ${s('rackId')} » en ${s('sizeU')}U`,
+    remove_rack:        () => `🗑️ Supprimer le rack « ${s('rackId')} » et tout son contenu`,
     set_rack_budget:    () => `⚡ Budget du rack « ${s('rackId')} » (${s('maxWatts')} W / ${s('maxKg')} kg)`,
     set_rack_site:      () => `🏢 Rattacher le rack « ${s('rackId')} » au site « ${s('siteId') || '—'} »`,
     create_device_model:() => `📦 Créer le modèle « ${s('name')} » (${s('sizeU')}U${op.portsCount ? ', ' + op.portsCount + ' ports' : ''})`,
@@ -1154,16 +1140,6 @@ document.body.insertAdjacentHTML('beforeend', `
         <small class="ai-hint">La clé reste dans ce navigateur (localStorage). La route « Serveur » évite les problèmes CORS et permet d'utiliser la clé du serveur (variable d'environnement <code>LLDRAW_AI_KEY</code>) si le champ clé est vide. Certains fournisseurs (NVIDIA NIM, API d'entreprise…) <strong>refusent les appels directs depuis un navigateur</strong> (CORS) : pour eux, utilisez « Serveur » ou « Auto ». L'endpoint « base » (ex. <code>…/v1</code>) est complété automatiquement en <code>…/v1/chat/completions</code>.</small>
       </label>
 
-      <label class="ai-field">
-        <span>Patience réseau (modèles lents / à raisonnement)</span>
-        <select id="ai-patience">
-          <option value="normale">Normale — 1ʳ octet 30 s, silence max 60 s</option>
-          <option value="longue">Longue — 2 min / 2 min (modèles à raisonnement)</option>
-          <option value="treslongue">Très longue — 5 min / 3 min</option>
-        </select>
-        <small class="ai-hint">Les modèles « reasoning » (o3, GLM thinking, DeepSeek-R1…) réfléchissent longtemps avant le premier octet : si vos réponses coupent en pleine réflexion, augmentez la patience.</small>
-      </label>
-
       <label class="ai-check">
         <input id="ai-agent" type="checkbox">
         <span>Mode agent — l'IA peut <strong>proposer</strong> des modifications du plan (toujours soumises à votre approbation, annulables avec Ctrl+Z)</span>
@@ -1254,7 +1230,7 @@ const inpEndpoint = document.getElementById('ai-endpoint');
 const inpModel    = document.getElementById('ai-model');
 const inpKey      = document.getElementById('ai-key');
 const selRoute    = document.getElementById('ai-route');
-const selPatience = document.getElementById('ai-patience');
+
 const chkAgent    = document.getElementById('ai-agent');
 const modelList   = document.getElementById('ai-model-list');
 
@@ -1269,7 +1245,7 @@ function loadSettingsForm() {
   inpModel.value = aiSettings.model || '';
   inpKey.value = aiSettings.apiKey || '';
   selRoute.value = aiSettings.route || 'auto';
-  selPatience.value = aiSettings.patience || 'normale';
+
   chkAgent.checked = aiSettings.agentEnabled !== false;
   fillModelList();
 }
@@ -1280,7 +1256,7 @@ function readSettingsForm() {
   aiSettings.model = inpModel.value.trim();
   aiSettings.apiKey = inpKey.value.trim();
   aiSettings.route = selRoute.value;
-  aiSettings.patience = selPatience.value;
+
   aiSettings.agentEnabled = chkAgent.checked;
   saveSettings();
   updateAiHeader();
@@ -1295,7 +1271,7 @@ selProvider.addEventListener('change', () => {
   fillModelList();
   readSettingsForm();
 });
-[inpEndpoint, inpModel, inpKey, selRoute, selPatience].forEach(el => el.addEventListener('change', readSettingsForm));
+[inpEndpoint, inpModel, inpKey, selRoute].forEach(el => el.addEventListener('change', readSettingsForm));
 [inpEndpoint, inpModel, inpKey].forEach(el => el.addEventListener('input', () => {
   // sauvegarde différée simple pendant la frappe
   clearTimeout(el._t); el._t = setTimeout(readSettingsForm, 400);
@@ -1326,12 +1302,10 @@ document.getElementById('ai-test').addEventListener('click', async () => {
   readSettingsForm();
   const res = document.getElementById('ai-test-result');
   const btn = document.getElementById('ai-test');
-  const capS = Math.round(aiPatience().first / 1000) + 15;
-  res.textContent = `⏳ test en cours… (${capS} s max)`;
+  res.textContent = '⏳ test en cours… (sans limite de temps)';
   res.className = 'ai-test-result';
   btn.disabled = true;
-  const ctl = new AbortController();
-  const to = setTimeout(() => ctl.abort(), capS * 1000);   // plafond dur pour le test
+  const ctl = new AbortController();   // annulable seulement en fermant les réglages
   const t0 = performance.now();
   try {
     let got = '';
@@ -1340,12 +1314,9 @@ document.getElementById('ai-test').addEventListener('click', async () => {
     res.textContent = `✅ Connexion OK (${ms} ms) — reçu : « ${got.trim().slice(0, 40) || '…'} » via ${pickRoute() === 'server' ? 'server.py' : 'appel direct'}`;
     res.classList.add('ok');
   } catch (e) {
-    res.textContent = '❌ ' + (e && e.name === 'AbortError'
-      ? `Délai de ${capS} s dépassé sans réponse complète : pour un modèle « reasoning », passez la Patience sur Longue/Très longue ; sinon vérifiez endpoint, modèle et route.`
-      : ((e && e.message) || e));
+    res.textContent = '❌ ' + ((e && e.message) || e);
     res.classList.add('ko');
   } finally {
-    clearTimeout(to);
     btn.disabled = false;
   }
 });

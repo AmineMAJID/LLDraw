@@ -232,11 +232,11 @@ class Handler(SimpleHTTPRequestHandler):
             headers=_ai_upstream_headers(provider, api_key)
         )
         try:
-            # 300 s max par lecture réseau : les modèles « reasoning » peuvent
-            # réfléchir plusieurs minutes avant le premier octet. C'est le
-            # client qui gouverne l'attente visible (réglage « Patience ») ;
-            # ce plafond ne sert qu'à éviter un thread zombie infini.
-            resp = _ai_opener.open(upstream, timeout=300)
+            # 1 h max par lecture réseau : uniquement pour éviter un thread
+            # zombie si un fournisseur disparaît sans fermer la connexion.
+            # Côté client, AUCUN timeout ne coupe l'attente : seul
+            # l'utilisateur interrompt (bouton ⏹).
+            resp = _ai_opener.open(upstream, timeout=3600)
         except urllib.error.HTTPError as e:
             detail = ""
             try:
@@ -246,7 +246,7 @@ class Handler(SimpleHTTPRequestHandler):
             self._safe_send_json({"ok": False, "error": f"HTTP {e.code} du fournisseur", "detail": detail[:800]}, status=502)
             return
         except TimeoutError:
-            self._safe_send_json({"ok": False, "error": "Le fournisseur n'a envoyé aucune réponse en 65 s (endpoint injoignable, modèle invalide ou service saturé). Réessayez, ou vérifiez l'endpoint et le nom exact du modèle."}, status=504)
+            self._safe_send_json({"ok": False, "error": "Le fournisseur n'a envoyé aucune réponse (endpoint injoignable, modèle invalide ou service saturé). Réessayez, ou vérifiez l'endpoint et le nom exact du modèle."}, status=504)
             return
         except Exception as e:
             self._safe_send_json({"ok": False, "error": f"Connexion au fournisseur impossible : {e}"}, status=502)
