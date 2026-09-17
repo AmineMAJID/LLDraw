@@ -534,11 +534,11 @@ def build():
     }
 
     # ---------- câbles ----------
-    def cable(cid, name, domain, color, ra, ia, pa, rb, ib, pb):
+    def cable(cid, name, domain, color, rackA, instA, portA, rackB, instB, portB):
         return {
             'id': cid, 'name': name, 'color': color, 'domain': domain,
-            'a': {'rackId': ra, 'instId': ia, 'portId': pa},
-            'b': {'rackId': rb, 'instId': ib, 'portId': pb},
+            'a': {'rackId': rackA, 'instId': instA, 'portId': portA},
+            'b': {'rackId': rackB, 'instId': instB, 'portId': portB},
         }
 
     LAN, MGMT, FW, SAN, TEN = '#60a5fa', '#a78bfa', '#f59e0b', '#f472b6', '#34d399'

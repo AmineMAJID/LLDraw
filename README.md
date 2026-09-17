@@ -318,99 +318,6 @@ optimisations supplémentaires :
   Le graphique du port (RJ45) a été retravaillé : biseau métallique, reflet
   satiné, cavité plus profonde, contacts dorés avec ombres portées ;
 
-## 🤖 Assistant IA (consultant + agent)
-
-LLDraw embarque un assistant IA dans l'application : un **consultant** qui
-connaît votre plan et un **agent** qui peut le modifier — toujours avec votre
-approbation.
-
-- **Ouvrir le chat** : bouton **💬** en bas à droite du board.
-- **Réglages** : bouton **🤖** dans la barre du haut, juste à côté de
-  l'indicateur d'enregistrement (☁️ / 💾).
-
-### Fonctionnement
-
-1. **Consultant** — à chaque message, l'application envoie au modèle un
-   *condensé JSON* du workspace courant (racks, devices, ports, câbles,
-   sites, flux, topologie, dossier LLD — **jamais les photos**, pour rester
-   léger). Posez vos questions (« où est branché CAB-SRV-01 ? », « mon rack A
-   est-il saturé ? ») ou demandez un audit (capacités U/W/kg, garanties qui
-   expirent, cohérence IP/VLAN, sections du dossier LLD à compléter…).
-2. **Agent** — quand l'IA propose des modifications, elle les exprime dans un
-   bloc d'**opérations JSON** (placer un device, créer un rack, câbler deux
-   ports, rédiger une section du dossier, ajouter un site / VLAN / flux…).
-   L'application **valide** chaque opération (ids réels, place libre dans le
-   rack, ports non déjà câblés…), puis affiche une **carte d'approbation** :
-   rien n'est appliqué sans votre clic. Les opérations invalides sont
-   signalées ⛔ et décochées.
-3. **Transaction unique + Ctrl+Z** — le lot approuvé est appliqué en une
-   seule transaction : **Ctrl+Z annule toutes les modifications de l'IA**
-   d'un coup. Le résultat (appliquées / refusées) est renvoyé à l'IA pour
-   qu'elle puisse se corriger au tour suivant.
-
-Les opérations disponibles couvrent : racks (création, renommage,
-redimensionnement, budget W/kg, site), bibliothèque de devices (création de
-modèles avec ports générés), placement / déplacement / fiche d'inventaire des
-devices posés, ports (nom, étiquette, IP, VLAN), câblage (cordons avec
-couleur et domaine), topologie des flux, sites, registre VLANs et **rédaction
-des sections du dossier LLD** (objectif, existant, architecture, FAI,
-interconnexion, notes par chapitre…).
-
-### Multi-fournisseurs
-
-Le sélecteur de fournisseur propose des profils prêts à l'emploi — tous
-modifiables (endpoint et modèle sont des champs libres) :
-
-| Fournisseur | API | Exemples de modèles |
-|---|---|---|
-| OpenAI | compatible OpenAI | `gpt-4o-mini`, `gpt-4o` |
-| Anthropic (Claude) | Messages API native | `claude-sonnet-4-5`, `claude-3-5-haiku-latest` |
-| OpenRouter | compatible OpenAI | `openai/gpt-4o-mini`, `anthropic/claude-sonnet-4.5`… |
-| Mistral AI | compatible OpenAI | `mistral-small-latest` |
-| Groq | compatible OpenAI | `llama-3.3-70b-versatile` |
-| Google Gemini | compatible OpenAI | `gemini-2.0-flash`, `gemini-2.5-pro` |
-| Ollama (local) | compatible OpenAI | `llama3.1`, `qwen2.5` — aucune clé requise |
-| Personnalisé | compatible OpenAI | n'importe quel endpoint (vLLM, LM Studio…) |
-
-Le bouton **🔌 Tester la connexion** de la modale vérifie la configuration
-avant de discuter.
-
-### Où passe la clé API (deux routes, commutables à tout moment)
-
-- **Direct (navigateur → fournisseur)** — la clé que vous saisissez est
-  stockée dans **ce navigateur** (localStorage) et l'appel part directement
-  vers le fournisseur. Fonctionne partout, y compris sur GitHub Pages.
-- **Serveur (navigateur → `server.py` → fournisseur)** — les appels passent
-  par le proxy **`POST /api/ai`** du serveur (streaming inclus). Avantages :
-  pas de CORS, et la clé peut rester **côté serveur** via la variable
-  d'environnement `LLDRAW_AI_KEY` (le champ clé du navigateur peut alors
-  rester vide ; si les deux existent, la clé du serveur est prioritaire) :
-
-  ```bash
-  LLDRAW_AI_KEY="sk-…" python3 server.py
-  ```
-
-- **Auto** (réglage par défaut) — proxy serveur si `server.py` tourne,
-  sinon appel direct. Si le serveur ne connaît pas `/api/ai` (ancienne
-  version), l'application rebascule en direct automatiquement.
-
-Certains fournisseurs (ex. **NVIDIA NIM**, API d'entreprise) **refusent les
-appels CORS depuis un navigateur** (« Failed to fetch ») : dans ce cas
-l'application rebascule automatiquement sur le proxy `server.py` s'il tourne
-(sinon, le message d'erreur vous invite à passer la route sur « Serveur »).
-Un endpoint « base » saisi sans le chemin final (ex. `https://…/v1`) est
-complété automatiquement en `…/v1/chat/completions` (ou `…/v1/messages` pour
-Anthropic).
-
-Le proxy refuse les endpoints non-HTTPS (sauf `localhost` pour Ollama) et
-bloque les hôtes privés / link-local (protection SSRF basique), et ne suit
-pas les redirections.
-
-> Confidentialité : le condensé envoyé contient l'inventaire du plan (noms,
-> marques, n° de série, IP, VLAN, garanties…) mais **jamais les photos**.
-> La conversation est conservée dans le navigateur (localStorage) ; le bouton
-> 🗑 du panneau démarre une nouvelle conversation.
-
 ## 🚀 Déploiement
 
 **Hébergement statique (GitHub Pages…)** — aucun serveur requis :
@@ -455,9 +362,6 @@ automatiquement** depuis `demo/demo-state.json` (publié par le workflow
 - Un état local ne contenant **aucun workspace** (par exemple une sauvegarde
   réduite au device permanent) déclenche lui aussi le chargement de la démo —
   c'est ce qui garantit que la démonstration ne disparaît plus.
-- L'**assistant IA** reste disponible en mode statique : sans `server.py`,
-  les appels partent directement du navigateur vers le fournisseur avec
-  **votre propre clé** (route « Direct » du réglage 🤖).
 
 ## 🎬 Démonstration
 
@@ -474,12 +378,10 @@ Le script `demo_datacenter.py` reconstruit ce workspace dans `data/state.json`
 
 ## Fichiers
 
-- `server.py` — serveur HTTP + persistance JSON (`data/state.json`) + proxy IA (`POST /api/ai`)
+- `server.py` — serveur HTTP + persistance JSON (`data/state.json`)
 - `index.html` — structure de l'interface
 - `styles.css` — thème et mise en page
 - `app.js` — logique (drag & drop, racks, devices, ports, câbles, persistance)
-- `ai.js` — assistant IA (consultant + agent) : chat, multi-fournisseurs,
-  condensé du plan, opérations validées et approuvées avant application
 - `assets/logo.svg` — logo du projet (icône d'application, défini en vectoriel) ;
   décliné en PNG (`logo-512.png`, `logo-192.png`), favicon (`favicon.ico` /
   `favicon-*.png`) et `apple-touch-icon.png`

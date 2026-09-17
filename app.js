@@ -658,7 +658,6 @@ async function loadDemoWorkspace() {
   state = mergeDemoInto(state, demo);
   state.activeWorkspaceId = wsId;
   saveState();
-  notifyWorkspaceChanged();
   renderPalette();          // la bibliothèque gagne les devices de la démo
   renderSiteFilter();
   openWorkspace(wsId);
@@ -3004,7 +3003,6 @@ const homeScreen = $('#home-screen');
 function showHome() {
   renderHomeList();
   homeScreen.classList.remove('hidden');
-  notifyWorkspaceChanged();
 }
 
 function hideHome() {
@@ -3049,12 +3047,6 @@ function lldDialog(opts) {
 }
 const lldConfirm = (message, opts) => lldDialog(Object.assign({ message, okLabel: 'Confirmer', cancelLabel: 'Annuler', danger: true }, opts));
 const lldPrompt  = (message, value, opts) => lldDialog(Object.assign({ message, input: value ?? '', okLabel: 'Créer' }, opts));
-
-// Notifie l'assistant IA (ai.js) que le workspace courant a changé :
-// il recharge la conversation propre à ce workspace (une par workspace).
-function notifyWorkspaceChanged() {
-  window.dispatchEvent(new CustomEvent('lldraw:workspace-changed'));
-}
 
 function formatDate(ts) {
   if (!ts) return 'Jamais modifié';
@@ -3141,7 +3133,6 @@ function openWorkspace(id) {
       fitViewToContent();
     }
   });
-  notifyWorkspaceChanged();
 }
 
 async function createWorkspace() {
@@ -3184,7 +3175,6 @@ async function deleteWorkspace(id) {
   } else {
     renderHomeList();
   }
-  notifyWorkspaceChanged();
 }
 
 // Créer et gérer les workspaces se fait depuis l'écran d'accueil.

@@ -47,7 +47,7 @@ jobs:
         # fichier qui fournit le workspace de démonstration).
         run: |
           mkdir -p _site/assets _site/demo
-          cp index.html app.js ai.js styles.css _site/
+          cp index.html app.js styles.css _site/
           cp -r assets/. _site/assets/
           cp demo/demo-state.json _site/demo/ 2>/dev/null || echo "⚠ demo/demo-state.json absent"
           test -f _site/demo/demo-state.json || { echo "::error::demo/demo-state.json manquant : la démo ne s'afficherait pas en ligne"; exit 1; }
