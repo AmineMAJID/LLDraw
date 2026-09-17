@@ -66,7 +66,10 @@ const AI_PROVIDERS = {
 };
 
 const AI_SETTINGS_KEY = 'lldraw-ai-settings-v1';
-const AI_CHAT_KEY     = 'lldraw-ai-chat-v1';
+const AI_CHAT_KEY     = 'lldraw-ai-chat-v1';   // conversation unique LEGACY (migrée au 1er lancement)
+// UNE conversation par workspace (+ une pour l'écran d'accueil) : ni le
+// contexte ni l'historique ne fuient d'un workspace à l'autre.
+const chatKeyFor = wsId => wsId ? 'lldraw-ai-chat-ws-' + wsId : 'lldraw-ai-chat-home';
 
 function defaultSettings() {
   return {
@@ -200,9 +203,7 @@ function buildDigest() {
       id: x.id, name: x.name, sizeU: x.sizeU, cat: x.cat || 'other',
       brand: x.brand || '', model: x.model || '', ports: (x.ports || []).length
     })),
-    autresWorkspaces: state.workspaces
-      .filter(w => w.id !== state.activeWorkspaceId)
-      .map(w => ({ name: w.name, racks: w.racks.length, devices: w.racks.reduce((n, r) => n + r.instances.length, 0) }))
+    portee: "Condensé limité au WORKSPACE ACTIF et à la bibliothèque de devices partagée : aucun contenu des autres workspaces n'est inclus ni envoyé."
   };
 
   if (!ws) {
@@ -335,7 +336,9 @@ RÉFÉRENCE DES OPÉRATIONS (bloc \`\`\`${AI_FENCE}) :
 1. CONSULTANT expert data center / réseau : tu réponds aux questions sur le plan, tu l'audites (capacité U/W/kg, garanties, cohérence des noms, adresses IP et VLANs, câblage, flux, sections du dossier LLD manquantes) et tu donnes des recommandations concrètes.
 2. AGENT : tu peux proposer des modifications du plan via des opérations JSON.
 
-À CHAQUE message, le plan courant (condensé JSON sans les photos) est fourni entre balises <PLAN>. Les ids qui s'y trouvent sont les SEULS valables.
+À CHAQUE message, le plan courant (condensé JSON sans les photos) est fourni entre balises <PLAN> : il décrit UNIQUEMENT le workspace actif (son nom figure dans workspaceActif) — jamais les autres workspaces. Les ids qui s'y trouvent sont les SEULS valables.
+Chaque conversation est liée à UN workspace : si un autre plan apparaît dans l'historique, ignore-le.
+Si workspaceActif est null (écran d'accueil) : aucune modification n'est possible — ne produis AUCUN bloc d'opérations et invite d'abord l'utilisateur à ouvrir ou créer un workspace.
 
 RÈGLES DE RÉPONSE :
 - Réponds dans la langue de l'utilisateur (français par défaut), en markdown simple et concis.
@@ -1030,15 +1033,43 @@ function applyApprovedOps(ops) {
 /* ================= Persistance de la conversation ================= */
 
 let aiChat = [];   // {role, content, ops?: {list, state:'pending'|'applied'|'rejected', results?, report?}}
-try {
-  const raw = localStorage.getItem(AI_CHAT_KEY);
-  const parsed = raw ? JSON.parse(raw) : [];
-  if (Array.isArray(parsed)) aiChat = parsed.slice(-40);
-} catch (e) {}
+let curChatWs = (typeof state !== 'undefined' && state.activeWorkspaceId) || null;
+let pendingSwitch;   // bascule demandée pendant un tour IA (appliquée à la fin)
+
+function loadChat(wsId) {
+  let parsed = null;
+  try {
+    const raw = localStorage.getItem(chatKeyFor(wsId));
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch (e) {}
+  if (!parsed) {   // migration unique de l'ancienne conversation commune
+    try {
+      const legacy = localStorage.getItem(AI_CHAT_KEY);
+      if (legacy) { parsed = JSON.parse(legacy); localStorage.removeItem(AI_CHAT_KEY); }
+    } catch (e) {}
+  }
+  aiChat = Array.isArray(parsed) ? parsed.slice(-40) : [];
+}
+loadChat(curChatWs);
 
 function persistChat() {
-  try { localStorage.setItem(AI_CHAT_KEY, JSON.stringify(aiChat.slice(-40))); } catch (e) {}
+  try { localStorage.setItem(chatKeyFor(curChatWs), JSON.stringify(aiChat.slice(-40))); } catch (e) {}
 }
+
+const currentWsId = () => (typeof state !== 'undefined' && state.activeWorkspaceId) || null;
+
+// Change de conversation quand l'utilisateur ouvre/quitte un workspace.
+function switchChatTo(wsId) {
+  wsId = wsId || null;
+  if (wsId === curChatWs) { updateAiHeader(); return; }
+  if (aiBusy) { pendingSwitch = wsId; updateAiHeader(); return; }   // appliqué en fin de tour
+  curChatWs = wsId;
+  loadChat(wsId);
+  renderChat();
+  updateBadge();
+  updateAiHeader();
+}
+window.addEventListener('lldraw:workspace-changed', () => switchChatTo(currentWsId()));
 
 function buildHistory() {
   // Limite grossière : on garde les derniers messages dans un budget de caractères
@@ -1067,6 +1098,7 @@ document.body.insertAdjacentHTML('beforeend', `
       <div class="ai-head-txt">
         <h3>🤖 Assistant IA</h3>
         <small id="ai-head-sub">non configuré</small>
+        <div id="ai-ctx" class="ai-ctx"></div>
       </div>
       <div class="ai-head-btns">
         <button id="ai-new-chat" class="ai-ibtn" title="Nouvelle conversation">🗑</button>
@@ -1157,6 +1189,7 @@ const aiStopBtn = document.getElementById('ai-stop');
 const aiFab     = document.getElementById('ai-fab');
 const aiBadge   = document.getElementById('ai-fab-badge');
 const aiSub     = document.getElementById('ai-head-sub');
+const aiCtx     = document.getElementById('ai-ctx');
 const aiModal   = document.getElementById('ai-settings-modal');
 
 let aiBusy = false;
@@ -1169,6 +1202,9 @@ function providerLabel() {
 
 function updateAiHeader() {
   aiSub.textContent = aiConfigured() ? providerLabel() : 'non configuré — cliquez ⚙️';
+  const ws = (typeof active === 'function') ? active() : null;
+  aiCtx.textContent = ws ? '📍 ' + ws.name : "📍 écran d'accueil — aucun workspace ouvert";
+  aiCtx.classList.toggle('ai-ctx-nows', !ws);
 }
 
 function pendingCount() {
@@ -1182,6 +1218,7 @@ function updateBadge() {
 }
 
 function openPanel() {
+  switchChatTo(currentWsId());   // rattrape un changement non notifié (undo, démo…)
   aiPanel.classList.add('open');
   aiFab.classList.add('active');
   renderChat();
@@ -1456,6 +1493,7 @@ aiStopBtn.addEventListener('click', () => { if (aiAbort) aiAbort.abort(); });
 async function aiSend() {
   const text = aiInput.value.trim();
   if (!text || aiBusy) return;
+  switchChatTo(currentWsId());
   const needsKey = aiSettings.provider !== 'ollama';
   const directWithoutKey = needsKey && !aiSettings.apiKey && pickRoute() !== 'server';
   if (!aiSettings.endpoint || !aiSettings.model || directWithoutKey) {
@@ -1514,8 +1552,12 @@ async function aiSend() {
   const msg = { role: 'assistant', content: full };
   if (meta && meta.fallback) msg.note = 'ℹ️ Réponse reçue sans streaming : le flux SSE du fournisseur est resté muet.';
   const ops = aiSettings.agentEnabled ? extractOpsBlocks(full) : [];
-  if (ops.length) msg.ops = { list: ops, state: 'pending', results: null };
+  const wsNow = (typeof active === 'function') ? active() : null;
+  if (ops.length && wsNow) msg.ops = { list: ops, state: 'pending', results: null };
   aiChat.push(msg);
+  if (ops.length && !wsNow) {
+    aiChat.push({ role: 'user', content: "[Système LLDraw] ⚠️ Aucun workspace n'est ouvert (écran d'accueil) : les opérations ci-dessus ont été ÉCARTÉES, aucune approbation n'est possible. Chaque workspace a sa propre conversation : ouvre un workspace puis reformule ta demande." });
+  }
   persistChat();
   renderChat();
   updateBadge();
@@ -1527,6 +1569,10 @@ async function aiSend() {
     aiSendBtn.classList.remove('hidden');
     aiStopBtn.classList.add('hidden');
     updateAiHeader();
+    if (pendingSwitch !== undefined) {
+      const t = pendingSwitch; pendingSwitch = undefined;
+      switchChatTo(t);
+    }
   }
 }
 

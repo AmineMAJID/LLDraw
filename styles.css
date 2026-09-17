@@ -2162,6 +2162,8 @@ body.topo-linking .topo-node { cursor: crosshair; }
 }
 .ai-head-txt h3 { font-size: 14px; }
 .ai-head-txt small { color: var(--muted); font-size: 11px; }
+.ai-ctx { font-size: 11px; color: var(--muted); margin-top: 2px; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-ctx-nows { color: #b45309; font-weight: 600; }
 .ai-head-btns { display: flex; gap: 2px; }
 .ai-ibtn {
   border: none;
