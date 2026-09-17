@@ -93,6 +93,17 @@ function normLldInfo(w) {
     example: String(r.example ?? '').slice(0, 60),
     rule:    String(r.rule ?? '').slice(0, 100)
   })) : [];
+  // Approbateurs et réviseurs affichés sur la page de garde du PDF.
+  const normSignatories = rows => Array.isArray(rows) ? rows
+    .filter(r => r && typeof r === 'object')
+    .map(r => ({
+      name: String(r.name ?? '').slice(0, 80),
+      position: String(r.position ?? '').slice(0, 80),
+      organization: String(r.organization ?? '').slice(0, 80),
+      approvedVersion: String(r.approvedVersion ?? '').slice(0, 30)
+    })) : [];
+  L.approvers = normSignatories(L.approvers);
+  L.reviewers = normSignatories(L.reviewers);
   L.revs = Array.isArray(L.revs) ? L.revs.filter(r => r && typeof r === 'object').map(r => ({
     rev: String(r.rev ?? '').slice(0, 10),
     date: String(r.date ?? '').slice(0, 10),
@@ -452,7 +463,12 @@ function normalizeState(s) {
   s.workspaces.forEach(w => {
     w.racks = (Array.isArray(w.racks) ? w.racks : []).map(normalizeRack);
     if (!Array.isArray(w.cables)) w.cables = [];
-    w.cables.forEach(c => { if (typeof c.domain !== 'string') c.domain = ''; });
+    w.cables.forEach(c => {
+      if (typeof c.domain !== 'string') c.domain = '';
+      // Décalage du point de contrôle manipulable du câble (coordonnées board).
+      c.bendX = Number.isFinite(c.bendX) ? c.bendX : 0;
+      c.bendY = Number.isFinite(c.bendY) ? c.bendY : 0;
+    });
     // Matrice des flux réseau (ch. 14)
     if (!Array.isArray(w.flows)) w.flows = [];
     w.flows = w.flows.filter(f => f && typeof f === 'object').map(f => ({
@@ -1252,7 +1268,7 @@ function renderRack(rack) {
     </select>
     <span class="rack-metrics"></span>
     <span class="rack-vents"></span>
-    <button class="mini-del" title="Supprimer le rack">✕</button>`;
+    <button class="mini-del rack-del" title="Supprimer le rack" aria-label="Supprimer le rack">🗑</button>`;
   el.appendChild(header);
 
   const titleEl = header.querySelector('.rack-title');
@@ -1406,8 +1422,11 @@ function renderRack(rack) {
     header.addEventListener('pointerup', onUp);
   });
 
-  header.querySelector('.mini-del').addEventListener('click', () => {
-    if (confirm(`Supprimer le rack « ${rack.name} » et tous les devices qu'il contient ?`)) {
+  header.querySelector('.rack-del').addEventListener('click', async () => {
+    const ok = await lldConfirm(
+      `Supprimer le rack « ${rack.name} » et tous les devices qu'il contient ?\nCette action est annulable avec Ctrl+Z.`,
+      { title: '🗑 Supprimer le rack', okLabel: 'Supprimer' });
+    if (ok) {
       pushHistory();
       const ws = active();
       ws.racks = ws.racks.filter(r => r.id !== rack.id);
@@ -1558,6 +1577,30 @@ function renderRack(rack) {
     dragPayload = { kind: 'instance', rackId: rack.id, instId, size: inst.sizeU };
     e.dataTransfer.setData('application/x-dc-instance', instId);
     e.dataTransfer.effectAllowed = 'move';
+  });
+
+  // En mode câblage, un double-clic sur la face d'un device met ses cordons
+  // au premier plan et conserve tous les autres en affichage fantôme.
+  inner.addEventListener('dblclick', e => {
+    if (!cablingMode || e.target.closest('.port, .device-del')) return;
+    const devEl = e.target.closest('.device');
+    if (!devEl) return;
+    e.preventDefault();
+    e.stopPropagation();
+    clearTimeout(cableSingleClickTimer);
+    cableSingleClickTimer = null;
+    const instId = devEl.dataset.instanceId;
+    const ids = (active()?.cables || [])
+      .filter(c => c.a?.instId === instId || c.b?.instId === instId)
+      .map(c => c.id);
+    if (!ids.length) return;
+    // Premier double-clic : seuls les câbles de ce device restent forts.
+    // Second double-clic sur le même ensemble : retour à l'affichage normal.
+    const sameSelection = focusedCableIds.size === ids.length && ids.every(id => focusedCableIds.has(id));
+    focusedCableIds.clear();
+    if (!sameSelection) ids.forEach(id => focusedCableIds.add(id));
+    renderCables();
+    renderCableList();
   });
 
   // --- Clics : retrait device / étiquetage ---
@@ -2966,6 +3009,45 @@ function hideHome() {
   homeScreen.classList.add('hidden');
 }
 
+/* ---- Boîtes de dialogue maison (remplacent alert/confirm/prompt natifs) ----
+   Même langue visuelle que le reste du site : carte blanche, boutons bleus /
+   rouges, fond assombri. Renvoie une Promesse : true/false (confirm),
+   la saisie ou null (prompt). */
+function lldDialog(opts) {
+  const o = Object.assign({ title: '', message: '', input: null, okLabel: 'OK', cancelLabel: 'Annuler', danger: false }, opts);
+  return new Promise(resolve => {
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const ov = document.createElement('div');
+    ov.className = 'lld-dlg-overlay';
+    ov.innerHTML = `
+      <div class="lld-dlg" role="dialog" aria-modal="true">
+        ${o.title ? `<h3>${esc(o.title)}</h3>` : ''}
+        ${o.message ? `<p class="lld-dlg-msg">${esc(o.message).replace(/\n/g, '<br>')}</p>` : ''}
+        ${o.input !== null ? `<input class="lld-dlg-input" type="text" spellcheck="false" value="${esc(o.input)}">` : ''}
+        <div class="lld-dlg-btns">
+          <button class="btn lld-dlg-cancel" type="button">${esc(o.cancelLabel)}</button>
+          <button class="btn ${o.danger ? 'lld-dlg-danger' : 'lld-dlg-ok'}" type="button">${esc(o.okLabel)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const inp = ov.querySelector('.lld-dlg-input');
+    const okBtn = ov.querySelector('.lld-dlg-btns .btn:last-child');
+    let closed = false;
+    const done = val => { if (closed) return; closed = true; ov.remove(); resolve(val); };
+    ov.querySelector('.lld-dlg-cancel').addEventListener('click', () => done(o.input !== null ? null : false));
+    okBtn.addEventListener('click', () => done(o.input !== null ? inp.value : true));
+    ov.addEventListener('mousedown', e => { if (e.target === ov) done(o.input !== null ? null : false); });
+    ov.addEventListener('keydown', e => {
+      if (e.key === 'Escape') done(o.input !== null ? null : false);
+      if (e.key === 'Enter' && inp) done(inp.value);
+    });
+    (inp || okBtn).focus();
+    if (inp) inp.select();
+  });
+}
+const lldConfirm = (message, opts) => lldDialog(Object.assign({ message, okLabel: 'Confirmer', cancelLabel: 'Annuler', danger: true }, opts));
+const lldPrompt  = (message, value, opts) => lldDialog(Object.assign({ message, input: value ?? '', okLabel: 'Créer' }, opts));
+
 function formatDate(ts) {
   if (!ts) return 'Jamais modifié';
   const d = new Date(ts);
@@ -3053,8 +3135,9 @@ function openWorkspace(id) {
   });
 }
 
-function createWorkspace() {
-  const name = prompt('Nom du nouveau workspace :', 'Workspace ' + (state.workspaces.length + 1));
+async function createWorkspace() {
+  const name = await lldPrompt('Nom du nouveau workspace :', 'Workspace ' + (state.workspaces.length + 1),
+    { title: '🏢 Nouveau workspace', okLabel: 'Créer' });
   if (name === null) return;
   const trimmed = name.trim();
   if (!trimmed) return;
@@ -3065,14 +3148,16 @@ function createWorkspace() {
   openWorkspace(ws.id);
 }
 
-function deleteWorkspace(id) {
+async function deleteWorkspace(id) {
   const ws = state.workspaces.find(w => w.id === id);
   if (!ws) return;
   const nbDevices = ws.racks.reduce((n, r) => n + r.instances.length, 0);
-  if (!confirm(
+  const ok = await lldConfirm(
     `Supprimer définitivement le workspace « ${ws.name} » ?\n\n` +
     `Il contient ${ws.racks.length} rack(s) et ${nbDevices} device(s) placé(s).\n\n` +
-    `La bibliothèque de devices (partagée) est conservée. Cette action est annulable avec Ctrl+Z.`)) return;
+    `La bibliothèque de devices (partagée) est conservée. Cette action est annulable avec Ctrl+Z.`,
+    { title: '🗑 Supprimer le workspace', okLabel: 'Supprimer' });
+  if (!ok) return;
 
   pushHistory();
   state.workspaces = state.workspaces.filter(w => w.id !== id);
@@ -3118,6 +3203,29 @@ let cablingMode = false;
 let pendingPort = null;   // 1er port sélectionné en attente du 2e
 let cablePopoverCtx = null;
 let selectedCableColor = CABLE_COLORS[0].hex;
+let cableFilterDevice = '';
+let cableFilterColor = 'all';
+// Mise au premier plan temporaire et non destructive. Dès qu'au moins un câble
+// est sélectionné, les autres restent visibles mais deviennent « fantômes ».
+const focusedCableIds = new Set();
+let cableSingleClickTimer = null;
+
+function toggleCableFocus(cableId) {
+  if (focusedCableIds.has(cableId)) focusedCableIds.delete(cableId);
+  else focusedCableIds.add(cableId);
+  hideCablePopover();
+  renderCables();
+  renderCableList();
+}
+
+function cableMatchesFilter(ws, cable) {
+  if (cableFilterColor !== 'all' && cable.color !== cableFilterColor) return false;
+  const q = cableFilterDevice.trim().toLocaleLowerCase('fr');
+  if (!q) return true;
+  const ea = resolveEndpoint(ws, cable.a);
+  const eb = resolveEndpoint(ws, cable.b);
+  return !!(ea && eb && (`${ea.inst.name} ${eb.inst.name}`).toLocaleLowerCase('fr').includes(q));
+}
 
 function cableSvg() { return $('#cable-svg'); }
 
@@ -3154,15 +3262,21 @@ function pruneCables(ws) {
   ws.cables = ws.cables.filter(c => resolveEndpoint(ws, c.a) && resolveEndpoint(ws, c.b));
 }
 
-// Tracé d'un cordon (Béziers symétrique qui pendouille)
-function cablePath(p1, p2) {
+// Tracé d'un cordon souple. Le milieu peut être déplacé par l'utilisateur ;
+// sans réglage, le câble pend naturellement selon sa longueur et son dénivelé.
+function cablePath(p1, p2, cable = null) {
   const dx = Math.abs(p2.x - p1.x);
   const sag = Math.min(150, Math.max(18, dx * 0.22 + Math.abs(p2.y - p1.y) * 0.2));
-  const c1 = { x: p1.x, y: p1.y + sag };
-  const c2 = { x: p2.x, y: p2.y + sag };
+  const control = {
+    x: (p1.x + p2.x) / 2 + (cable?.bendX || 0),
+    y: (p1.y + p2.y) / 2 + sag + (cable?.bendY || 0)
+  };
+  // Conversion d'une courbe quadratique (un point manipulable) en Bézier cubique.
+  const c1 = { x: p1.x + (control.x - p1.x) * 2 / 3, y: p1.y + (control.y - p1.y) * 2 / 3 };
+  const c2 = { x: p2.x + (control.x - p2.x) * 2 / 3, y: p2.y + (control.y - p2.y) * 2 / 3 };
   return {
     d: `M ${p1.x} ${p1.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${p2.x} ${p2.y}`,
-    mid: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 + sag * 0.75 }
+    mid: control
   };
 }
 
@@ -3181,17 +3295,49 @@ function renderCables() {
 
   const svgNS = 'http://www.w3.org/2000/svg';
 
+  // Survol délégué au SVG : contrairement à pointerenter sur chaque groupe,
+  // déplacer le groupe en fin de SVG ne laisse pas une classe « hovered »
+  // bloquée lorsque le pointeur quitte ensuite le câble.
+  let hoveredCable = null;
+  const clearCableHover = () => {
+    hoveredCable?.classList.remove('hovered');
+    hoveredCable = null;
+    svg.classList.remove('cable-hovering');
+  };
+  svg.onpointermove = e => {
+    const g = e.target.closest?.('g.cable') || null;
+    if (g === hoveredCable) return;
+    clearCableHover();
+    if (!g) return;
+    hoveredCable = g;
+    g.classList.add('hovered');
+    svg.classList.add('cable-hovering');
+    // Dernier élément SVG = peint au-dessus des autres câbles.
+    svg.appendChild(g);
+  };
+  svg.onpointerout = e => {
+    const next = e.relatedTarget?.closest?.('g.cable') || null;
+    if (!next) clearCableHover();
+  };
+  svg.onpointerleave = clearCableHover;
+
+  const existingCableIds = new Set(ws.cables.map(c => c.id));
+  [...focusedCableIds].forEach(id => { if (!existingCableIds.has(id)) focusedCableIds.delete(id); });
+  const hasCableFocus = focusedCableIds.size > 0;
   ws.cables.forEach(cable => {
+    if (!cableMatchesFilter(ws, cable)) return;
     const ea = resolveEndpoint(ws, cable.a);
     const eb = resolveEndpoint(ws, cable.b);
     if (!ea || !eb) return;
     const p1 = portBoardPosition(ws, ea.rack, ea.inst, ea.port);
     const p2 = portBoardPosition(ws, eb.rack, eb.inst, eb.port);
     if (!p1 || !p2) return;
-    const { d } = cablePath(p1, p2);
+    const { d } = cablePath(p1, p2, cable);
 
     const g = document.createElementNS(svgNS, 'g');
     g.classList.add('cable');
+    if (hasCableFocus) g.classList.add(focusedCableIds.has(cable.id) ? 'focused' : 'phantom');
+    g.dataset.cableId = cable.id;
     g.style.setProperty('--cable-color', cable.color);
 
     const shadow = document.createElementNS(svgNS, 'path');
@@ -3220,8 +3366,53 @@ function renderCables() {
     g.appendChild(jacket);
     g.appendChild(hit);
     hit.addEventListener('pointerdown', e => {
+      e.preventDefault();
       e.stopPropagation();
-      openCablePopover(cable, e.clientX, e.clientY);
+      hit.setPointerCapture(e.pointerId);
+      const start = clientToBoard(e.clientX, e.clientY);
+      const bx = cable.bendX || 0, by = cable.bendY || 0;
+      let moved = false;
+
+      const move = ev => {
+        const p = clientToBoard(ev.clientX, ev.clientY);
+        if (!moved && Math.hypot(p.x - start.x, p.y - start.y) < 4 / view.scale) return;
+        if (!moved) { pushHistory(); moved = true; g.classList.add('dragging'); }
+        cable.bendX = bx + p.x - start.x;
+        cable.bendY = by + p.y - start.y;
+        const liveD = cablePath(p1, p2, cable).d;
+        shadow.setAttribute('d', liveD);
+        jacket.setAttribute('d', liveD);
+        hit.setAttribute('d', liveD);
+      };
+      const up = ev => {
+        hit.removeEventListener('pointermove', move);
+        hit.removeEventListener('pointerup', up);
+        hit.removeEventListener('pointercancel', up);
+        g.classList.remove('dragging');
+        if (moved) {
+          touchWorkspace(ws);
+          saveState();
+          renderCableList();
+        } else {
+          // Attendre brièvement pour distinguer le clic simple du double-clic :
+          // simple = édition, double = mise au premier plan sans ouvrir la pop-up.
+          clearTimeout(cableSingleClickTimer);
+          cableSingleClickTimer = setTimeout(() => {
+            openCablePopover(cable, ev.clientX, ev.clientY);
+            cableSingleClickTimer = null;
+          }, 260);
+        }
+      };
+      hit.addEventListener('pointermove', move);
+      hit.addEventListener('pointerup', up);
+      hit.addEventListener('pointercancel', up);
+    });
+    hit.addEventListener('dblclick', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearTimeout(cableSingleClickTimer);
+      cableSingleClickTimer = null;
+      toggleCableFocus(cable.id);
     });
     svg.appendChild(g);
   });
@@ -3413,12 +3604,15 @@ function renderCableList() {
   const count = $('#cable-count');
   if (!list) return;
   const ws = active();
-  const cables = ws?.cables || [];
-  count.textContent = cables.length;
+  const allCables = ws?.cables || [];
+  const cables = allCables.filter(c => cableMatchesFilter(ws, c));
+  count.textContent = cables.length === allCables.length ? String(allCables.length) : `${cables.length}/${allCables.length}`;
   list.innerHTML = '';
 
   if (!cables.length) {
-    list.innerHTML = `<div class="cp-empty">Aucun câble.<br>Cliquez deux ports pour les relier.</div>`;
+    list.innerHTML = allCables.length
+      ? `<div class="cp-empty">Aucun câble ne correspond aux filtres.</div>`
+      : `<div class="cp-empty">Aucun câble.<br>Cliquez deux ports pour les relier.</div>`;
     return;
   }
 
@@ -3427,7 +3621,12 @@ function renderCableList() {
     const eb = resolveEndpoint(ws, cable.b);
     if (!ea || !eb) return;
     const row = document.createElement('button');
-    row.className = 'cp-cable';
+    const hasFocus = focusedCableIds.size > 0;
+    const isFocused = focusedCableIds.has(cable.id);
+    row.className = 'cp-cable' + (hasFocus ? (isFocused ? ' is-focused' : ' is-phantom') : '');
+    row.title = isFocused
+      ? 'Câble sélectionné — double-cliquez pour retirer la sélection'
+      : 'Cliquez pour centrer · double-cliquez pour mettre au premier plan';
     row.innerHTML = `
       <span class="cp-dot" style="background:${cable.color}"></span>
       <span class="cp-cable-body">
@@ -3449,8 +3648,19 @@ function renderCableList() {
 
     row.addEventListener('click', e => {
       if (e.target.closest('.cp-cable-del')) return;
-      // Centrer sur le câble
-      focusOnCable(cable);
+      // Différer le centrage pour laisser le double-clic agir sans effet simple.
+      clearTimeout(cableSingleClickTimer);
+      cableSingleClickTimer = setTimeout(() => {
+        focusOnCable(cable);
+        cableSingleClickTimer = null;
+      }, 260);
+    });
+    row.addEventListener('dblclick', e => {
+      if (e.target.closest('.cp-cable-del')) return;
+      e.preventDefault();
+      clearTimeout(cableSingleClickTimer);
+      cableSingleClickTimer = null;
+      toggleCableFocus(cable.id);
     });
     row.querySelector('.cp-cable-del').addEventListener('click', e => {
       e.stopPropagation();
@@ -3482,14 +3692,55 @@ function focusOnCable(cable) {
   applyView();
   renderBoard();
   requestAnimationFrame(() => {
-    const g = [...board.querySelectorAll('#cable-svg g.cable')].find(el => {
-      const hit = el.querySelector('.cable-hit');
-      return hit && cablePath(p1, p2).d === hit.getAttribute('d');
-    });
+    const g = board.querySelector(`#cable-svg g.cable[data-cable-id="${cable.id}"]`);
     g?.classList.add('selected');
     setTimeout(() => g?.classList.remove('selected'), 2000);
   });
 }
+
+// Réduction du panneau : seule sa barre de titre reste visible afin de libérer
+// le board. Le bouton « Tout retirer » conserve naturellement son action.
+function toggleCablePanel() {
+  const panel = $('#cable-panel');
+  const toggle = $('#cable-panel-toggle');
+  const collapsed = panel.classList.toggle('collapsed');
+  toggle.setAttribute('aria-expanded', String(!collapsed));
+  toggle.title = collapsed ? 'Développer le panneau des connexions' : 'Réduire le panneau des connexions';
+}
+$('#cable-panel-toggle').addEventListener('click', e => {
+  if (e.target.closest('#cable-panel-clear')) return;
+  toggleCablePanel();
+});
+$('#cable-panel-toggle').addEventListener('keydown', e => {
+  if (e.target.closest('#cable-panel-clear')) return;
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  toggleCablePanel();
+});
+
+// Filtres visuels : ils n'altèrent pas les données et s'appliquent au board
+// comme à la liste des connexions.
+const cableColorFilterEl = $('#cable-filter-color');
+cableColorFilterEl.innerHTML = '<option value="all">Toutes les couleurs</option>' +
+  CABLE_COLORS.map(c => `<option value="${c.hex}">${c.name}</option>`).join('');
+$('#cable-filter-device').addEventListener('input', e => {
+  cableFilterDevice = e.target.value;
+  renderCables();
+  renderCableList();
+});
+cableColorFilterEl.addEventListener('change', e => {
+  cableFilterColor = e.target.value;
+  renderCables();
+  renderCableList();
+});
+$('#cable-filter-reset').addEventListener('click', () => {
+  cableFilterDevice = '';
+  cableFilterColor = 'all';
+  $('#cable-filter-device').value = '';
+  cableColorFilterEl.value = 'all';
+  renderCables();
+  renderCableList();
+});
 
 $('#cable-panel-clear').addEventListener('click', () => {
   const ws = active();
@@ -3519,7 +3770,7 @@ function setCablingMode(on) {
   if (on) {
     // Les modes Créer/Modifier sont exclusifs
     if (labelMode) setLabelMode(null);
-    $('#mode-hint').textContent = 'Mode câblage : cliquez un port, puis un autre port pour les relier par un câble. Cliquez un câble pour l\'éditer.';
+    $('#mode-hint').textContent = 'Mode câblage : cliquez un câble pour l’éditer ; double-cliquez un câble ou un device pour le mettre au premier plan.';
     pendingPort = null;
     pruneCables(active());
     renderBoard();    // rend les devices non déplaçables + dessine les câbles
@@ -3538,6 +3789,12 @@ function setCablingMode(on) {
    ============================================================ */
 
 const LLD_REV_COLS = [['rev', 'Rév', 52], ['date', 'Date', 108], ['author', 'Auteur', 128], ['note', 'Modifications', 'flex']];
+const LLD_SIGNATORY_COLS = [
+  ['name', 'Nom', 130],
+  ['position', 'Position', 130],
+  ['organization', 'Organisation', 150],
+  ['approvedVersion', 'Version approuvée', 'flex']
+];
 // Colonne « Site » : libre pour l'instant, sera reliée aux sites déclarés au lot 2
 const LLD_VLAN_COLS = [['vid', 'VLAN', 44], ['name', 'Nom', 96], ['site', 'Site', 80], ['subnet', 'Subnet', 120], ['gw', 'Passerelle', 106], ['purpose', 'Usage', 'flex']];
 const LLD_NOMEN_COLS = [['type', "Type d'objet", 150], ['prefix', 'Préfixe', 78], ['example', 'Exemple', 140], ['rule', 'Règle de nommage', 'flex']];
@@ -3720,6 +3977,12 @@ function openLldModal() {
   $('#lld-objectif').value = L.objectif;
   $('#lld-existant').value = L.existant;
   $('#lld-architecture').value = L.architecture;
+  const approvers = $('#lld-approvers');
+  approvers.innerHTML = '';
+  L.approvers.forEach(r => lldAddRow(approvers, LLD_SIGNATORY_COLS, r));
+  const reviewers = $('#lld-reviewers');
+  reviewers.innerHTML = '';
+  L.reviewers.forEach(r => lldAddRow(reviewers, LLD_SIGNATORY_COLS, r));
   const revs = $('#lld-revs');
   revs.innerHTML = '';
   L.revs.forEach(r => lldAddRow(revs, LLD_REV_COLS, r));
@@ -3751,6 +4014,13 @@ $('#lld-cancel').addEventListener('click', () => $('#lld-modal').classList.add('
 $('#lld-modal').addEventListener('click', e => {
   if (e.target === $('#lld-modal')) $('#lld-modal').classList.add('hidden');
 });
+function addSignatoryRow(containerSelector) {
+  const container = $(containerSelector);
+  lldAddRow(container, LLD_SIGNATORY_COLS, {});
+  [...container.querySelectorAll('.lld-row')].pop().querySelector('input').focus();
+}
+$('#lld-add-approver').addEventListener('click', () => addSignatoryRow('#lld-approvers'));
+$('#lld-add-reviewer').addEventListener('click', () => addSignatoryRow('#lld-reviewers'));
 $('#lld-add-rev').addEventListener('click', () => {
   const revs = $('#lld-revs');
   const n = revs.querySelectorAll('.lld-row').length;
@@ -3840,6 +4110,10 @@ $('#lld-save').addEventListener('click', () => {
   L.objectif = $('#lld-objectif').value.slice(0, 4000);
   L.existant = $('#lld-existant').value.slice(0, 4000);
   L.architecture = $('#lld-architecture').value.slice(0, 4000);
+  L.approvers = lldRowsFrom($('#lld-approvers'))
+    .filter(r => r.name.trim() || r.position.trim() || r.organization.trim() || r.approvedVersion.trim());
+  L.reviewers = lldRowsFrom($('#lld-reviewers'))
+    .filter(r => r.name.trim() || r.position.trim() || r.organization.trim() || r.approvedVersion.trim());
   L.revs = lldRowsFrom($('#lld-revs')).filter(r => r.rev.trim() || r.note.trim());
   L.nomen = lldRowsFrom($('#lld-nomen')).filter(r => r.type.trim() || r.prefix.trim());
   L.vlans = lldRowsFrom($('#lld-vlans')).filter(v => v.vid.trim() || v.name.trim());
@@ -4527,7 +4801,7 @@ async function renderPlanCanvas() {
     const ap = exportPortPos(ea, minX, minY);
     const bp = exportPortPos(eb, minX, minY);
     if (!ap || !bp) continue;
-    const { d } = cablePath(ap, bp);
+    const { d } = cablePath(ap, bp, cable);
 
     // ombre portée
     ctx.strokeStyle = 'rgba(0,0,0,.28)';
@@ -5382,7 +5656,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
 
   // ---- Page de garde ----
   newPage();
-  y -= 110;
+  y -= 60;
   txt(M, y, 'Dossier LLD', 30, true, [0.12, 0.31, 0.47]); y -= 20;
   txt(M, y, 'Low Level Design \u2014 Datacenter & Infrastructure', 12, false, [0.45, 0.5, 0.58]); y -= 36;
   txt(M, y, ws.name, 20, true); y -= 30;
@@ -5393,7 +5667,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     txt(M + 100, y, v, 10, true);
     y -= 16;
   });
-  y -= 22;
+  y -= 12;
 
   const totU = ws.racks.reduce((s, r) => s + r.sizeU, 0);
   const usedU = ws.racks.reduce((s, r) => s + r.instances.reduce((a, i) => a + i.sizeU, 0), 0);
@@ -5427,6 +5701,19 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     L.revs.forEach(r => revRows.push([r.rev, r.date, r.author, r.note]));
     drawTable(revRows, [0.8, 1.6, 2.4, 5.2], 8);
   }
+
+  // Gouvernance documentaire, placée après l'historique des révisions.
+  const signatoryTable = (title, rows) => {
+    if (y < M + 55) newPage();
+    txt(M, y, title, 11.5, true, [0.12, 0.31, 0.47]);
+    y -= 8;
+    const data = [['Nom', 'Position', 'Organisation', 'Version approuvée']];
+    rows.forEach(r => data.push([r.name, r.position, r.organization, r.approvedVersion]));
+    drawTable(data, [2.2, 2.2, 2.7, 1.9], 7.5);
+  };
+  signatoryTable('Approbateurs', L.approvers);
+  signatoryTable('Réviseurs', L.reviewers);
+
   y = Math.min(y, M + 24);
   txt(M, y, 'G\u00e9n\u00e9r\u00e9 par LLDraw', 9, false, [0.6, 0.65, 0.72]);
 
@@ -5644,6 +5931,37 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     const iw = planW * k, ih = planH * k;
     const ix = M + (availW - iw) / 2, iy = y - ih;
     cur.push(`q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${ix.toFixed(2)} ${iy.toFixed(2)} cm /Im0 Do Q`);
+  }
+
+  // Toute fin du dossier : détail du câblage pour chaque device posé.
+  const placedDevices = sortedRackInstances(ws);
+  if (placedDevices.length) {
+    newPage();
+    txt(M, y - 13, 'Détail des connexions par device', 15, true, [0.12, 0.31, 0.47]);
+    hline(M, PW - M, y - 21);
+    y -= 33;
+    placedDevices.forEach(({ rack, inst }) => {
+      miniTitle(`${inst.name} — ${rack.name}${siteName(ws, rack) ? ` — ${siteName(ws, rack)}` : ''}`);
+      const rows = [['Câble', 'Port local', 'Origine', 'Destination', 'Domaine']];
+      (ws.cables || []).forEach(c => {
+        const isA = c.a?.instId === inst.id;
+        const isB = c.b?.instId === inst.id;
+        if (!isA && !isB) return;
+        const ea = resolveEndpoint(ws, c.a);
+        const eb = resolveEndpoint(ws, c.b);
+        if (!ea || !eb) return;
+        const endpointText = e => `${e.inst.name} / ${e.port.name} (${e.rack.name})`;
+        rows.push([
+          c.name || '',
+          isA ? ea.port.name : eb.port.name,
+          endpointText(ea),
+          endpointText(eb),
+          cableDomainLabel(c.domain)
+        ]);
+      });
+      if (rows.length > 1) drawTable(rows, [1.2, 1.4, 2.8, 2.8, 1.5], 7.5);
+      else note('Aucun câble branché sur ce device.');
+    });
   }
 
   // ================= Sommaire (inséré en page 2, après la garde) =================

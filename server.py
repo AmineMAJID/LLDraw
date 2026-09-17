@@ -79,7 +79,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         # Logs discrets : une ligne par requête API/erreur seulement
-        if "api/state" in (self.path or ""):
+        if "api/" in (self.path or ""):
             super().log_message(fmt, *args)
 
     def _send_json(self, obj, status=200):
@@ -90,6 +90,17 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _safe_send_json(self, obj, status=200):
+        # Le navigateur a pu raccrocher avant notre réponse (ses propres
+        # timeouts client) : l'écriture échoue alors (BrokenPipe sous
+        # Linux/Mac, ConnectionAbortedError/WinError 10053 sous Windows).
+        # Sans gravité : on encaisse silencieusement au lieu de cracher une
+        # traceback dans la console.
+        try:
+            self._send_json(obj, status)
+        except OSError:
+            pass
 
     def do_GET(self):
         if self.path.split("?")[0] == "/api/state":
@@ -116,11 +127,6 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json({"ok": True})
             return
         self.send_error(404)
-
-    # On ignore les favicons / méthodes non prévues
-    def do_POST(self):
-        self.send_error(405)
-
 
 def main():
     import sys
