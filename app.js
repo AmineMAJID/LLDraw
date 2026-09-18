@@ -5402,14 +5402,17 @@ const XLSX = (() => {
     return s;
   }
 
-  function sheetXml(rows) {
+  function sheetXml(rows, opts = {}) {
+    const freeze = opts.freeze !== false;
+    const autoHeader = opts.autoHeader !== false;
     const nCols = Math.max(8, ...rows.map(r => r.length));
     const widths = [];
     for (let c = 0; c < nCols; c++) {
       let m = 8;
       for (const r of rows) {
         const v = r[c];
-        if (v !== undefined && v !== null) m = Math.max(m, String(v).length);
+        const t = (v && typeof v === 'object') ? v.v : v;
+        if (t !== undefined && t !== null) m = Math.max(m, String(t).length);
       }
       widths.push(Math.min(42, m + 2));
     }
@@ -5418,32 +5421,65 @@ const XLSX = (() => {
     let body = '';
     rows.forEach((row, ri) => {
       const cells = row.map((v, ci) => {
-        if (v === undefined || v === null || v === '') return '';
+        let val = v, st = null;
+        if (v && typeof v === 'object') { val = v.v; st = v.s; }
+        if (val === undefined || val === null || val === '') {
+          // cellule vide MAIS stylée (barreaux bleus, bordures) : on l'émet
+          if (st === null || st === 0) return '';
+          return `<c r="${colName(ci)}${ri + 1}" s="${st}"/>`;
+        }
         const ref = colName(ci) + (ri + 1);
-        if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`;
-        return `<c r="${ref}" t="inlineStr"${ri === 0 ? ' s="1"' : ''}>` +
-               `<is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+        if (st === null) st = (ri === 0 && autoHeader) ? 1 : 0;
+        const sAttr = st ? ` s="${st}"` : '';
+        if (typeof val === 'number' && Number.isFinite(val)) return `<c r="${ref}"${sAttr}><v>${val}</v></c>`;
+        return `<c r="${ref}" t="inlineStr"${sAttr}>` +
+               `<is><t xml:space="preserve">${xmlEsc(val)}</t></is></c>`;
       }).join('');
       body += `<row r="${ri + 1}">${cells}</row>`;
     });
+    const views = freeze
+      ? '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+      : '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-      '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
-      cols + '<sheetData>' + body + '</sheetData></worksheet>';
+      views + cols + '<sheetData>' + body + '</sheetData></worksheet>';
   }
-
   const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
   const STYLES_XML = XML_DECL +
     '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-    '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>' +
-    '<font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font></fonts>' +
-    '<fills count="3"><fill><patternFill patternType="none"/></fill>' +
+    // 0:normal 1:en-tête blanc/bleu 2:titre 18 3:bandeau section 4:en-tête gris
+    // 5:cellule bordée wrap 6:libellé gras 7:valeur 12 8:valeur grande 16
+    '<fonts count="7">' +
+    '<font><sz val="11"/><name val="Calibri"/></font>' +
+    '<font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font>' +
+    '<font><b/><color rgb="FF1F2733"/><sz val="18"/><name val="Calibri"/></font>' +
+    '<font><b/><color rgb="FFFFFFFF"/><sz val="12"/><name val="Calibri"/></font>' +
+    '<font><b/><color rgb="FF1F2733"/><sz val="11"/><name val="Calibri"/></font>' +
+    '<font><color rgb="FF1F2733"/><sz val="12"/><name val="Calibri"/></font>' +
+    '<font><b/><color rgb="FF1F2733"/><sz val="16"/><name val="Calibri"/></font>' +
+    '</fonts>' +
+    '<fills count="4"><fill><patternFill patternType="none"/></fill>' +
     '<fill><patternFill patternType="gray125"/></fill>' +
-    '<fill><patternFill patternType="solid"><fgColor rgb="FF1F4E79"/><bgColor indexed="64"/></patternFill></fill></fills>' +
-    '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+    '<fill><patternFill patternType="solid"><fgColor rgb="FF1F4E79"/><bgColor indexed="64"/></patternFill></fill>' +
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFD9D9D9"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+    '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' +
+    '<border><left style="thin"><color rgb="FF8EA0B8"/></left>' +
+    '<right style="thin"><color rgb="FF8EA0B8"/></right>' +
+    '<top style="thin"><color rgb="FF8EA0B8"/></top>' +
+    '<bottom style="thin"><color rgb="FF8EA0B8"/></bottom><diagonal/></border></borders>' +
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-    '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
-    '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>' +
+    '<cellXfs count="9">' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+    '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
+    '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+    '<xf numFmtId="0" fontId="3" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
+    '<xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1">' +
+    '<alignment vertical="top" wrapText="1"/></xf>' +
+    '<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+    '<xf numFmtId="0" fontId="5" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+    '<xf numFmtId="0" fontId="6" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+    '</cellXfs>' +
     '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
     '</styleSheet>';
 
@@ -5527,7 +5563,7 @@ const XLSX = (() => {
         `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
         '</Relationships>' },
       { name: 'xl/styles.xml', data: STYLES_XML },
-      ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.rows) }))
+      ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.rows, s.opts || {}) }))
     ];
     const u8 = zip(files);
     return new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -5536,11 +5572,90 @@ const XLSX = (() => {
   return { build };
 })();
 
+/* ---------- Feuille 1 : page de garde « LLD » ---------- */
+function lldCoverRows(ws) {
+  const L = ws.lld || {};
+  const sites = [...new Set(ws.racks.map(r => siteName(ws, r)).filter(Boolean))];
+  const project = L.client
+    ? `Mise en place d'une infrastructure IT pour ${L.client}`
+    : (sites.join(' / ') || ws.name);
+  const lbl = v => ({ v, s: 6 });
+  const val = v => ({ v, s: 7 });
+  const row = (label, value) => {
+    const r = new Array(5).fill('');
+    r[0] = lbl(label);
+    r[4] = value;
+    return r;
+  };
+  return [
+    row('Nom de site', val(project)),
+    row('LLD', { v: 'La conception à bas niveau', s: 8 }),
+    row('Auteur', val(L.author || '')),
+    row('Version', val(L.version || ''))
+  ];
+}
+
+/* ---------- Feuille 2 : « Governance » (révisions, approbateurs, réviseurs) ---------- */
+function govSection(rows, title, headers, data) {
+  // bandeau bleu pleine largeur + en-têtes gris + lignes bordées
+  rows.push(headers.map((h, i) => ({ v: i === 0 ? title : '', s: 3 })));
+  rows.push(headers.map(h => ({ v: h, s: 4 })));
+  data.forEach(r => rows.push(r));
+  // au moins 3 lignes vides bordées pour remplissage manuel
+  for (let k = data.length; k < 3; k++) rows.push(headers.map(() => ({ v: '', s: 5 })));
+}
+
+function governanceRows(ws) {
+  const L = ws.lld || {};
+  const rows = [[{ v: 'Governance', s: 2 }], []];
+  const B = s => ({ v: '', s });
+
+  // — Statut de révision du document —
+  const approvedVers = new Set((L.approvers || []).map(a => a.approvedVersion).filter(Boolean));
+  const hasApprovers = (L.approvers || []).length > 0;
+  const revRows = (L.revs || []).map(r => [
+    { v: r.rev || '', s: 5 },
+    { v: r.author || '', s: 5 },
+    { v: r.note || '', s: 5 },
+    { v: r.date || '', s: 5 },
+    { v: (r.rev && approvedVers.has(r.rev)) ? 'Approuvé'
+        : (hasApprovers ? 'Pas encore approuvé' : ''), s: 5 }
+  ]);
+  govSection(rows, 'Statut de révision du document',
+    ['Version', 'Auteur', 'Commentaires et mises à jour', 'Date', 'Statut'], revRows);
+  rows.push([]);
+
+  // — Approbateurs —
+  const appRows = (L.approvers || []).map(a => [
+    { v: a.name || '', s: 5 },
+    { v: a.position || '', s: 5 },
+    { v: a.organization || '', s: 5 },
+    { v: a.approvedVersion || '', s: 5 },
+    { v: '', s: 5 }   // colonne Signature (vide, à signer)
+  ]);
+  govSection(rows, 'Approbateurs',
+    ['Nom', 'Position', 'Organisation', 'Version approuvée', 'Signature'], appRows);
+  rows.push([]);
+
+  // — Réviseurs —
+  const revRows2 = (L.reviewers || []).map(r => [
+    { v: r.name || '', s: 5 },
+    { v: r.position || '', s: 5 },
+    { v: r.organization || '', s: 5 },
+    { v: r.approvedVersion || '', s: 5 }
+  ]);
+  govSection(rows, 'Réviseurs',
+    ['Nom', 'Position', 'Organisation', 'Version approuvée'], revRows2);
+  return rows;
+}
+
 $('#export-xlsx').addEventListener('click', () => {
   $('#export-menu').classList.add('hidden');
   const ws = active();
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Export Excel' }); return; }
   const sheets = [
+    { name: 'LLD',        rows: lldCoverRows(ws),   opts: { freeze: false, autoHeader: false } },
+    { name: 'Governance', rows: governanceRows(ws), opts: { freeze: false, autoHeader: false } },
     { name: 'Inventaire',    rows: invRows(ws) },
     { name: 'Câblage',       rows: cablingRows(ws) },
     { name: 'Ports',         rows: portsRows(ws) },
