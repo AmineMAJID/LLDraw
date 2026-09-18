@@ -59,16 +59,22 @@ via localStorage, en secours).
    une reconstitution 3D temps réel (WebGL / Three.js) du datacenter du
    workspace :
    - **Baies 19" fidèles** (largeur, profondeur, U, PDU, guides de câblage)
-     posées sur un sol technique avec marquage de sécurité, éclairage de
-     salle et ombres douces ;
+     dans une **salle blanche lumineuse** : murs et plafond blancs texturés,
+     dalles techniques claires avec joints, dalles lumineuses encastrées,
+     marquage de sécurité au sol et ombres douces ;
    - **Face avant** : la photo du device de la bibliothèque est plaquée sur
      la face avant, avec LED d'activité animées ;
    - **Face arrière procédurale** : blocs d'alimentation, ventilation,
      connecteurs (RJ45, SFP, IEC…) — et chaque connecteur est **teinté de la
      couleur du câble qui y est branché** ;
-   - **Câbles en 3D** : chaque câble sort du port arrière, descend par le
-     guide vertical, chemine au sol dans l'allée arrière et remonte dans la
-     baie de destination — épaisseur renforcée pour les cordons
+   - **Câblage réaliste** : les équipements actifs (switch, routeur,
+     firewall) se câblent **en façade** — les cordons sortent des ports,
+     rejoignent le guide vertical avant et forment un harnais groupé ;
+     un câble vers un **panneau de brassage** est branché devant puis
+     **ressort derrière le panneau** (comme un vrai brassage) ; les liens
+     **inter-baies** descendent par le guide arrière, traversent le sol de
+     l'allée arrière et remontent dans la baie de destination. Courbes
+     centripétales sans dépassement, épaisseur renforcée pour les cordons
      d'alimentation ;
    - **Navigation** : glisser = orbiter, molette = zoomer, clic droit =
      déplacer ; boutons **Avant / Arrière / Dessus / Allée / Tout voir**
