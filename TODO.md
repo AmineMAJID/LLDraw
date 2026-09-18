@@ -305,3 +305,40 @@ interconnexion, domaines de câblage, flux) et exportable en Excel/CSV.
 ---
 
 *Document créé le 2026-09-08 — à cocher au fur et à mesure des lots.*
+
+---
+
+## X. Export XLSX « template Louis Michel » — état et champs manquants
+
+> Livré : le classeur exporté réplique les **24 feuilles** du template
+> (LLD, Governance, Contenu, chapitres 1→15.1) : styles/theme verbatim,
+> fusions, largeurs, hauteurs. Rempli depuis l'app : LLD (client/auteur/version),
+> Governance (révisions/approbateurs/réviseurs), ch.1 objectif, ch.2 site +
+> existant + inventaire par catégorie, ch.3 équipements par modèle, ch.4 VLANs,
+> ch.5 FAI, ch.6 interco (extrémités, sous-réseaux locaux).
+> Les captures d'écran du template (UI Aruba, diagrammes) restent à recoller
+> manuellement dans le fichier exporté.
+
+### Champs NON encore saisis dans l'app (à ajouter plus tard) :
+
+1. **ch.2 — 2.1 Info site** : type de site, pays, nombre d'utilisateurs.
+2. **ch.2 — 2.2 Existant** : tableau détaillé des dispositifs existants
+   (le template liste FAI/baie/switch/onduleur avec quantités) — aujourd'hui
+   rempli par catégories d'inventaire, pas dispositif par dispositif.
+3. **ch.3 — 3.1 Equipments** : distinction besoin/existant/nouveau
+   (« x1 (besoin) ») et colonnes Remarques/Statut.
+4. **ch.4 — Nomenclature détaillée** : arbre par catégorie (FAI, Firewall,
+   Switch, Serveurs… avec préfixes de nommage) — l'app a une nomenclature
+   simple (type/préfixe/exemple/règle) non projetée dans cet arbre.
+5. **ch.5 — FAI** : lignes FAI multiples (le template en a 4), IP/Mask/GW/DNS
+   LAN, IPv6, DHCP, Port Forwarding (profil/ports/protocole), DMZ, WLAN (SSID).
+6. **ch.5 — 5.2 Câblage FAI** : branchements physiques des FAI (WAN x → boîtier).
+7. **ch.6 — 6.1 Interco** : SN, firmware, HA (group, rôle, IP virtuelle),
+   WAN Connection Settings (méthode, IP, bande montante/descendante, health
+   check), Admin Security (users, protocoles), LAN (réseaux par VLAN).
+8. **ch.6 — 6.2 Câblage** : ports physiques des liaisons (aujourd'hui vidés).
+9. **ch.7 Firewall, ch.8.x Switching (config par rôle), ch.9 Serveurs,
+   ch.10 Stockage, ch.11 IDS, ch.12 CCTV, ch.13 Pointage** : feuilles du
+   template quasi vides (titre seul) — à alimenter par saisie dédiée.
+10. **ch.15 Cablage/Rack** : tableaux de câblage/élévations par baie
+    (l'app a les données : câbles + inventaire — à projeter).

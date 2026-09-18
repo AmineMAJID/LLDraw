@@ -5959,7 +5959,8 @@ const LLD_TPL = (() => {
     set(rows, 'C35', fai.operator
       ? `${fai.operator}${fai.offer ? ' — ' + fai.offer : ''}` : '');
     set(rows, 'D35', fai.down || '');
-    set(rows, 'T35', fai.up ? `Montant : ${fai.up}` : '');
+    const faiNote = String(fai.notes || '').split('\n')[0];
+    set(rows, 'T35', faiNote || (fai.up ? `Montant : ${fai.up}` : ''));
     for (const r of [36, 37, 38]) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
     // 5.2 câblage FAI : valeurs du template effacées (à câbler par projet)
     for (const ref of ['C46', 'C48', 'C50', 'C52',
@@ -5977,6 +5978,7 @@ const LLD_TPL = (() => {
     set(rows, 'B45', fai.operator ? `WAN 1 — ${fai.operator}` : 'WAN 1');
     set(rows, 'B46', 'WAN 2');
     set(rows, 'B47', 'WAN 3');
+    if (ic.localSubnets) set(rows, 'B53', `LAN — ${ic.localSubnets}`);
     for (const ref of ['E62', 'E63', 'E64', 'E67', 'E68', 'E69']) set(rows, ref, '');
     return out(sheet, rows, heights);
   }
