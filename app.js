@@ -5405,21 +5405,31 @@ const XLSX = (() => {
   function sheetXml(rows, opts = {}) {
     const freeze = opts.freeze !== false;
     const autoHeader = opts.autoHeader !== false;
-    const nCols = Math.max(8, ...rows.map(r => r.length));
-    const widths = [];
-    for (let c = 0; c < nCols; c++) {
-      let m = 8;
-      for (const r of rows) {
-        const v = r[c];
-        const t = (v && typeof v === 'object') ? v.v : v;
-        if (t !== undefined && t !== null) m = Math.max(m, String(t).length);
+    let cols;
+    if (opts.cols) {
+      // largeurs imposées par la feuille (réplique du template)
+      cols = '<cols>' + opts.cols.map((w, i) =>
+        (w && typeof w === 'object')
+          ? `<col min="${w.min}" max="${w.max}" width="${w.width}" customWidth="1"/>`
+          : `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>';
+    } else {
+      const nCols = Math.max(8, ...rows.map(r => r.length));
+      const widths = [];
+      for (let c = 0; c < nCols; c++) {
+        let m = 8;
+        for (const r of rows) {
+          const v = r[c];
+          const t = (v && typeof v === 'object') ? v.v : v;
+          if (t !== undefined && t !== null) m = Math.max(m, String(t).length);
+        }
+        widths.push(Math.min(42, m + 2));
       }
-      widths.push(Math.min(42, m + 2));
+      cols = '<cols>' + widths.map((w, i) =>
+        `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>';
     }
-    const cols = '<cols>' + widths.map((w, i) =>
-      `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>';
     let body = '';
     rows.forEach((row, ri) => {
+      const ht = opts.heights && opts.heights[ri + 1];
       const cells = row.map((v, ci) => {
         let val = v, st = null;
         if (v && typeof v === 'object') { val = v.v; st = v.s; }
@@ -5435,54 +5445,20 @@ const XLSX = (() => {
         return `<c r="${ref}" t="inlineStr"${sAttr}>` +
                `<is><t xml:space="preserve">${xmlEsc(val)}</t></is></c>`;
       }).join('');
-      body += `<row r="${ri + 1}">${cells}</row>`;
+      body += `<row r="${ri + 1}"${ht ? ` ht="${ht}" customHeight="1"` : ''}>${cells}</row>`;
     });
+    const merges = (opts.merges && opts.merges.length)
+      ? `<mergeCells count="${opts.merges.length}">` +
+        opts.merges.map(ref => `<mergeCell ref="${ref}"/>`).join('') + '</mergeCells>'
+      : '';
     const views = freeze
       ? '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
       : '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-      views + cols + '<sheetData>' + body + '</sheetData></worksheet>';
+      views + cols + '<sheetData>' + body + '</sheetData>' + merges + '</worksheet>';
   }
   const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
-  const STYLES_XML = XML_DECL +
-    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-    // 0:normal 1:en-tête blanc/bleu 2:titre 18 3:bandeau section 4:en-tête gris
-    // 5:cellule bordée wrap 6:libellé gras 7:valeur 12 8:valeur grande 16
-    '<fonts count="7">' +
-    '<font><sz val="11"/><name val="Calibri"/></font>' +
-    '<font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font>' +
-    '<font><b/><color rgb="FF1F2733"/><sz val="18"/><name val="Calibri"/></font>' +
-    '<font><b/><color rgb="FFFFFFFF"/><sz val="12"/><name val="Calibri"/></font>' +
-    '<font><b/><color rgb="FF1F2733"/><sz val="11"/><name val="Calibri"/></font>' +
-    '<font><color rgb="FF1F2733"/><sz val="12"/><name val="Calibri"/></font>' +
-    '<font><b/><color rgb="FF1F2733"/><sz val="16"/><name val="Calibri"/></font>' +
-    '</fonts>' +
-    '<fills count="4"><fill><patternFill patternType="none"/></fill>' +
-    '<fill><patternFill patternType="gray125"/></fill>' +
-    '<fill><patternFill patternType="solid"><fgColor rgb="FF1F4E79"/><bgColor indexed="64"/></patternFill></fill>' +
-    '<fill><patternFill patternType="solid"><fgColor rgb="FFD9D9D9"/><bgColor indexed="64"/></patternFill></fill></fills>' +
-    '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' +
-    '<border><left style="thin"><color rgb="FF8EA0B8"/></left>' +
-    '<right style="thin"><color rgb="FF8EA0B8"/></right>' +
-    '<top style="thin"><color rgb="FF8EA0B8"/></top>' +
-    '<bottom style="thin"><color rgb="FF8EA0B8"/></bottom><diagonal/></border></borders>' +
-    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-    '<cellXfs count="9">' +
-    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
-    '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
-    '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
-    '<xf numFmtId="0" fontId="3" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
-    '<xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>' +
-    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1">' +
-    '<alignment vertical="top" wrapText="1"/></xf>' +
-    '<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
-    '<xf numFmtId="0" fontId="5" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
-    '<xf numFmtId="0" fontId="6" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
-    '</cellXfs>' +
-    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
-    '</styleSheet>';
-
   // ZIP minimal (méthode « store », sans compression)
   function zip(files) {
     const chunks = [];
@@ -5537,6 +5513,102 @@ const XLSX = (() => {
   }
 
   function build(sheets) {
+    /* Moteur de styles : les 9 styles historiques (0..8) gardent leur index pour
+       les 9 feuilles existantes ; les feuilles LLD/Governance passent des
+       descripteurs { b, sz, name, color, fill, border:{l,r,t,b}, h, v, wrap,
+       numFmt } enregistrés à la demande (dédupe fonts/fills/borders/cellXfs),
+       en répliquant la mise en forme du template Excel fourni. */
+    const fonts = [
+      '<font><sz val="11"/><name val="Calibri"/></font>',
+      '<font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font>',
+      '<font><b/><color rgb="FF1F2733"/><sz val="18"/><name val="Calibri"/></font>',
+      '<font><b/><color rgb="FFFFFFFF"/><sz val="12"/><name val="Calibri"/></font>',
+      '<font><b/><color rgb="FF1F2733"/><sz val="11"/><name val="Calibri"/></font>',
+      '<font><color rgb="FF1F2733"/><sz val="12"/><name val="Calibri"/></font>',
+      '<font><b/><color rgb="FF1F2733"/><sz val="16"/><name val="Calibri"/></font>'
+    ];
+    const fills = [
+      '<fill><patternFill patternType="none"/></fill>',
+      '<fill><patternFill patternType="gray125"/></fill>',
+      '<fill><patternFill patternType="solid"><fgColor rgb="FF1F4E79"/><bgColor indexed="64"/></patternFill></fill>',
+      '<fill><patternFill patternType="solid"><fgColor rgb="FFD9D9D9"/><bgColor indexed="64"/></patternFill></fill>'
+    ];
+    const borders = [
+      '<border><left/><right/><top/><bottom/><diagonal/></border>',
+      '<border><left style="thin"><color rgb="FF8EA0B8"/></left>' +
+      '<right style="thin"><color rgb="FF8EA0B8"/></right>' +
+      '<top style="thin"><color rgb="FF8EA0B8"/></top>' +
+      '<bottom style="thin"><color rgb="FF8EA0B8"/></bottom><diagonal/></border>'
+    ];
+    const xfs = [
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>',
+      '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>',
+      '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>',
+      '<xf numFmtId="0" fontId="3" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>',
+      '<xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>',
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1">' +
+      '<alignment vertical="top" wrapText="1"/></xf>',
+      '<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/>',
+      '<xf numFmtId="0" fontId="5" fillId="0" borderId="0" xfId="0" applyFont="1"/>',
+      '<xf numFmtId="0" fontId="6" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+    ];
+    const fontIdx = new Map(), fillIdx = new Map(), borderIdx = new Map(), xfIdx = new Map();
+    function regStyle(d) {
+      const k = JSON.stringify(d);
+      if (xfIdx.has(k)) return xfIdx.get(k);
+      const fk = JSON.stringify([d.name || 'Calibri', d.sz || 11, !!d.b, !!d.i, d.color || '']);
+      if (!fontIdx.has(fk)) {
+        fontIdx.set(fk, fonts.length);
+        fonts.push('<font>' + (d.b ? '<b/>' : '') + (d.i ? '<i/>' : '') +
+          (d.color ? `<color rgb="${d.color}"/>` : '') +
+          `<sz val="${d.sz || 11}"/><name val="${d.name || 'Calibri'}"/></font>`);
+      }
+      let fillId = 0;
+      if (d.fill) {
+        if (!fillIdx.has(d.fill)) {
+          fillIdx.set(d.fill, fills.length);
+          fills.push(`<fill><patternFill patternType="solid"><fgColor rgb="${d.fill}"/><bgColor indexed="64"/></patternFill></fill>`);
+        }
+        fillId = fillIdx.get(d.fill);
+      }
+      const bd = d.border || {};
+      const bk = JSON.stringify([bd.l || '', bd.r || '', bd.t || '', bd.b || '']);
+      let borderId = 0;
+      if (bk !== '["","","",""]') {
+        if (!borderIdx.has(bk)) {
+          borderIdx.set(bk, borders.length);
+          const side = (st, tag) => st ? `<${tag} style="${st}"><color rgb="FF000000"/></${tag}>` : `<${tag}/>`;
+          borders.push('<border>' + side(bd.l, 'left') + side(bd.r, 'right') +
+            side(bd.t, 'top') + side(bd.b, 'bottom') + '<diagonal/></border>');
+        }
+        borderId = borderIdx.get(bk);
+      }
+      const al = (d.h || d.v || d.wrap)
+        ? '<alignment' + (d.h ? ` horizontal="${d.h}"` : '') + (d.v ? ` vertical="${d.v}"` : '') +
+          (d.wrap ? ' wrapText="1"' : '') + '/>'
+        : '';
+      xfs.push(`<xf numFmtId="${d.numFmt || 0}" fontId="${fontIdx.get(fk)}" fillId="${fillId}" borderId="${borderId}" xfId="0"` +
+        (d.numFmt ? ' applyNumberFormat="1"' : '') + ' applyFont="1"' +
+        (fillId ? ' applyFill="1"' : '') + (borderId ? ' applyBorder="1"' : '') +
+        (al ? ' applyAlignment="1">' + al + '</xf>' : '/>'));
+      const idx = xfs.length - 1;
+      xfIdx.set(k, idx);
+      return idx;
+    }
+    // normalisation : les descripteurs de style deviennent des indices numériques
+    for (const s of sheets) for (const row of s.rows) for (let i = 0; i < row.length; i++) {
+      const c = row[i];
+      if (c && typeof c === 'object' && c.s && typeof c.s === 'object') c.s = regStyle(c.s);
+    }
+    const stylesXml = XML_DECL +
+      '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      `<fonts count="${fonts.length}">` + fonts.join('') + '</fonts>' +
+      `<fills count="${fills.length}">` + fills.join('') + '</fills>' +
+      `<borders count="${borders.length}">` + borders.join('') + '</borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      `<cellXfs count="${xfs.length}">` + xfs.join('') + '</cellXfs>' +
+      '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+      '</styleSheet>';
     const files = [
       { name: '[Content_Types].xml', data: XML_DECL +
         '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
@@ -5562,7 +5634,7 @@ const XLSX = (() => {
           `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') +
         `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
         '</Relationships>' },
-      { name: 'xl/styles.xml', data: STYLES_XML },
+      { name: 'xl/styles.xml', data: stylesXml },
       ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.rows, s.opts || {}) }))
     ];
     const u8 = zip(files);
@@ -5572,81 +5644,163 @@ const XLSX = (() => {
   return { build };
 })();
 
-/* ---------- Feuille 1 : page de garde « LLD » ---------- */
+/* ---------- Feuille 1 : page de garde « LLD » (réplique du template) ---------- */
 function lldCoverRows(ws) {
   const L = ws.lld || {};
   const sites = [...new Set(ws.racks.map(r => siteName(ws, r)).filter(Boolean))];
   const project = L.client
     ? `Mise en place d'une infrastructure IT pour ${L.client}`
     : (sites.join(' / ') || ws.name);
-  const lbl = v => ({ v, s: 6 });
-  const val = v => ({ v, s: 7 });
-  const row = (label, value) => {
-    const r = new Array(5).fill('');
-    r[0] = lbl(label);
-    r[4] = value;
+  // styles du template : libellés Calibri 22 gras, valeur titre 18 gras centrée,
+  // sous-titre Arial 22 gris ; bandeaux blancs masquant le quadrillage
+  const LBL = { b: 1, sz: 22, fill: 'FFFFFFFF' };
+  const VAL = { b: 1, sz: 18, v: 'center', fill: 'FFFFFFFF' };
+  const SUB = { name: 'Arial', b: 1, sz: 22, color: 'FF4D5156' };
+  const row = (label, value, band) => {
+    const r = new Array(band ? 17 : 5).fill('');
+    r[0] = { v: label, s: LBL };
+    if (value) r[4] = value;
+    if (band) for (let i = 5; i < 17; i++) r[i] = { v: '', s: VAL };
     return r;
   };
-  return [
-    row('Nom de site', val(project)),
-    row('LLD', { v: 'La conception à bas niveau', s: 8 }),
-    row('Auteur', val(L.author || '')),
-    row('Version', val(L.version || ''))
-  ];
+  return {
+    rows: [
+      row('Nom de site', { v: project, s: VAL }, true),
+      row('LLD', { v: 'La conception à bas niveau', s: SUB }),
+      row('Auteur', { v: L.author || '', s: VAL }),
+      row('Version', { v: L.version || '', s: VAL })
+    ],
+    opts: {
+      freeze: false, autoHeader: false,
+      cols: [{ min: 1, max: 1, width: 46.86 }, { min: 2, max: 16384, width: 8.86 }],
+      heights: { 1: 28.5, 2: 28.5, 3: 28.5, 4: 28.5 }
+    }
+  };
 }
 
-/* ---------- Feuille 2 : « Governance » (révisions, approbateurs, réviseurs) ---------- */
-function govSection(rows, title, headers, data) {
-  // bandeau bleu pleine largeur + en-têtes gris + lignes bordées
-  rows.push(headers.map((h, i) => ({ v: i === 0 ? title : '', s: 3 })));
-  rows.push(headers.map(h => ({ v: h, s: 4 })));
-  data.forEach(r => rows.push(r));
-  // au moins 3 lignes vides bordées pour remplissage manuel
-  for (let k = data.length; k < 3; k++) rows.push(headers.map(() => ({ v: '', s: 5 })));
-}
-
+/* ---------- Feuille 2 : « Governance » (réplique exacte du template) ----------
+   Bandeaux bleu marine (FF002060) texte blanc, en-têtes gris (E7E6E6),
+   grille fine noire avec bords moyens, ligne de clôture basse moyenne :
+   1) Statut de révision du document (rempli depuis ws.lld.revs)
+   2) Approbateurs : 3 lignes par version cible, version fusionnée sur les 3
+   3) Réviseurs : 4 colonnes, une ligne par version */
 function governanceRows(ws) {
   const L = ws.lld || {};
-  const rows = [[{ v: 'Governance', s: 2 }], []];
-  const B = s => ({ v: '', s });
+  const revs = L.revs || [];
+  const approvers = L.approvers || [];
+  const reviewers = L.reviewers || [];
+  const rows = [];
+  const merges = [];
+  const heights = { 1: 25.9 };
+  const NAVY = 'FF002060', GRIS = 'FFE7E6E6';
 
-  // — Statut de révision du document —
-  const approvedVers = new Set((L.approvers || []).map(a => a.approvedVersion).filter(Boolean));
-  const hasApprovers = (L.approvers || []).length > 0;
-  const revRows = (L.revs || []).map(r => [
-    { v: r.rev || '', s: 5 },
-    { v: r.author || '', s: 5 },
-    { v: r.note || '', s: 5 },
-    { v: r.date || '', s: 5 },
-    { v: (r.rev && approvedVers.has(r.rev)) ? 'Approuvé'
-        : (hasApprovers ? 'Pas encore approuvé' : ''), s: 5 }
-  ]);
-  govSection(rows, 'Statut de révision du document',
-    ['Version', 'Auteur', 'Commentaires et mises à jour', 'Date', 'Statut'], revRows);
+  // styles paramétrés par position (bord extrême = medium)
+  const banner = e => ({ b: 1, color: 'FFFFFFFF', fill: NAVY, h: 'left', v: 'center',
+    border: { t: 'medium', b: 'thin', l: e.l ? 'medium' : '', r: e.r ? 'medium' : '' } });
+  const head = e => ({ fill: GRIS, border: { t: 'thin', b: 'thin', l: e.l ? 'medium' : 'thin', r: e.r ? 'medium' : 'thin' } });
+  const cell = e => ({ h: 'left', v: 'center', border: { t: 'thin', b: 'thin', l: e.l ? 'medium' : 'thin', r: e.r ? 'medium' : 'thin' } });
+  const cellW = e => ({ ...cell(e), wrap: 1 });
+  const close = e => ({ h: 'left', v: 'center', border: { b: 'medium', l: e.l ? 'medium' : 'thin', r: e.r ? 'medium' : 'thin' } });
+
+  // date ISO -> numéro de série Excel (format date court, numFmtId 14)
+  const dateSerial = iso => {
+    const m = /^((?:\d{4}))-(\d{2})-(\d{2})/.exec(iso || '');
+    return m ? Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) + 25569 : (iso || '');
+  };
+  const lineCount = s => String(s || '').split('\n').length;
+
+  function section(title, nCols, headers, dataRows) {
+    const last = nCols - 1;
+    const br = rows.length + 1;
+    rows.push(headers.map((_, i) => ({ v: i === 0 ? title : '', s: banner({ l: i === 0, r: i === last }) })));
+    merges.push(`A${br}:${'ABCDE'[last]}${br}`);
+    heights[br] = 14.45;
+    rows.push(headers.map((h, i) => ({ v: h, s: head({ l: i === 0, r: i === last }) })));
+    heights[rows.length] = 14.45;
+    dataRows.forEach(dr => {
+      rows.push(dr);
+      const nLines = Math.max(...dr.map(c => lineCount(c && typeof c === 'object' ? c.v : c)));
+      heights[rows.length] = nLines > 1 ? nLines * 15 : 14.45;
+    });
+  }
+  const closeRow = nCols => {
+    const last = nCols - 1;
+    rows.push(Array.from({ length: nCols }, (_, i) => ({ v: '', s: close({ l: i === 0, r: i === last }) })));
+  };
+
+  // — Titre + respiration (template : ligne 2 vide) —
+  rows.push([{ v: 'Governance', s: { b: 1, sz: 20, fill: 'FFFFFFFF' } }]);
   rows.push([]);
 
-  // — Approbateurs —
-  const appRows = (L.approvers || []).map(a => [
-    { v: a.name || '', s: 5 },
-    { v: a.position || '', s: 5 },
-    { v: a.organization || '', s: 5 },
-    { v: a.approvedVersion || '', s: 5 },
-    { v: '', s: 5 }   // colonne Signature (vide, à signer)
-  ]);
-  govSection(rows, 'Approbateurs',
-    ['Nom', 'Position', 'Organisation', 'Version approuvée', 'Signature'], appRows);
-  rows.push([]);
+  // — 1) Statut de révision du document —
+  const approvedVers = new Set(approvers.map(a => a.approvedVersion).filter(Boolean));
+  const hasApprovers = approvers.length > 0;
+  section('Statut de révision du document', 5,
+    ['Version', 'Auteur', 'Commentaires et mises à jour', 'Date', 'Statut'],
+    revs.map(rv => {
+      const d = dateSerial(rv.date);
+      return [
+        { v: rv.rev || '', s: cell({ l: 1 }) },
+        { v: rv.author || '', s: cell({}) },
+        { v: rv.note || '', s: lineCount(rv.note) > 1 ? cellW({}) : cell({}) },
+        { v: d, s: { ...cell({}), numFmt: 14 } },
+        { v: (rv.rev && approvedVers.has(rv.rev)) ? 'Approuvé'
+              : (hasApprovers ? 'Pas encore approuvé' : ''), s: cell({ r: 1 }) }
+      ];
+    }));
+  closeRow(5);
+  rows.push([]); rows.push([]);
 
-  // — Réviseurs —
-  const revRows2 = (L.reviewers || []).map(r => [
-    { v: r.name || '', s: 5 },
-    { v: r.position || '', s: 5 },
-    { v: r.organization || '', s: 5 },
-    { v: r.approvedVersion || '', s: 5 }
-  ]);
-  govSection(rows, 'Réviseurs',
-    ['Nom', 'Position', 'Organisation', 'Version approuvée'], revRows2);
-  return rows;
+  // — 2) Approbateurs : 3 lignes par version cible (hors versions 0.x), version fusionnée —
+  let vers = revs.map(x => x.rev).filter(v => v && !/^0\./.test(v));
+  if (!vers.length && L.version) vers = [L.version];
+  if (!vers.length) vers = [''];
+  section('Approbateurs', 5,
+    ['Nom', 'Position', 'Organisation', 'Version approuvée', 'Signature'],
+    (() => {
+      const out = [];
+      vers.forEach((ver, vi) => {
+        const signataires = approvers.filter(a => a.approvedVersion === ver);
+        const lastBlock = vi === vers.length - 1;
+        // 1re ligne (1-based) du bloc : +2 pour le bandeau et l'en-tête que
+        // section() ajoutera avant les données
+        const blockStart = rows.length + out.length + 3;
+        merges.push(`D${blockStart}:D${blockStart + 2}`); // version fusionnée sur 3 lignes
+        for (let k = 0; k < 3; k++) {
+          const a = signataires[k] || {};
+          const fin = lastBlock && k === 2;   // dernière ligne du dernier bloc : bas medium
+          const st = fin ? close : cell;
+          out.push([
+            { v: a.name || '', s: st({ l: 1 }) },
+            { v: a.position || '', s: st({}) },
+            { v: a.organization || '', s: st({}) },
+            { v: k === 0 ? ver : '', s: st({}) },
+            { v: '', s: st({ r: 1 }) }
+          ]);
+        }
+      });
+      return out;
+    })());
+  closeRow(5);
+  rows.push([]); rows.push([]);
+
+  // — 3) Réviseurs : 4 colonnes, une ligne par version —
+  const revVers = revs.length ? revs.map(x => x.rev || '') : (reviewers.length ? reviewers.map(x => x.approvedVersion || '') : ['']);
+  section('Réviseurs', 4,
+    ['Nom', 'Position', 'Organisation', 'Version approuvée'],
+    revVers.map(ver => {
+      const rv = reviewers.find(x => x.approvedVersion === ver) || {};
+      return [
+        { v: rv.name || '', s: cell({ l: 1 }) },
+        { v: rv.position || '', s: cell({}) },
+        { v: rv.organization || '', s: cell({}) },
+        { v: ver, s: cell({ r: 1 }) }
+      ];
+    }));
+  closeRow(4);
+
+  return { rows, opts: { freeze: false, autoHeader: false, merges, heights,
+    cols: [28.14, 28.14, 61.57, 28.14, 19.57] } };
 }
 
 $('#export-xlsx').addEventListener('click', () => {
@@ -5654,8 +5808,8 @@ $('#export-xlsx').addEventListener('click', () => {
   const ws = active();
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Export Excel' }); return; }
   const sheets = [
-    { name: 'LLD',        rows: lldCoverRows(ws),   opts: { freeze: false, autoHeader: false } },
-    { name: 'Governance', rows: governanceRows(ws), opts: { freeze: false, autoHeader: false } },
+    { name: 'LLD',        ...lldCoverRows(ws) },
+    { name: 'Governance', ...governanceRows(ws) },
     { name: 'Inventaire',    rows: invRows(ws) },
     { name: 'Câblage',       rows: cablingRows(ws) },
     { name: 'Ports',         rows: portsRows(ws) },
