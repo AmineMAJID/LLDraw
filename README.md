@@ -67,14 +67,15 @@ via localStorage, en secours).
    - **Face arrière procédurale** : blocs d'alimentation, ventilation,
      connecteurs (RJ45, SFP, IEC…) — et chaque connecteur est **teinté de la
      couleur du câble qui y est branché** ;
-   - **Câblage réaliste** : les équipements actifs (switch, routeur,
-     firewall) se câblent **en façade** — les cordons sortent des ports,
-     rejoignent le guide vertical avant et forment un harnais groupé ;
-     un câble vers un **panneau de brassage** est branché devant puis
-     **ressort derrière le panneau** (comme un vrai brassage) ; les liens
-     **inter-baies** descendent par le guide arrière, traversent le sol de
-     l'allée arrière et remontent dans la baie de destination. Courbes
-     centripétales sans dépassement, épaisseur renforcée pour les cordons
+   - **Câblage réaliste** : les ports 3D reprennent la **position exacte
+     de la vue Élévations** (xPct/yPct) ; les cordons sortent des ports et
+     courent **verticalement** en colonnes parallèles devant les faces
+     (comme un habillage velcrosé). Un câble vers un **panneau à
+     brosse/brassage** entre devant le panneau, le **traverse** et son
+     lien permanent repart **derrière** dans le guide vertical jusqu'au
+     lit de câbles au sol ; les liens **inter-baies** descendent par le
+     guide arrière, traversent le sol de l'allée arrière et remontent
+     dans la baie de destination. Épaisseur renforcée pour les cordons
      d'alimentation ;
    - **Navigation** : glisser = orbiter, molette = zoomer, clic droit =
      déplacer ; boutons **Avant / Arrière / Dessus / Allée / Tout voir**

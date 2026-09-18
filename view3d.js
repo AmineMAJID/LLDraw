@@ -516,11 +516,22 @@ function frontFallbackTexture(inst) {
   return tex;
 }
 
-/* Position des ports sur la face arrière (u,v normalisés, v=0 en haut) */
+/* Position des ports (u,v normalisés, v=0 en haut).
+   Reproduit EXACTEMENT la vue Élévations : le centre du port est à
+   (xPct %, yPct %) de la face du device (cf. app.js : style.left/top).
+   Repli : distribution en grille si un port n'a pas de coordonnées. */
 function portLayout(inst) {
   const ports = inst.ports || [];
   const n = ports.length;
   if (!n) return [];
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  if (ports.every(p => Number.isFinite(p.xPct) && Number.isFinite(p.yPct))) {
+    return ports.map(p => ({
+      port: p,
+      u: clamp(p.xPct / 100, 0.03, 0.97),
+      v: clamp(p.yPct / 100, 0.05, 0.95)
+    }));
+  }
   const out = [];
   const perRow = n === 1 ? 1 : Math.min(n, inst.sizeU >= 2 ? 12 : Math.max(4, Math.min(10, n)));
   const rows = Math.ceil(n / perRow);
@@ -532,7 +543,7 @@ function portLayout(inst) {
     const rowCount = Math.min(perRow, n - r * perRow);
     const u = 0.5 + (cIdx - (rowCount - 1) / 2) * cellU;
     const v = vC + (r - (rows - 1) / 2) * rowV;
-    out.push({ port: p, u: Math.min(0.96, Math.max(0.04, u)), v: Math.min(0.96, Math.max(0.04, v)) });
+    out.push({ port: p, u: clamp(u, 0.04, 0.96), v: clamp(v, 0.04, 0.96) });
   });
   return out;
 }
@@ -782,10 +793,8 @@ function buildCables(root, ws) {
     // derrière le panneau quand il poursuit vers un équipement passif.
     const patchA = normCat(ea.inst.cat) === 'patch';
     const patchB = normCat(eb.inst.cat) === 'patch';
-    const faceA = !patchA ? 'front'
-      : (patchB || ACTIVE_CATS.has(normCat(eb.inst.cat)) ? 'front' : 'rear');
-    const faceB = !patchB ? 'front'
-      : (patchA || ACTIVE_CATS.has(normCat(ea.inst.cat)) ? 'front' : 'rear');
+    const faceA = !patchA ? 'front' : (patchB ? 'rear' : 'front');
+    const faceB = !patchB ? 'front' : (patchA ? 'rear' : 'front');
     let pts = cableWaypoints(pa, pb, faceA, faceB, i);
     // Supprimer les points confondus (tangente nulle -> TubeGeometry NaN)
     pts = pts.filter((p, k) => k === 0 || p.distanceToSquared(pts[k - 1]) > 4e-6);
@@ -827,116 +836,123 @@ function buildCables(root, ws) {
 }
 
 /* ---------- Routage réaliste des cordons ----------
-   Équipements actifs (switch, routeur, firewall) : ports en FAÇADE.
-   Le cordon sort du port, tourne IMMÉDIATEMENT vers le canal latéral et
-   longe les faces dans un faisceau serré (comme un habillage réel avec
-   velcros). Panneaux de brassage : le cordon est branché devant et
-   ressort derrière le panneau vers le device passif. Inter-baies :
-   descente par le guide arrière, traversée au sol de l'allée, remontée. */
+   PRINCIPE (photo d'une vraie baie) :
+   - Le cordon SORT du port à la position exacte de la vue Élévations
+     (xPct/yPct), puis monte ou descend VERTICALEMENT en colonne, juste
+     devant la face du device, et entre dans le port de destination.
+   - Câble vers un PANNEAU À BROSSE / de brassage : le cordon entre devant
+     le panneau (au niveau du repère porté par le câble), TRAVERSE le
+     panneau et repart derrière dans le guide vertical jusqu'au sol
+     (le lien permanent continue dans le chemin de câbles).
+   - Inter-baies : descente par le guide arrière, traversée au sol de
+     l'allée arrière, remontée dans la baie de destination. */
 const ACTIVE_CATS = new Set(['switch', 'router', 'firewall']);
-const FRONT_CH_X = 0.225;    // canal vertical avant (repère baie)
-const REAR_CH_X  = 0.19;     // guide vertical arrière
-const SIDE_IN_X  = 0.250;    // passage intérieur le long des rails
-const FRONT_PLANE = RACK_D / 2 - 0.038;  // plan des cordons avant : colle aux faces
-const FLOOR_Y    = 0.045;    // hauteur d'un cordon au sol
+const FRONT_CH_X = 0.225;   // canal vertical avant (repère baie)
+const REAR_CH_X  = 0.19;    // guide vertical arrière
+const SIDE_IN_X  = 0.245;   // passage intérieur le long des rails
+const FACE_D     = RACK_D / 2 - 0.06;  // plan des faces avant des devices
+const FLOOR_Y    = 0.045;   // hauteur d'un cordon au sol
+
+const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
 function rackPos3d(rack) {
   return rackPositions.get(rack.id) || { wx: 0, wz: 0 };
 }
 
+/* Plan z des cordons devant la face (empilement 4 couches ~1 cm) */
+function cordZ(wz, idx) {
+  return wz + FACE_D + 0.008 + (idx % 4) * 0.0035;
+}
+
+/* Écartement horizontal des colonnes verticales (faisceau parallèle) */
+function fanX(idx) {
+  return (((idx * 29) % 7) - 3) * 0.0055;
+}
+
 function cableWaypoints(pa, pb, fa, fb, idx) {
-  // Jitter très réduit + décalage faisceau : chaque cordon à côté de l'autre
-  const jx  = (((idx * 37) % 11) - 5) * 0.005;
-  const jz  = (((idx * 53) % 9) - 4) * 0.005;
-  const jx2 = (((idx * 23) % 7) - 3) * 0.006;
-  const bundleX = (idx % 8) * 0.0034;    // 8 cordons côte à côte (~27 mm)
-  const bundleZ = (idx % 5) * 0.0018;
-  const A = { pos: pa[fa === 'front' ? 'posFront' : 'posRear'], u: pa.u };
-  const B = { pos: pb[fb === 'front' ? 'posFront' : 'posRear'], u: pb.u };
-
-  /* --- Même baie --- */
-  if (pa.rack === pb.rack) {
-    const { wx, wz } = rackPos3d(pa.rack);
-    const zF = wz + FRONT_PLANE + bundleZ;            // collé aux faces avant
-    const zR = wz - RACK_D / 2 - 0.075 + bundleZ;     // guide arrière
-    if (fa === 'front' && fb === 'front') {
-      // Cordon apparent EN FAÇADE, plaqué : sortie de port courte,
-      // canal latéral en faisceau, retour sur l'autre port.
-      const side = (A.u + B.u) / 2 < 0.5 ? -1 : 1;
-      const chanX = wx + side * (0.242 + bundleX) + jx * 0.3;
-      const e = 0.012;
-      const midY = (A.pos.y + B.pos.y) / 2 + (idx % 2 ? 0.005 : -0.005);
-      return [
-        A.pos,
-        new THREE.Vector3(A.pos.x, A.pos.y, zF + e),
-        new THREE.Vector3(chanX, A.pos.y, zF),
-        new THREE.Vector3(chanX, midY, zF + 0.003),
-        new THREE.Vector3(chanX, B.pos.y, zF),
-        new THREE.Vector3(B.pos.x, B.pos.y, zF + e),
-        B.pos
-      ];
-    }
-    // Au moins une extrémité à l'ARRIÈRE d'un panneau : cheminement
-    // intérieur le long des rails entre le plan avant et le guide arrière.
-    const sA = A.u < 0.5 ? -1 : 1;
-    const inX = wx + sA * (SIDE_IN_X + bundleX * 0.6) + jx2;
-    const zA = fa === 'front' ? zF : zR, zB = fb === 'front' ? zF : zR;
-    const cxA = wx + sA * (fa === 'front' ? FRONT_CH_X : REAR_CH_X) + jx * 0.5;
-    const cxB = wx + sA * (fb === 'front' ? FRONT_CH_X : REAR_CH_X) + jx * 0.5;
-    const midY = (A.pos.y + B.pos.y) / 2;
-    const shB = B.pos.y + (B.pos.y > A.pos.y ? -0.018 : 0.018);   // épaule d'arrivée
-    return [
-      A.pos,
-      new THREE.Vector3(A.pos.x, A.pos.y, zA + (fa === 'front' ? 0.014 : -0.014)),
-      new THREE.Vector3(cxA, A.pos.y, zA),
-      new THREE.Vector3(inX, A.pos.y, zA + (fa === 'front' ? 0.010 : -0.010)),
-      new THREE.Vector3(inX, midY, (zA + zB) / 2),
-      new THREE.Vector3(inX, shB, zB + (fb === 'front' ? 0.010 : -0.010)),
-      new THREE.Vector3(cxB, B.pos.y, zB),
-      new THREE.Vector3(B.pos.x, B.pos.y, zB + (fb === 'front' ? 0.014 : -0.014)),
-      B.pos
-    ];
-  }
-
-  /* --- Baies différentes --- */
+  const A = { pos: pa[fa === 'front' ? 'posFront' : 'posRear'], u: pa.u, inst: pa.inst };
+  const B = { pos: pb[fb === 'front' ? 'posFront' : 'posRear'], u: pb.u, inst: pb.inst };
+  const patchA = normCat(pa.inst.cat) === 'patch';
+  const patchB = normCat(pb.inst.cat) === 'patch';
   const ra = rackPos3d(pa.rack), rb = rackPos3d(pb.rack);
-  const sA = A.u < 0.5 ? -1 : 1, sB = B.u < 0.5 ? -1 : 1;
-  const zFA = ra.wz + FRONT_PLANE + bundleZ, rzA = ra.wz - RACK_D / 2 - 0.075;
-  const zFB = rb.wz + FRONT_PLANE + bundleZ, rzB = rb.wz - RACK_D / 2 - 0.075;
-  const chXA = ra.wx + sA * (REAR_CH_X + bundleX * 0.5) + jx * 0.5;
-  const chXB = rb.wx + sB * (REAR_CH_X + bundleX * 0.5) + jx * 0.5;
-  const laneZ = Math.min(rzA, rzB) - 0.30 + jz;
-  const y0 = FLOOR_Y;
+  const dy0 = B.pos.y - A.pos.y;
+  const dirY = dy0 >= 0 ? 1 : -1;
+  const fan = fanX(idx);
 
-  const p = [A.pos];
-  if (fa === 'front') {
-    p.push(new THREE.Vector3(A.pos.x, A.pos.y, zFA + 0.014));
-    p.push(new THREE.Vector3(ra.wx + sA * (0.242 + bundleX), A.pos.y, zFA));
-    // déport vers le coin intérieur arrière de la baie
-    p.push(new THREE.Vector3(ra.wx + sA * SIDE_IN_X + jx2, A.pos.y, zFA - 0.045));
-    p.push(new THREE.Vector3(chXA + sA * 0.035, A.pos.y, rzA + 0.05));
-  } else {
-    p.push(new THREE.Vector3(A.pos.x, A.pos.y, rzA - 0.016));
+  /* ---------- Même baie ---------- */
+  if (pa.rack === pb.rack) {
+    const wz = ra.wz;
+    const zF = cordZ(wz, idx);
+
+    // Cordon vertical devant les faces : A -> colonne -> B
+    const frontCord = () => {
+      const xMid = (A.pos.x + B.pos.x) / 2 + fan;
+      const s = Math.min(0.05, Math.abs(dy0) * 0.35);
+      return [
+        v3(A.pos.x, A.pos.y, zF + 0.008),       // sortie droite du port
+        v3(xMid, A.pos.y + dirY * s, zF),       // coude vers la colonne
+        v3(xMid, B.pos.y - dirY * s, zF),       // TRONÇON VERTICAL
+        v3(B.pos.x, B.pos.y, zF + 0.008)        // entrée dans le port B
+      ];
+    };
+
+    // Passage DERRIÈRE un panneau à brosse : traversée + guide + sol
+    const rearThrough = (side, portU, rearPos) => {
+      const chX = ra.wx + side * (REAR_CH_X + fan * 0.5);
+      const rZ = wz - RACK_D / 2 - 0.05;
+      return [
+        v3(chX, rearPos.y, rZ + 0.02),
+        v3(chX, Math.min(Math.max(FLOOR_Y + 0.05, rearPos.y - dirY * 0.06), rearPos.y), rZ),
+        v3(chX, FLOOR_Y + 0.02, rZ),
+        v3(chX, FLOOR_Y, rZ - 0.09)             // fin dans le lit de câbles au sol
+      ];
+    };
+
+    const pts = [A.pos, ...frontCord(), B.pos];
+    // Lien permanent derrière le panneau (le câble continue au sol)
+    if (patchB) pts.push(...rearThrough(B.u < 0.5 ? -1 : 1, B.u, pb.posRear));
+    else if (patchA) pts.push(...rearThrough(A.u < 0.5 ? -1 : 1, A.u, pa.posRear));
+    return pts;
   }
-  p.push(new THREE.Vector3(chXA, A.pos.y, rzA));
-  p.push(new THREE.Vector3(chXA, y0 + 0.02, rzA - 0.05));
-  p.push(new THREE.Vector3(chXA, y0, rzA - 0.12));
-  // épaule de départ : quitter le guide horizontalement avant de plonger
-  p.push(new THREE.Vector3(chXA, A.pos.y - (A.pos.y > y0 + 0.06 ? 0.02 : 0), rzA - 0.02));
-  p.push(new THREE.Vector3(chXA, A.pos.y, rzA));
-  // Traversée au sol dans l'allée arrière
-  p.push(new THREE.Vector3((chXA + chXB) / 2 + jx2 * 0.5, y0, laneZ));
-  p.push(new THREE.Vector3(chXB, y0, rzB - 0.12));
-  p.push(new THREE.Vector3(chXB, y0 + 0.02, rzB - 0.05));
-  // épaule d'arrivée : terminer horizontalement dans le guide
-  p.push(new THREE.Vector3(chXB, B.pos.y, rzB - 0.03));
-  p.push(new THREE.Vector3(chXB, B.pos.y, rzB));
+
+  /* ---------- Baies différentes ---------- */
+  const zFA = cordZ(ra.wz, idx), zFB = cordZ(rb.wz, idx);
+  const sA = A.u < 0.5 ? -1 : 1, sB = B.u < 0.5 ? -1 : 1;
+  const chXA = ra.wx + sA * (REAR_CH_X + fan * 0.5);
+  const chXB = rb.wx + sB * (REAR_CH_X + fan * 0.5);
+  const rzA = ra.wz - RACK_D / 2 - 0.05, rzB = rb.wz - RACK_D / 2 - 0.05;
+  const laneZ = Math.min(rzA, rzB) - 0.30 + (((idx * 53) % 9) - 4) * 0.008;
+  const y0 = FLOOR_Y;
+  const exitA = Math.max(y0 + 0.10, A.pos.y - 0.12);
+  const exitB = Math.max(y0 + 0.10, B.pos.y - 0.12);
+
+  const p = [A.pos, v3(A.pos.x, A.pos.y, zFA + 0.008)];
+  if (fa === 'front') {
+    // descente VERTICALE devant la face, à la colonne du port
+    p.push(v3(A.pos.x, exitA + 0.05, zFA));
+    p.push(v3(A.pos.x, exitA, zFA - 0.03));
+    p.push(v3(ra.wx + sA * SIDE_IN_X, exitA - 0.01, zFA - 0.06));
+    p.push(v3(chXA + sA * 0.02, exitA - 0.02, rzA + 0.05));
+  } else {
+    p.push(v3(chXA, A.pos.y, rzA));
+  }
+  p.push(v3(chXA, exitA - 0.03, rzA));
+  p.push(v3(chXA, y0 + 0.02, rzA - 0.05));
+  p.push(v3(chXA, y0, rzA - 0.12));
+  // traversée au sol de l'allée arrière
+  p.push(v3((chXA + chXB) / 2, y0, laneZ));
+  p.push(v3(chXB, y0, rzB - 0.12));
+  p.push(v3(chXB, y0 + 0.02, rzB - 0.05));
+  p.push(v3(chXB, exitB - 0.03, rzB));
   if (fb === 'front') {
-    // remontée par le coin intérieur arrière puis le canal avant
-    p.push(new THREE.Vector3(chXB + sB * 0.035, B.pos.y, rzB + 0.05));
-    p.push(new THREE.Vector3(rb.wx + sB * SIDE_IN_X + jx2, B.pos.y, zFB - 0.045));
-    p.push(new THREE.Vector3(rb.wx + sB * (0.242 + bundleX), B.pos.y, zFB));
-    p.push(new THREE.Vector3(B.pos.x, B.pos.y, zFB + 0.014));
+    p.push(v3(chXB + sB * 0.02, exitB - 0.02, rzB + 0.05));
+    p.push(v3(rb.wx + sB * SIDE_IN_X, exitB - 0.01, zFB - 0.06));
+    // remontée VERTICALE devant la face, à la colonne du port B
+    p.push(v3(B.pos.x, exitB, zFB - 0.03));
+    p.push(v3(B.pos.x, exitB + 0.05, zFB));
+    p.push(v3(B.pos.x, B.pos.y, zFB + 0.008));
+  } else {
+    p.push(v3(chXB, B.pos.y, rzB));
   }
   p.push(B.pos);
   return p;
