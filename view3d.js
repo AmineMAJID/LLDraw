@@ -21,7 +21,7 @@ const INNER_W = 0.4826;          // largeur utile 19"
 const POST    = 0.05;
 const PX2M    = 0.0035;          // coordonnées board (px) -> monde (m)
 
-const SCENERY = { bg: 0x0a0d12, fog: 0.016 };
+const SCENERY = { bg: 0xe8ecf2, fog: 0.009 };   // salle blanche lumineuse
 
 const DOMAIN_COLORS = {
   '':         '#6b7280',
@@ -55,6 +55,7 @@ let pickables = [];                      // meshes raycastables
 let portIndex = new Map();               // "rack|inst|port" -> info monde
 let cableById = new Map();               // id -> cable (state)
 let tubeByCable = new Map();             // id -> mesh tube
+let cableAnchors = new Map();            // id -> [{pos, face}, {pos, face}]
 let leds = [];                           // LEDs clignotantes {mat, phase, speed}
 let nameplates = [];                     // sprites étiquettes
 let deviceMeshes = [];                   // boîtes devices (survol)
@@ -94,7 +95,7 @@ function ensureRenderer() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
+  renderer.toneMappingExposure = 1.05;
   holder.appendChild(renderer.domElement);
 
   scene = new THREE.Scene();
@@ -109,7 +110,7 @@ function ensureRenderer() {
   envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   pmrem.dispose();
   scene.environment = envTex;
-  scene.environmentIntensity = 0.45;
+  scene.environmentIntensity = 0.6;
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -153,34 +154,63 @@ function makeFloorTexture(rackRects, fs) {
   const ctx = cv.getContext('2d');
   const w2p = S / fs;   // m -> px
 
-  // Béton sombre
-  ctx.fillStyle = '#22252b';
+  // Dalle technique claire
+  ctx.fillStyle = '#d7dbdf';
   ctx.fillRect(0, 0, S, S);
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < 9000; i++) {
-    const x = rnd() * S, y = rnd() * S, r = rnd() * 1.6 + 0.3;
-    ctx.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.030)' : 'rgba(0,0,0,0.045)';
+  // Grandes variations douces (usure, reflets)
+  for (let i = 0; i < 90; i++) {
+    const x = rnd() * S, y = rnd() * S, r = rnd() * 190 + 60;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const light = rnd() > 0.5;
+    g.addColorStop(0, light ? 'rgba(255,255,255,0.055)' : 'rgba(96,104,114,0.045)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   }
-  // Grille 1 m discrète
-  ctx.strokeStyle = 'rgba(255,255,255,0.045)';
-  ctx.lineWidth = 1;
-  for (let m = -fs / 2; m <= fs / 2; m++) {
-    const p = (m + fs / 2) * w2p;
+  // Dalles 600 mm : légère variation par tuile
+  const tile = 0.6 * w2p;
+  for (let ty = 0; ty * tile < S; ty++) {
+    for (let tx = 0; tx * tile < S; tx++) {
+      const v = rnd();
+      if (v > 0.72) {
+        ctx.fillStyle = `rgba(255,255,255,${((v - 0.72) * 0.10 + 0.008).toFixed(3)})`;
+        ctx.fillRect(tx * tile, ty * tile, tile, tile);
+      } else if (v < 0.16) {
+        ctx.fillStyle = `rgba(90,98,110,${((0.16 - v) * 0.22 + 0.008).toFixed(3)})`;
+        ctx.fillRect(tx * tile, ty * tile, tile, tile);
+      }
+    }
+  }
+  // Grain fin
+  for (let i = 0; i < 5200; i++) {
+    const x = rnd() * S, y = rnd() * S, r = rnd() * 1.4 + 0.3;
+    ctx.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.050)' : 'rgba(0,0,0,0.035)';
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  // Joints blancs entre dalles + ombre portée du joint
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.lineWidth = 1.4;
+  for (let p = 0; p <= S + tile; p += tile) {
     ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, S); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(S, p); ctx.stroke();
   }
-  // Joints de dilatation tous les 4 m
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-  ctx.lineWidth = 3;
-  for (let m = -fs / 2; m <= fs / 2; m += 4) {
-    const p = (m + fs / 2) * w2p;
+  ctx.strokeStyle = 'rgba(70,78,90,0.16)';
+  ctx.lineWidth = 1;
+  for (let p = 0; p <= S + tile; p += tile) {
+    ctx.beginPath(); ctx.moveTo(p + 1.4, 0); ctx.lineTo(p + 1.4, S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, p + 1.4); ctx.lineTo(S, p + 1.4); ctx.stroke();
+  }
+  // Joints de structure tous les 3 m
+  ctx.strokeStyle = 'rgba(60,68,80,0.20)';
+  ctx.lineWidth = 2.5;
+  for (let p = 0; p <= S + 3 * w2p; p += 3 * w2p) {
     ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, S); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(S, p); ctx.stroke();
   }
   // Marquage de sécurité jaune autour des baies
-  ctx.strokeStyle = '#caa22a';
+  ctx.strokeStyle = '#c9a233';
   ctx.lineWidth = Math.max(3, 0.05 * w2p);
   ctx.setLineDash([0.3 * w2p, 0.18 * w2p]);
   const M = 0.55;   // marge autour d'une baie
@@ -196,46 +226,107 @@ function makeFloorTexture(rackRects, fs) {
   tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   return tex;
 }
+function makeWallTexture() {
+  const cv = document.createElement('canvas');
+  cv.width = 512; cv.height = 512;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 512);
+  g.addColorStop(0, '#e2e7ee');
+  g.addColorStop(0.72, '#eef1f5');
+  g.addColorStop(1, '#f3f5f8');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 512, 512);
+  let seed = 11;
+  const rnd = () => (seed = (seed * 48271) % 2147483647) / 2147483647;
+  for (let i = 0; i < 1500; i++) {
+    ctx.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(70,80,95,0.02)';
+    ctx.fillRect(rnd() * 512, rnd() * 512, rnd() * 26 + 2, 1);
+  }
+  // Bande technique + plinthe en pied de mur
+  ctx.fillStyle = 'rgba(120,130,145,0.10)';
+  ctx.fillRect(0, 430, 512, 3);
+  ctx.fillStyle = '#99a1ac';
+  ctx.fillRect(0, 494, 512, 18);
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.fillRect(0, 491, 512, 3);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  return tex;
+}
 
 function buildEnvironment(root, fs, rackRects) {
-  // Sol
+  const c = layout.center;
+  const span = Math.max(fs, 18);       // la salle couvre le sol
+  const H = 3.2;                       // hauteur sous plafond
+
+  // Sol clair (dalle technique)
   const floorGeo = new THREE.PlaneGeometry(fs, fs);
   const floorMat = new THREE.MeshStandardMaterial({
     map: makeFloorTexture(rackRects, fs),
-    roughness: 0.42, metalness: 0.18, envMapIntensity: 0.55
+    roughness: 0.52, metalness: 0.06, envMapIntensity: 0.7
   });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   root.add(floor);
 
-  // Barres lumineuses de faux plafond + chemin de câbles
-  const c = layout.center;
-  const span = Math.max(layout.radius * 3, 6);
-  const barGeo = new THREE.BoxGeometry(1.5, 0.03, 0.16);
-  const barMat = new THREE.MeshStandardMaterial({ color: 0xdfe8ff, emissive: 0xdfe8ff, emissiveIntensity: 2.2 });
-  const barCount = Math.min(20, Math.ceil(span / 2.2) * 2);
-  for (let i = 0; i < barCount; i++) {
-    const bar = new THREE.Mesh(barGeo, barMat);
-    const col = i % 2, row = Math.floor(i / 2);
-    bar.position.set(
-      c.x + (col - 0.5) * 4.2,
-      3.05,
-      c.z + (row - (Math.ceil(barCount / 2) - 1) / 2) * 2.4
-    );
-    root.add(bar);
+  // Murs blancs texturés (visibles depuis l'intérieur de la salle)
+  const wallTex = makeWallTexture();
+  wallTex.repeat.set(Math.max(4, Math.round(span / 3.2)), 1);
+  const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.94, metalness: 0.0 });
+  const mkWall = (x, z, ry) => {
+    const w = new THREE.Mesh(new THREE.PlaneGeometry(span, H), wallMat);
+    w.position.set(x, H / 2, z);
+    w.rotation.y = ry;
+    w.receiveShadow = true;
+    root.add(w);
+  };
+  mkWall(c.x, c.z - span / 2, 0);            // fond (face +z)
+  mkWall(c.x, c.z + span / 2, Math.PI);      // face -z
+  mkWall(c.x + span / 2, c.z, -Math.PI / 2); // face -x
+  mkWall(c.x - span / 2, c.z, Math.PI / 2);  // face +x
+
+  // Plafond blanc
+  const ceil = new THREE.Mesh(
+    new THREE.PlaneGeometry(span, span),
+    new THREE.MeshStandardMaterial({ color: 0xf3f5f8, roughness: 0.96 })
+  );
+  ceil.rotation.x = Math.PI / 2;
+  ceil.position.set(c.x, H, c.z);
+  root.add(ceil);
+
+  // Dalles lumineuses blanches encastrées (2 colonnes, rangées régulières)
+  const fixGeo = new THREE.BoxGeometry(1.25, 0.035, 0.55);
+  const fixMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.55
+  });
+  const rows = Math.min(14, Math.max(6, Math.round(span / 2.4)));
+  for (let i = 0; i < rows; i++) {
+    for (let col = -1; col <= 1; col += 2) {
+      const fix = new THREE.Mesh(fixGeo, fixMat);
+      fix.position.set(
+        c.x + col * 2.1,
+        H - 0.035,
+        c.z + (i - (rows - 1) / 2) * 2.4
+      );
+      root.add(fix);
+    }
   }
-  const trayMat = new THREE.MeshStandardMaterial({ color: 0x272b32, roughness: 0.5, metalness: 0.7 });
-  const tray = new THREE.Mesh(new THREE.BoxGeometry(span + 3, 0.025, 0.45), trayMat);
+
+  // Chemin de câbles au-dessus de l'allée arrière
+  const trayMat = new THREE.MeshStandardMaterial({ color: 0xb9bfc8, roughness: 0.45, metalness: 0.75 });
+  const tray = new THREE.Mesh(new THREE.BoxGeometry(span * 0.8, 0.025, 0.45), trayMat);
   tray.position.set(c.x, 2.72, layout.rearZ - 0.55);
   tray.castShadow = true;
   root.add(tray);
 
-  // Lumières
-  const hemi = new THREE.HemisphereLight(0x9db8ff, 0x1a1610, 0.7);
+  // Lumières : salle claire et homogène
+  const hemi = new THREE.HemisphereLight(0xf4f7ff, 0xd6d9de, 0.95);
   root.add(hemi);
 
-  const key = new THREE.DirectionalLight(0xfff1dd, 2.3);
+  const key = new THREE.DirectionalLight(0xffffff, 2.1);
   key.position.set(c.x + 7, 10, c.z + 5);
   key.target.position.copy(c);
   key.castShadow = true;
@@ -247,11 +338,10 @@ function buildEnvironment(root, fs, rackRects) {
   sc.near = 1; sc.far = 40;
   root.add(key); root.add(key.target);
 
-  const fill = new THREE.DirectionalLight(0x7fa8ff, 1.05);
+  const fill = new THREE.DirectionalLight(0xe8eeff, 0.85);
   fill.position.set(c.x - 6, 6, c.z - 7);
   root.add(fill);
 }
-
 /* ============================================================
    Fabrication : une baie (frame, panneaux, PDU, guides câbles)
    ============================================================ */
@@ -644,24 +734,31 @@ function buildDevice(root, ws, rack, rackH, inst, wx, wz) {
   mk(0x2bff88, INNER_W / 2 - 0.05, h / 2 - 0.014, 3.5 + Math.random() * 3);
   if (sizeU >= 1) mk(0xffb020, INNER_W / 2 - 0.035, h / 2 - 0.014, 5 + Math.random() * 4);
 
-  // Colliders invisibles par port (côté arrière)
+  // Colliders invisibles par port, sur les DEUX faces : les équipements
+  // actifs se câblent en FAÇADE ; un panneau de brassage / à balais est
+  // traversé (le cordon qui continue ressort À L'ARRIÈRE du panneau).
   const colMat = new THREE.MeshBasicMaterial({ visible: false });
   const colGeo = new THREE.BoxGeometry(0.030, 0.030, 0.014);
+  g.updateMatrixWorld(true);
   for (const item of layoutPorts) {
     const px = (item.u - 0.5) * (INNER_W - 0.008);
     const py = h / 2 - item.v * h;
-    const pz = -depth / 2 - 0.005;
-    const col = new THREE.Mesh(colGeo, colMat);
-    col.position.set(px, py, pz);
-    col.userData = { type: 'port', rackId: rack.id, instId: inst.id, portId: item.port.id };
-    g.add(col);
-    pickables.push(col);
-    const wp = new THREE.Vector3(px, py, pz + cy * 0 + py - py); // placeholder
-    g.updateMatrixWorld(true);
-    const world3 = col.getWorldPosition(new THREE.Vector3());
-    portIndex.set(`${rack.id}|${inst.id}|${item.port.id}`, {
-      pos: world3, rack, inst, port: item.port, kind: portKind(inst, item.port)
-    });
+    const key = `${rack.id}|${inst.id}|${item.port.id}`;
+    let entry = portIndex.get(key);
+    if (!entry) {
+      entry = { rack, inst, port: item.port, kind: portKind(inst, item.port), u: item.u, v: item.v };
+      portIndex.set(key, entry);
+    }
+    for (const face of ['front', 'rear']) {
+      const pz = face === 'front' ? depth / 2 + 0.005 : -depth / 2 - 0.005;
+      const col = new THREE.Mesh(colGeo, colMat);
+      col.position.set(px, py, pz);
+      col.userData = { type: 'port', rackId: rack.id, instId: inst.id, portId: item.port.id, face };
+      g.add(col);
+      pickables.push(col);
+      const world3 = col.getWorldPosition(new THREE.Vector3());
+      if (face === 'front') entry.posFront = world3; else entry.posRear = world3;
+    }
   }
 
   root.add(g);
@@ -684,7 +781,16 @@ function buildCables(root, ws) {
     const pa = portIndex.get(`${ea.rack.id}|${ea.inst.id}|${ea.port.id}`);
     const pb = portIndex.get(`${eb.rack.id}|${eb.inst.id}|${eb.port.id}`);
     if (!pa || !pb) continue;
-    let pts = cableWaypoints(pa, pb, i);
+    // Face de branchement de chaque extrémité : un panneau de brassage est
+    // TRAVERSÉ — le cordon branché devant par un équipement actif ressort
+    // derrière le panneau quand il poursuit vers un équipement passif.
+    const patchA = normCat(ea.inst.cat) === 'patch';
+    const patchB = normCat(eb.inst.cat) === 'patch';
+    const faceA = !patchA ? 'front'
+      : (patchB || ACTIVE_CATS.has(normCat(eb.inst.cat)) ? 'front' : 'rear');
+    const faceB = !patchB ? 'front'
+      : (patchA || ACTIVE_CATS.has(normCat(ea.inst.cat)) ? 'front' : 'rear');
+    let pts = cableWaypoints(pa, pb, faceA, faceB, i);
     // Supprimer les points confondus (tangente nulle -> TubeGeometry NaN)
     pts = pts.filter((p, k) => k === 0 || p.distanceToSquared(pts[k - 1]) > 4e-6);
     if (pts.length < 2) continue;
@@ -693,7 +799,7 @@ function buildCables(root, ws) {
       console.warn('[3D] câble ignoré (coordonnées invalides) :', c.name);
       continue;
     }
-    const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.12);
+    const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
     const len = curve.getLength();
     if (!Number.isFinite(len) || len < 0.02) continue;
     const seg = Math.min(220, Math.max(28, Math.round(len * 30)));
@@ -716,57 +822,126 @@ function buildCables(root, ws) {
     root.add(tube);
     pickables.push(tube);
     tubeByCable.set(c.id, tube);
+    cableAnchors.set(c.id, [
+      { pos: pa[faceA === 'front' ? 'posFront' : 'posRear'], face: faceA },
+      { pos: pb[faceB === 'front' ? 'posFront' : 'posRear'], face: faceB }
+    ]);
     i++;
   }
 }
 
-function cableWaypoints(pa, pb, idx) {
-  const jitterX = (((idx * 37) % 11) - 5) * 0.013;
-  const jitterZ = (((idx * 53) % 9) - 4) * 0.011;
-  const sideX = (idx % 2 === 0 ? 1 : -1) * 0.19;
-  const ductZ = -(RACK_D / 2 - 0.07);
-  const y0 = 0.042;
+/* ---------- Routage réaliste des cordons ----------
+   Équipements actifs (switch, routeur, firewall) : ports en FAÇADE.
+   Panneaux de brassage / à balais : le cordon est branché devant et
+   ressort derrière le panneau quand il poursuit vers un device passif
+   (serveur, AP, caméra…) — comme en vrai brassage. */
+const ACTIVE_CATS = new Set(['switch', 'router', 'firewall']);
+const FRONT_CH_X = 0.225;    // canal vertical avant (repère baie)
+const REAR_CH_X  = 0.19;     // guide vertical arrière
+const SIDE_IN_X  = 0.245;    // passage intérieur le long des rails
+const FLOOR_Y    = 0.045;    // hauteur d'un cordon au sol
 
-  const portA = pa.pos.clone(), portB = pb.pos.clone();
-  const outA = portA.clone().add(new THREE.Vector3(0, 0, -0.045));
-  const outB = portB.clone().add(new THREE.Vector3(0, 0, -0.045));
-  // positions absolues des entrées de guide (arrière de chaque baie)
-  const ductA = new THREE.Vector3(portA.x + sideX, portA.y, ductZ + rackWorldZ(pa.rack));
-  const ductB = new THREE.Vector3(portB.x + sideX, portB.y, ductZ + rackWorldZ(pb.rack));
+function rackPos3d(rack) {
+  return rackPositions.get(rack.id) || { wx: 0, wz: 0 };
+}
 
+function cableWaypoints(pa, pb, fa, fb, idx) {
+  const jx  = (((idx * 37) % 11) - 5) * 0.012;
+  const jz  = (((idx * 53) % 9) - 4) * 0.010;
+  const jx2 = (((idx * 23) % 7) - 3) * 0.014;
+  const A = { pos: pa[fa === 'front' ? 'posFront' : 'posRear'], u: pa.u };
+  const B = { pos: pb[fb === 'front' ? 'posFront' : 'posRear'], u: pb.u };
+
+  /* --- Même baie --- */
   if (pa.rack === pb.rack) {
-    // Même baie : cheminement vertical dans le guide
-    const midY = (portA.y + portB.y) / 2;
-    const d1 = ductA.clone(); d1.y = midY + 0.020;
-    const d2 = ductA.clone(); d2.y = midY - 0.020;
-    return [portA, outA, ductA.clone(), d1, d2, ductB.clone(), outB, portB];
+    const { wx, wz } = rackPos3d(pa.rack);
+    const fzo = wz + RACK_D / 2 + 0.045 + jz * 0.35;   // plan du guide avant
+    const rzo = wz - RACK_D / 2 - 0.075 + jz * 0.35;   // plan du guide arrière
+    if (fa === 'front' && fb === 'front') {
+      // Cordon apparent EN FAÇADE : sort du port, rejoint le guide vertical
+      // avant, monte/descend le long, revient sur l'autre port (arc léger).
+      const side = (A.u + B.u) / 2 < 0.5 ? -1 : 1;
+      const cx = wx + side * FRONT_CH_X + jx * 0.5;
+      const midY = (A.pos.y + B.pos.y) / 2 - 0.008;
+      return [
+        A.pos,
+        new THREE.Vector3(A.pos.x, A.pos.y, fzo + 0.030),
+        new THREE.Vector3(cx, A.pos.y, fzo),
+        new THREE.Vector3(cx, midY, fzo + 0.024),
+        new THREE.Vector3(cx, B.pos.y, fzo),
+        new THREE.Vector3(B.pos.x, B.pos.y, fzo + 0.030),
+        B.pos
+      ];
+    }
+    // Au moins une extrémité à l'ARRIÈRE d'un panneau : le cordon se
+    // déporte sur le côté et chemine À L'INTÉRIEUR de la baie, le long
+    // des rails (gestionnaire de câbles vertical), du plan avant vers
+    // le plan arrière — invisible depuis l'allée, réaliste depuis
+    // l'arrière où l'on voit le cordon déboucher au niveau du panneau.
+    const inX = side => wx + side * SIDE_IN_X + jx2 * 0.35;
+    const sA = A.u < 0.5 ? -1 : 1;
+    const zA = fa === 'front' ? fzo : rzo, zB = fb === 'front' ? fzo : rzo;
+    const cxA = wx + sA * (fa === 'front' ? FRONT_CH_X : REAR_CH_X) + jx * 0.5;
+    const cxB = wx + sA * (fb === 'front' ? FRONT_CH_X : REAR_CH_X) + jx * 0.5;
+    const midY = (A.pos.y + B.pos.y) / 2;
+    const shB = B.pos.y + (B.pos.y > A.pos.y ? -0.018 : 0.018);   // épaule d'arrivée
+    return [
+      A.pos,
+      new THREE.Vector3(A.pos.x, A.pos.y, zA + (fa === 'front' ? 0.028 : -0.028)),
+      new THREE.Vector3(cxA, A.pos.y, zA),
+      new THREE.Vector3(inX(sA), A.pos.y, zA + (fa === 'front' ? 0.015 : -0.015)),
+      new THREE.Vector3(inX(sA), midY, (zA + zB) / 2),
+      new THREE.Vector3(inX(sA), shB, zB + (fb === 'front' ? 0.012 : -0.012)),
+      new THREE.Vector3(cxB, B.pos.y, zB),
+      new THREE.Vector3(B.pos.x, B.pos.y, zB + (fb === 'front' ? 0.028 : -0.028)),
+      B.pos
+    ];
   }
 
-  // Baies différentes : descente au sol, chemin de roulage, remontée
-  const rearA = rackWorldZ(pa.rack) - RACK_D / 2;
-  const rearB = rackWorldZ(pb.rack) - RACK_D / 2;
-  const rear = Math.min(rearA, rearB);
-  const midX = (ductA.x + ductB.x) / 2 + jitterX;
-  const laneZ = rear - 0.30 + jitterZ;
+  /* --- Baies différentes : façade -> côté -> guide arrière -> sol -> allée --- */
+  const ra = rackPos3d(pa.rack), rb = rackPos3d(pb.rack);
+  const sA = A.u < 0.5 ? -1 : 1, sB = B.u < 0.5 ? -1 : 1;
+  const fzA = ra.wz + RACK_D / 2 + 0.045, rzA = ra.wz - RACK_D / 2 - 0.075;
+  const fzB = rb.wz + RACK_D / 2 + 0.045, rzB = rb.wz - RACK_D / 2 - 0.075;
+  const chXA = ra.wx + sA * REAR_CH_X + jx * 0.6;
+  const chXB = rb.wx + sB * REAR_CH_X + jx * 0.6;
+  const laneZ = Math.min(rzA, rzB) - 0.32 + jz;
+  const y0 = FLOOR_Y;
 
-  const p = [];
-  p.push(portA, outA);
-  p.push(ductA.clone());
-  p.push(new THREE.Vector3(ductA.x, y0 + 0.02, ductA.z));
-  p.push(new THREE.Vector3(ductA.x + jitterX, y0, ductA.z - 0.12));
-  p.push(new THREE.Vector3(midX, y0, laneZ));
-  p.push(new THREE.Vector3(ductB.x + jitterX, y0, ductB.z - 0.12));
-  p.push(new THREE.Vector3(ductB.x, y0 + 0.02, ductB.z));
-  p.push(ductB.clone());
-  p.push(outB, portB);
+  const p = [A.pos];
+  if (fa === 'front') {
+    p.push(new THREE.Vector3(A.pos.x, A.pos.y, fzA + 0.030));
+    p.push(new THREE.Vector3(ra.wx + sA * FRONT_CH_X + jx * 0.4, A.pos.y, fzA));
+    // déport vers le coin intérieur arrière de la baie
+    p.push(new THREE.Vector3(ra.wx + sA * SIDE_IN_X + jx2 * 0.4, A.pos.y, fzA - 0.05));
+    p.push(new THREE.Vector3(chXA + sA * 0.03, A.pos.y, rzA + 0.05));
+  } else {
+    p.push(new THREE.Vector3(A.pos.x, A.pos.y, rzA - 0.030));
+  }
+  p.push(new THREE.Vector3(chXA, A.pos.y, rzA));
+  p.push(new THREE.Vector3(chXA, y0 + 0.02, rzA - 0.06));
+  p.push(new THREE.Vector3(chXA, y0, rzA - 0.14));
+  // épaule de départ : quitter le guide horizontalement avant de plonger
+  p.push(new THREE.Vector3(chXA, A.pos.y - (A.pos.y > y0 + 0.06 ? 0.02 : 0), rzA - 0.02));
+  p.push(new THREE.Vector3(chXA, A.pos.y, rzA));
+  // Traversée au sol dans l'allée arrière
+  p.push(new THREE.Vector3((chXA + chXB) / 2 + jx2 * 0.5, y0, laneZ));
+  p.push(new THREE.Vector3(chXB, y0, rzB - 0.14));
+  p.push(new THREE.Vector3(chXB, y0 + 0.02, rzB - 0.06));
+  // épaule d'arrivée : terminer horizontalement dans le guide
+  p.push(new THREE.Vector3(chXB, B.pos.y, rzB - 0.03));
+  p.push(new THREE.Vector3(chXB, B.pos.y, rzB));
+  if (fb === 'front') {
+    // remontée par le coin intérieur arrière puis le guide avant
+    p.push(new THREE.Vector3(chXB + sB * 0.03, B.pos.y, rzB + 0.05));
+    p.push(new THREE.Vector3(rb.wx + sB * SIDE_IN_X + jx2 * 0.4, B.pos.y, fzB - 0.05));
+    p.push(new THREE.Vector3(rb.wx + sB * FRONT_CH_X + jx * 0.4, B.pos.y, fzB));
+    p.push(new THREE.Vector3(B.pos.x, B.pos.y, fzB + 0.030));
+  }
+  p.push(B.pos);
   return p;
 }
-
-/* z monde d'une baie (les groupes sont sans rotation) */
-function rackWorldZ(rack) {
-  return rackPositions.get(rack.id) || 0;
-}
-const rackPositions = new Map();
+const rackPositions = new Map();   // id -> { wx, wz }
 
 function resolve3d(ws, ep) {
   if (!ep) return null;
@@ -836,7 +1011,7 @@ function disposeWorld() {
   world = new THREE.Group();
   scene.add(world);
   pickables = []; portIndex = new Map(); cableById = new Map();
-  tubeByCable = new Map(); leds = []; nameplates = []; deviceMeshes = [];
+  tubeByCable = new Map(); cableAnchors = new Map(); leds = []; nameplates = []; deviceMeshes = [];
   deviceByMesh = new Map(); rackPositions.clear();
   layout = { racks: [], center: new THREE.Vector3(0, 1, 0), radius: 2.5, rearZ: -1 };
   hoverRing = null; focusRings = [];
@@ -867,7 +1042,7 @@ function buildScene() {
   for (const rack of ws.racks) {
     const wx = (rack.x + RACK_PX_W / 2 - cx) * PX2M;
     const wz = (rack.y + rackHeight3d(rack) / 2 - cy) * PX2M;
-    rackPositions.set(rack.id, wz);
+    rackPositions.set(rack.id, { wx, wz });
     const halfW = RACK_W_M * PX2M + 0.3 / 2, halfD = RACK_D / 2;
     rects.push({ x1: wx - halfW, x2: wx + halfW, z1: wz - halfD, z2: wz + halfD });
     layout.racks.push({ rack, wx, wz });
@@ -1000,13 +1175,12 @@ function updateFocusRings() {
   if (!focusCableId) return;
   const c = cableById.get(focusCableId);
   if (!c) return;
-  const ws = app.ws();
-  const ea = resolve3d(ws, c.a), eb = resolve3d(ws, c.b);
-  [ea, eb].forEach((e, k) => {
-    if (!e) return;
-    const info = portIndex.get(`${e.rack.id}|${e.inst.id}|${e.port.id}`);
-    if (!info) return;
-    focusRings[k].position.copy(info.pos).add(new THREE.Vector3(0, 0, -0.008));
+  const anchors = cableAnchors.get(focusCableId);
+  if (!anchors) return;
+  anchors.forEach((a, k) => {
+    if (!a?.pos || !focusRings[k]) return;
+    focusRings[k].position.copy(a.pos)
+      .add(new THREE.Vector3(0, 0, a.face === 'front' ? 0.008 : -0.008));
     focusRings[k].material.color.set(cableDisplayColor(c));
     focusRings[k].visible = true;
   });
@@ -1089,7 +1263,10 @@ function setHovered(hit) {
     const info = portIndex.get(`${rack.id}|${inst.id}|${port.id}`);
     hovered = { type: 'port', rack, inst, port };
     if (hoverRing && info) {
-      hoverRing.position.copy(info.pos).add(new THREE.Vector3(0, 0, -0.008));
+      // L'anneau suit la face réellement survolée (façade ou arrière)
+      const n = hit.face ? hit.face.normal.clone()
+        : new THREE.Vector3(0, 0, ud.face === 'front' ? 1 : -1);
+      hoverRing.position.copy(hit.point).addScaledVector(n, 0.005);
       hoverRing.visible = true;
     }
     renderer.domElement.style.cursor = 'pointer';
@@ -1326,7 +1503,7 @@ function camPose(dirName) {
 
 function focusOnDevice(rack, inst) {
   const info = deviceByMesh.get(deviceMeshes.find(b => deviceByMesh.get(b)?.inst === inst));
-  const wz = rackPositions.get(rack.id) || 0;
+  const wz = rackPositions.get(rack.id)?.wz || 0;
   const nU = rack.sizeU || 12;
   const topY = BASE_H + (nU - inst.slot) * U_M;
   const y = topY - (inst.sizeU * U_M) / 2;
@@ -1424,6 +1601,15 @@ window.LLDraw3D = {
   enter, exit, refresh,
   isActive: () => active3d,
   _cam: () => ({ pos: camera.position.toArray().map(v => +v.toFixed(2)), target: controls.target.toArray().map(v => +v.toFixed(2)) }),
+  _cables: () => (app.ws()?.cables || []).map(c => ({
+    id: c.id, name: c.name,
+    a: c.a?.instId + '/' + c.a?.portId, b: c.b?.instId + '/' + c.b?.portId,
+    aRack: c.a?.rackId, bRack: c.b?.rackId
+  })),
+  _focus: id => setFocusQuiet(id),
+  _anchors: id => (cableAnchors.get(id) || []).map(a => ({
+    face: a.face, p: a.pos ? a.pos.toArray().map(v => +v.toFixed(2)) : null
+  })),
   _go: (p, t) => { camera.position.set(...p); controls.target.set(...t); controls.update(); },
   _debug: () => ({
     racks: layout.racks.length,
