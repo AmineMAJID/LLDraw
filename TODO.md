@@ -342,3 +342,31 @@ interconnexion, domaines de câblage, flux) et exportable en Excel/CSV.
    template quasi vides (titre seul) — à alimenter par saisie dédiée.
 10. **ch.15 Cablage/Rack** : tableaux de câblage/élévations par baie
     (l'app a les données : câbles + inventaire — à projeter).
+
+### Chapitres 7 → 15.1 — remplis par l'export depuis l'app (fait) :
+
+- **ch.7** : équipements Firewall/Routeurs (inventaire) + table des interfaces
+  VLAN (lld.vlans).
+- **ch.8 → 8.5** : équipements Switching filtrés par zone (lld.swZones rattachée
+  aux devices) + plan de ports (ports du device) quand la zone en a ; sinon la
+  feuille du template est conservée telle quelle (« Config: Voir CMDB »).
+- **ch.9/10/11/12/13** : table équipements de la catégorie (serveurs, stockage,
+  IDS, CCTV, pointage) avec position et IP mgmt ; message explicite si vide.
+- **ch.14** : tableau des flux (ws.flows) — diagramme reste à coller.
+- **ch.15** : tableau de câblage complet (tous câbles, A et B).
+- **ch.15.1** : élévations baie par baie (position U, nom, catégorie, modèle,
+  taille, IP mgmt).
+
+### Reste NON extractible de l'app (ch.7+) — à ajouter comme saisie plus tard :
+
+- **ch.7** : NAT 1-to-1, règles/alias, VPN SSL (profils utilisateurs),
+  paramètres de cluster/HA firewall.
+- **ch.8** : liaison zones ↔ VLANs par switch, configs par rôle (STP, DHCP
+  snooping, routage inter-VLAN, stacks/HA entre switches), « Config: Voir CMDB »
+  reste manuel.
+- **ch.9** : inventaire des VMs (nom, rôle, hôte, VLAN) — l'app ne connaît que
+  les serveurs physiques.
+- **ch.10** : volumes/LUN, targets iSCSI, plan de sauvegarde.
+- **ch.11/12/13** : zones de détection/caméras/pointage (emplacements, plans).
+- **ch.14** : diagramme de flux (image) — à coller dans le fichier exporté.
+- **ch.2/3/5/6** : voir la liste 1-8 ci-dessus.

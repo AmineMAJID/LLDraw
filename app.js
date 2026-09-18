@@ -5726,7 +5726,7 @@ const LLD_TPL = (() => {
     r[c] = { v: value, s: forceStyle !== undefined ? forceStyle : (prev ? prev.s : 0) };
   }
 
-  function out(sheet, rows, heights, replacesMerges) {
+  function out(sheet, rows, heights, replacesMerges, colsOv) {
     // replacesMerges : fusions recalculées (Governance) -> REMPLACENT celles du
     // template ; sinon on reprend les fusions d'origine. Dédupe + refuse les
     // références à une seule cellule (Excel les jugerait corrompues).
@@ -5743,10 +5743,141 @@ const LLD_TPL = (() => {
       rows,
       opts: {
         freeze: false, autoHeader: false,
-        cols: sheet.cols, dcw: sheet.dcw,
+        cols: colsOv || sheet.cols, dcw: sheet.dcw,
         heights, merges
       }
     };
+  }
+
+  /* — Aides communes pour les chapitres 7 → 15 (styles du template) — */
+  const H = cells => cells.map((v, i) => ({ v, s: i === 0 ? 141 : (i === cells.length - 1 ? 143 : 2) }));
+  const D = (cells, alt) => cells.map(v => ({ v, s: alt ? 197 : 8 }));
+  const NOTE = t => [{ v: t, s: 129 }];
+  const SEC = (t, col) => [{ v: t, s: col === undefined ? 47 : col }];
+  const isEmptyCat = (ws, cats) => !byCat(ws, cats).length;
+
+  function byCat(ws, cats) {
+    return sortedRackInstances(ws).filter(x => cats.includes(normCat(x.inst.cat)));
+  }
+  /* Table équipements : Nom / Modèle / IP mgmt / Position */
+  function equipTable(rows, list, headers) {
+    rows.push([]); rows.push([]);
+    rows.push(SEC(headers ? headers.titre : 'Equipements'));
+    rows.push([]);
+    rows.push(H(headers ? headers.cols : ['Nom', 'Modèle', 'IP mgmt', 'Position']));
+    list.forEach(({ rack, inst }, i) => {
+      rows.push(D([
+        inst.name || '',
+        `${inst.brand || ''} ${inst.model || ''}`.trim() || '',
+        inst.ipMgmt || '',
+        `${rack.name} — ${slotLabel(inst)}`
+      ], i % 2));
+    });
+  }
+  function pushNote(rows, t) { rows.push([]); rows.push(NOTE(t)); }
+
+  /* — 7. Firewall : équipements + interfaces VLAN — */
+  function ch7(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const fws = byCat(ws, ['firewall', 'router']);
+    if (fws.length) equipTable(rows, fws, { titre: '7.1. Equipements Firewall / Routeurs',
+      cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
+    const vlans = (ws.lld && ws.lld.vlans) || [];
+    if (vlans.length) {
+      rows.push([]); rows.push([]);
+      rows.push(SEC('7.2. Interfaces VLAN'));
+      rows.push([]);
+      rows.push(H(['VLAN', 'Nom', 'Sous-réseau', 'Passerelle']));
+      vlans.forEach((v, i) => rows.push(D([
+        v.vid ? `VLAN ${v.vid}` : '', v.name || '', v.subnet || '', v.gw || ''], i % 2)));
+    }
+    pushNote(rows, "À compléter manuellement : NAT, règles et alias, VPN SSL, cluster/HA (non saisis dans l'application).");
+    return out(sheet, rows, heights, null, [3.43, 46, 30, 22, 22]);
+  }
+
+  /* — 8.x Switching : équipements de la zone correspondant au titre — */
+  function switchZone(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const title = String(rows[0][0] && rows[0][0].v || '');
+    const zones = (ws.lld && ws.lld.swZones) || [];
+    let zone = null;
+    if (/INFRA/i.test(title)) zone = zones.find(z => /infra/i.test(z.name));
+    else if (/\(AP\)/i.test(title)) zone = zones.find(z => /\bAP\b/i.test(z.name));
+    else if (/\(LAN\)/i.test(title)) zone = zones.find(z => /lan/i.test(z.name) && !/infra/i.test(z.name));
+    const sws = byCat(ws, ['switch']).filter(x => !zone || x.inst.zone === zone.id);
+    if (sws.length) {
+      equipTable(rows, sws, { titre: `Equipements Switching${zone ? ' — zone ' + zone.name : ''}`,
+        cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
+      const portRows = portsRowsByCat(ws, ['switch']).slice(1);
+      if (portRows.length) {
+        rows.push([]); rows.push([]);
+        rows.push(SEC('Plan de ports'));
+        rows.push([]);
+        rows.push(H(['Rack', 'Device', 'Port', 'Étiquette', 'VLAN']));
+        portRows.slice(0, 200).forEach((p, i) => rows.push(D([p[0], p[3], p[4], p[5], p[7]], i % 2)));
+      }
+    }
+    return out(sheet, rows, heights, null, [3.43, 30, 34, 18, 24, 12]);
+  }
+
+  /* — 9 à 13 : équipements par spécialité — */
+  function chapterEquip(cats, titre, note) {
+    return (sheet, ws) => {
+      const { rows, heights } = fromLayout(sheet);
+      const list = byCat(ws, cats);
+      if (list.length) equipTable(rows, list, { titre, cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
+      else pushNote(rows, note || "Aucun équipement de cette catégorie dans l'inventaire actuel.");
+      if (note) pushNote(rows, note);
+      return out(sheet, rows, heights, null, [3.43, 40, 36, 22, 26]);
+    };
+  }
+
+  /* — 14. Flux réseau — */
+  function ch14(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const flows = flowsRows(ws).slice(1);
+    if (flows.length) {
+      rows.push([]); rows.push([]);
+      rows.push(SEC('Flux applicatifs'));
+      rows.push([]);
+      rows.push(H(['Flux', 'Source', 'Destination', 'Protocole / ports', 'Sens', 'Usage']));
+      flows.forEach((f, i) => rows.push(D([f[0], f[1], f[2], f[3], f[4], f[5]], i % 2)));
+    }
+    pushNote(rows, "Le diagramme de flux reste à insérer (capture d'écran) — non généré par l'application.");
+    return out(sheet, rows, heights, null, [4, 26, 26, 26, 22, 16, 44]);
+  }
+
+  /* — 15. Cablage global — */
+  function ch15(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const cab = cablingRows(ws);
+    if (cab.length > 1) {
+      rows.push([]); rows.push([]);
+      rows.push(SEC('Tableau de câblage'));
+      rows.push([]);
+      rows.push(H(['ID', 'Couleur', 'Domaine', 'Rack A', 'Device A', 'Port A', 'Rack B', 'Device B', 'Port B']));
+      cab.slice(1).forEach((c, i) => rows.push(D([c[0], c[1], c[2], c[3], c[4], c[5], c[8], c[9], c[10]], i % 2)));
+    }
+    return out(sheet, rows, heights, null, [4, 10, 10, 14, 12, 26, 10, 12, 26, 10]);
+  }
+
+  /* — 15.1. Elevations par baie — */
+  function ch151(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    rows.push([]); rows.push([]);
+    rows.push(SEC('Elevations des baies', 50));
+    for (const rack of sortedRacks(ws)) {
+      rows.push([]);
+      rows.push(SEC(`${rack.name} — ${siteName(ws, rack)} (${rack.sizeU}U)`, 47));
+      rows.push([]);
+      rows.push(H(['Position', 'Nom', 'Catégorie', 'Marque / Modèle', 'Taille', 'IP mgmt']));
+      const insts = rack.instances.slice().sort((a, b) => (a.pos ?? 1e9) - (b.pos ?? 1e9));
+      insts.forEach((inst, i) => rows.push(D([
+        slotLabel(inst), inst.name || '', catLabel(inst.cat),
+        `${inst.brand || ''} ${inst.model || ''}`.trim() || '',
+        inst.sizeU + 'U', inst.ipMgmt || ''], i % 2)));
+    }
+    return out(sheet, rows, heights, null, [4, 12, 34, 20, 34, 10, 20]);
   }
 
   const proseLines = (t, max) => String(t || '').split('\n').map(x => x.trim())
@@ -5984,7 +6115,18 @@ const LLD_TPL = (() => {
   }
 
   const FILLS = { 'LLD': lld, 'Governance': governance, '1': ch1, '2': ch2,
-                  '3': ch3, '4': ch4, '5': ch5, '6': ch6 };
+                  '3': ch3, '4': ch4, '5': ch5, '6': ch6,
+                  '7': ch7,
+                  '8': switchZone, '8.1': switchZone, '8.2': switchZone,
+                  '8.3': switchZone, '8.4': switchZone, '8.5': switchZone,
+                  '9':  chapterEquip(['server'], '9.1. Serveurs',
+                        "À compléter : machines virtuelles et rôles (non saisis dans l'application)."),
+                  '10': chapterEquip(['storage'], '10.1. Stockage',
+                        "À compléter : volumes/LUN et sauvegardes (non saisis dans l'application)."),
+                  '11': chapterEquip(['ids'], "11.1. Détection d'intrusion"),
+                  '12': chapterEquip(['cctv'], '12.1. Caméras et enregistreur (NVR)'),
+                  '13': chapterEquip(['pointage'], '13.1. Pointeuses'),
+                  '14': ch14, '15': ch15, '15.1': ch151 };
 
   function buildAll(ws, layout, stylesXml, themeXml) {
     const sheets = layout.map(sheet => {
