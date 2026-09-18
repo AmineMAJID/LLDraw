@@ -55,7 +55,42 @@ via localStorage, en secours).
 1. **Navigation** : le board est une surface infinie — **molette** pour zoomer
    (centré sur le curseur), **glisser le fond** pour se déplacer. Les boutons
    en bas à droite (`−`, `+`, `⌂`) donnent aussi le zoom et le recentrage.
-2. **Racks** : dans le panneau de gauche, choisissez la **taille** (6U à 42U)
+2. **Vue 3D immersive** 🧊 : le bouton `🧊 3D` de la barre du haut bascule
+   une reconstitution 3D temps réel (WebGL / Three.js) du datacenter du
+   workspace :
+   - **Baies 19" fidèles** (largeur, profondeur, U, PDU, guides de câblage)
+     dans une **salle blanche lumineuse** : murs et plafond blancs texturés,
+     dalles techniques claires avec joints, dalles lumineuses encastrées,
+     marquage de sécurité au sol et ombres douces ;
+   - **Face avant** : la photo du device de la bibliothèque est plaquée sur
+     la face avant, avec LED d'activité animées ;
+   - **Face arrière procédurale** : blocs d'alimentation, ventilation,
+     connecteurs (RJ45, SFP, IEC…) — et chaque connecteur est **teinté de la
+     couleur du câble qui y est branché** ;
+   - **Câblage réaliste** : les ports 3D reprennent la **position exacte
+     de la vue Élévations** (xPct/yPct) ; les cordons sortent des ports et
+     courent **verticalement** en colonnes parallèles devant les faces
+     (comme un habillage velcrosé). Un câble vers un **panneau à
+     brosse/brassage** entre devant le panneau, le **traverse** et son
+     lien permanent repart **derrière** dans le guide vertical jusqu'au
+     lit de câbles au sol ; les liens **inter-baies** descendent par le
+     guide arrière, traversent le sol de l'allée arrière et remontent
+     dans la baie de destination. Épaisseur renforcée pour les cordons
+     d'alimentation ;
+   - **Navigation** : glisser = orbiter, molette = zoomer, clic droit =
+     déplacer ; boutons **Avant / Arrière / Dessus / Allée / Tout voir**
+     pour les vues pédagogiques (idéal pour « montrer l'arrière des baies ») ;
+   - **Survol** d'un device, d'un port ou d'un câble : info-bulle détaillée
+     (IP, VLAN, peer…) ; **clic** : fiche complète avec la liste des ports et
+     leurs connexions ; **double-clic** sur un device : zoom caméra dessus ;
+   - **Légende cliquable** : cliquez sur un domaine (Firewall, Général…)
+     pour isoler visuellement ses câbles ; clic sur un câble pour l'isoler
+     seul ;
+   - **📷 Capture** exporte un PNG de la vue ; la position de la caméra est
+     mémorisée par workspace.
+   La bibliothèque Three.js est embarquée localement (`vendor/three/`) :
+   la vue 3D fonctionne hors-ligne, sans CDN.
+3. **Racks** : dans le panneau de gauche, choisissez la **taille** (6U à 42U)
    puis glissez la carte **Rack** sur le board. Vous pouvez placer plusieurs
    racks, les déplacer en tirant l'en-tête, **changer leur taille** via le menu
    dans l'en-tête, et les **renommer** en double-cliquant sur le nom.
@@ -71,16 +106,16 @@ via localStorage, en secours).
    **charge maximale (kg)** : le badge passe en rouge en cas de dépassement.
    Les racks sont dessinés comme de vrais racks 19" : montants perforés
    (trous de cage nuts), règle des U et faceplates métalliques.
-3. **Recherche globale** : le champ de la barre du haut cherche dans **tous les
+4. **Recherche globale** : le champ de la barre du haut cherche dans **tous les
    workspaces** (nom de device, nom de port, étiquette — ex. `CAB-SRV-01` —,
    **sites** et **flux réseau**). Un clic sur un résultat device/port ouvre le
    bon workspace, centre la vue sur le rack et fait **clignoter** l'élément
    trouvé ; un résultat **site** ou **flux** ouvre directement la fiche du
    dossier (onglet correspondant).
-4. **Annuler / Rétablir** : **Ctrl+Z** (ou Ctrl+Maj+Z) et **Ctrl+Y** permettent
+5. **Annuler / Rétablir** : **Ctrl+Z** (ou Ctrl+Maj+Z) et **Ctrl+Y** permettent
    d'annuler/rétablir toutes les actions (placement, suppression, « Vider »,
    création de device/workspace…).
-5. **Export du plan** : le bouton **Exporter** de la barre du haut ouvre un
+6. **Export du plan** : le bouton **Exporter** de la barre du haut ouvre un
    menu permettant d'enregistrer le plan du workspace courant :
    - **Image PNG** / **Plan PDF (1 page)** — rendu haute définition des racks,
      devices et ports ;
@@ -120,7 +155,7 @@ via localStorage, en secours).
    - **Flux réseau (CSV)** — matrice des flux (source, destination,
      protocole/ports, sens, usage).
    Les CSV sont au format Excel français (séparateur `;`, UTF-8 BOM).
-6. **Créer un device** : cliquez sur **＋ Créer un device**, donnez-lui un nom,
+7. **Créer un device** : cliquez sur **＋ Créer un device**, donnez-lui un nom,
    une taille (1U, 2U…), une **catégorie** (Routeur/FAI, Firewall, Switch,
    Borne WiFi, Serveur, Stockage, IDS, CCTV, Pointage, Onduleur, Brassage,
    Autre) et importez la **photo 2D de la face avant**. Laissée sur « Autre »,
@@ -153,7 +188,7 @@ via localStorage, en secours).
      placer à la main. Chaque exemplaire du device posé dans un rack arrive
      avec ces ports déjà étiquetés (numérotés 1, 2, 3…), prêts à être renommés
      en mode Étiquetage ou câblés en mode Câblage.
-7. **Placer un device** : glissez-le depuis la bibliothèque vers un rack : il se place
+8. **Placer un device** : glissez-le depuis la bibliothèque vers un rack : il se place
    automatiquement à l'étage (numéro d'U) où vous le déposez. La zone visée est surlignée
    en vert (libre) ou rouge (occupé). Vous pouvez aussi déplacer un device déjà placé,
    ou le retirer avec le bouton ✕ au survol.
@@ -172,7 +207,7 @@ via localStorage, en secours).
      (écrite en vert / rouge) et le **contrat** ; double-cliquez pour les
      modifier, avec un sélecteur de date pour l'échéance — les changements de
      garantie passent par Ctrl+Z comme le reste.
-8. **Port et étiquetage** : le bouton **🔌 Port et étiquetage ▾** propose deux modes :
+9. **Port et étiquetage** : le bouton **🔌 Port et étiquetage ▾** propose deux modes :
    **➕ Créer des ports** (cliquez sur la face avant d'un device pour y poser un port,
    icône RJ45) et **✏️ Modifier les ports** (cliquez sur un port existant pour changer
    son **nom** — ex. `Gi0/1` —, son **étiquette** — ex. `CAB-SRV-01` —, son **IP**
@@ -193,7 +228,8 @@ via localStorage, en secours).
     l'export PNG/PDF. Désactiver l'interrupteur masque les câbles et interdit
     leur édition.
 11. **Vue Topologie (diagramme logique)** : le sélecteur **📐 Élévations /
-    🕸️ Topologie** de la barre du haut bascule le board en diagramme réseau.
+    🕸️ Topologie / 🧊 3D** de la barre du haut bascule le board en diagramme
+    réseau (voir le point 2 pour la vue 3D).
     **⚡ Générer depuis les racks** crée un noeud par device posé (nom avec
     icône de catégorie, marque/modèle, rack · étage, IP mgmt) ; **🔌 Importer les câbles** crée un lien par
     câble physique ; **➕ Nouveau lien** relie deux noeuds cliqués l'un après
@@ -382,6 +418,10 @@ Le script `demo_datacenter.py` reconstruit ce workspace dans `data/state.json`
 - `index.html` — structure de l'interface
 - `styles.css` — thème et mise en page
 - `app.js` — logique (drag & drop, racks, devices, ports, câbles, persistance)
+- `view3d.js` — vue 3D immersive (module ES, Three.js) : baies, devices,
+  câbles, orbite caméra, fiches de survol
+- `vendor/three/` — bibliothèque Three.js embarquée (module + addons,
+  licence MIT dans `vendor/three/LICENSE`)
 - `assets/logo.svg` — logo du projet (icône d'application, défini en vectoriel) ;
   décliné en PNG (`logo-512.png`, `logo-192.png`), favicon (`favicon.ico` /
   `favicon-*.png`) et `apple-touch-icon.png`

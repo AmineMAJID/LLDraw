@@ -2105,3 +2105,224 @@ body.topo-linking .topo-node { cursor: crosshair; }
   line-height: 1.45;
   color: var(--muted);
 }
+
+/* ============================================================
+   Vue 3D immersive (Three.js) — baies, devices, câbles
+   ============================================================ */
+
+/* En mode 3D : masquer le board 2D et les panneaux d'édition */
+body.mode3d #board,
+body.mode3d .zoom-ctrl,
+body.mode3d #cable-panel,
+body.mode3d #board-empty,
+body.mode3d #topo-empty,
+body.mode3d #topo-toolbar,
+body.mode3d .sidebar,
+body.mode3d .search-box,
+body.mode3d .switch-wrap {
+  display: none !important;
+}
+
+#view3d-root {
+  position: absolute;
+  inset: 0;
+  z-index: 55;
+  overflow: hidden;
+  font-family: inherit;
+}
+#view3d-root.hidden { display: none !important; }
+
+#v3d-canvas { position: absolute; inset: 0; }
+#v3d-canvas canvas { position: absolute; inset: 0; display: block; cursor: grab; }
+#v3d-canvas canvas:active { cursor: grabbing; }
+
+/* ---- Barre d'outils ---- */
+#v3d-toolbar {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  align-items: center;
+  max-width: calc(100% - 24px);
+  z-index: 70;
+  pointer-events: none;
+}
+#v3d-toolbar .v3d-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 7px 9px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(8, 12, 20, .38);
+  pointer-events: auto;
+}
+.v3d-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-2);
+  background: #fff;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.v3d-btn:hover { border-color: var(--accent); color: var(--accent-2); }
+.v3d-sep { width: 1px; height: 20px; background: var(--border); }
+.v3d-toggle {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.v3d-toggle input { accent-color: var(--accent); cursor: pointer; }
+
+/* ---- Légende des domaines de câbles ---- */
+#v3d-legend .v3d-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-2);
+  background: #fff;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.v3d-chip:hover { border-color: var(--accent); }
+.v3d-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.v3d-chip.active .v3d-dot { box-shadow: 0 0 0 2px rgba(255, 255, 255, .65); }
+.v3d-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25);
+}
+.v3d-legend-empty { font-size: 12px; color: #5b6472; font-weight: 500; }
+
+/* ---- Info-bulle de survol ---- */
+#v3d-tooltip {
+  position: absolute;
+  z-index: 80;
+  pointer-events: none;
+  max-width: 320px;
+  background: rgba(12, 16, 24, .93);
+  color: #eef2f8;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+}
+#v3d-tooltip b { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+#v3d-tooltip span { display: flex; align-items: center; gap: 7px; color: #c3cbd8; }
+#v3d-tooltip .v3d-tip-muted { color: #8b95a6; font-style: italic; }
+
+/* ---- Fiche latérale (device / câble) ---- */
+#v3d-card {
+  position: absolute;
+  top: 96px;
+  left: 14px;
+  z-index: 75;
+  width: 330px;
+  max-height: calc(100% - 120px);
+  overflow: auto;
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  border-radius: 14px;
+  box-shadow: 0 18px 44px rgba(8, 12, 20, .45);
+  padding: 16px;
+  font-size: 13px;
+}
+#v3d-card h3 { display: flex; align-items: center; gap: 8px; font-size: 15px; padding-right: 24px; }
+#v3d-card .v3d-sub { color: var(--muted); font-size: 12px; margin: 3px 0 10px; }
+#v3d-card .v3d-kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--border);
+}
+#v3d-card .v3d-kv span { color: var(--muted); flex: none; }
+#v3d-card .v3d-kv b { text-align: right; font-weight: 600; word-break: break-word; }
+.v3d-card-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border-2);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1;
+}
+.v3d-card-close:hover { color: var(--red); border-color: var(--red); }
+.v3d-ports-head { margin-top: 12px; font-weight: 700; font-size: 12.5px; }
+.v3d-port-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12.5px; }
+.v3d-port-name { font-weight: 700; min-width: 74px; word-break: break-all; }
+.v3d-port-peer { color: var(--muted); word-break: break-word; }
+.v3d-port-free { color: #94a3b8; font-style: italic; }
+.v3d-port-more { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+/* ---- État vide + barre d'aide ---- */
+.v3d-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #333c4b;
+  text-align: center;
+  z-index: 65;
+  pointer-events: none;
+  padding: 0 20px;
+}
+.v3d-empty p { font-size: 17px; }
+.v3d-empty small { color: #5d6a7d; }
+.v3d-help {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 65;
+  pointer-events: none;
+  color: #b9c2d0;
+  background: rgba(10, 13, 18, .58);
+  border: 1px solid rgba(255, 255, 255, .10);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  backdrop-filter: blur(4px);
+  white-space: nowrap;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
