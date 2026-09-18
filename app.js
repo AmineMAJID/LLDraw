@@ -5726,14 +5726,25 @@ const LLD_TPL = (() => {
     r[c] = { v: value, s: forceStyle !== undefined ? forceStyle : (prev ? prev.s : 0) };
   }
 
-  function out(sheet, rows, heights, extraMerges) {
+  function out(sheet, rows, heights, replacesMerges) {
+    // replacesMerges : fusions recalculées (Governance) -> REMPLACENT celles du
+    // template ; sinon on reprend les fusions d'origine. Dédupe + refuse les
+    // références à une seule cellule (Excel les jugerait corrompues).
+    const raw = replacesMerges || sheet.merges || [];
+    const seen = new Set(), merges = [];
+    for (const ref of raw) {
+      if (!/^[A-Z]+\d+:[A-Z]+\d+$/.test(ref) || ref.split(':')[0] === ref.split(':')[1]) continue;
+      if (seen.has(ref)) continue;
+      seen.add(ref);
+      merges.push(ref);
+    }
     return {
       name: sheet.name,
       rows,
       opts: {
         freeze: false, autoHeader: false,
         cols: sheet.cols, dcw: sheet.dcw,
-        heights, merges: sheet.merges.concat(extraMerges || [])
+        heights, merges
       }
     };
   }
