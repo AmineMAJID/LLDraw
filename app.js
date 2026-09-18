@@ -491,6 +491,12 @@ function normalizeState(s) {
       w.topology = { nodes: [], links: [] };
     pruneTopology(w);
     normLldInfo(w);
+    // Dernière caméra de la vue 3D (position + cible) — conservée si valide
+    w.view3d = (w.view3d && Array.isArray(w.view3d.p) && w.view3d.p.length === 3 &&
+                Array.isArray(w.view3d.t) && w.view3d.t.length === 3 &&
+                w.view3d.p.every(Number.isFinite) && w.view3d.t.every(Number.isFinite))
+      ? { p: w.view3d.p.map(Number), t: w.view3d.t.map(Number) }
+      : null;
     // Zones de switching : détacher les devices pointant vers une zone disparue
     const zoneIds = new Set((w.lld.swZones || []).map(z => z.id));
     w.racks.forEach(r => r.instances.forEach(i => {
@@ -1006,7 +1012,7 @@ viewport.addEventListener('pointerdown', e => {
   if (e.button !== 0 && e.pointerType === 'mouse') return;
   // NB : tout contrôle interactif posé sur le viewport doit figurer ici,
   // sinon setPointerCapture détourne le clic (le bouton ne le reçoit jamais).
-  if (e.target.closest('.rack, .zoom-ctrl, .popover, .tooltip, .topo-toolbar, .topo-node, .topo-empty, .cable-panel, .board-empty')) return;
+  if (e.target.closest('.rack, .zoom-ctrl, .popover, .tooltip, .topo-toolbar, .topo-node, .topo-empty, .cable-panel, .board-empty, #view3d-root')) return;
 
   const startX = e.clientX, startY = e.clientY;
   const ox = view.x, oy = view.y;
@@ -1198,6 +1204,7 @@ function renderBoard() {
   const empty = $('#board-empty');
   if (!ws) { empty.classList.add('hidden'); $('#topo-empty')?.classList.add('hidden'); $('#topo-toolbar')?.classList.add('hidden'); return; }
   if (boardMode === 'topo') { renderTopology(ws); return; }
+  if (boardMode === '3d') { window.LLDraw3D?.refresh(); return; }
   $('#topo-empty').classList.add('hidden');
   $('#topo-toolbar').classList.add('hidden');
   ws.racks.forEach(rack => board.appendChild(renderRack(rack)));
@@ -4246,20 +4253,36 @@ function setBoardMode(mode) {
   if (boardMode === mode) return;
   boardMode = mode;
   document.body.classList.toggle('topo-mode', mode === 'topo');
+  document.body.classList.toggle('mode3d', mode === '3d');
   $('#view-elev').classList.toggle('active', mode === 'elev');
   $('#view-topo').classList.toggle('active', mode === 'topo');
+  $('#view-3d')?.classList.toggle('active', mode === '3d');
   if (mode === 'topo') {
     setLabelMode(null);
     setCablingMode(false);
     exitTopoLinking();
+    $('#mode-hint').textContent = 'Topologie : disposez les noeuds et reliez-les (liens logiques).';
+  } else if (mode === '3d') {
+    setLabelMode(null);
+    setCablingMode(false);
+    exitTopoLinking();
+    hideDevicePopover();
+    if (!window.LLDraw3D) {
+      $('#mode-hint').textContent = 'Vue 3D indisponible : le module view3d.js n\u2019a pas pu \u00eatre charg\u00e9 (servez l\u2019application via server.py ou HTTPS).';
+    } else {
+      $('#mode-hint').textContent = 'Vue 3D : glissez pour orbiter autour des baies — passez derri\u00e8re pour voir les ports et les c\u00e2bles.';
+      window.LLDraw3D.enter();
+    }
   } else {
+    window.LLDraw3D?.exit();
     $('#mode-hint').textContent = 'Glissez un rack sur le board, puis ajoutez vos devices.';
   }
   renderBoard();
-  fitViewToContent();
+  if (mode !== '3d') fitViewToContent();
 }
 $('#view-elev').addEventListener('click', () => setBoardMode('elev'));
 $('#view-topo').addEventListener('click', () => setBoardMode('topo'));
+$('#view-3d').addEventListener('click', () => setBoardMode('3d'));
 // Mise en évidence des équipements d'un flux dans la vue Topologie
 $('#topo-flow-sel').addEventListener('change', e => {
   topoFlowFilter = e.target.value;

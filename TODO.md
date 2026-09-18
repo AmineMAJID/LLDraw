@@ -17,7 +17,8 @@
 |---|---|---|
 | `index.html` (415 l.) | Structure UI : topbar, sidebar, board, modales (device, LLD), popovers | ✅ complet |
 | `app.js` (4 500 l.) | Toute la logique : état, racks, devices, ports, câblage, topologie, exports, persistance | ✅ complet, monolithique mais organisé en sections commentées |
-| `styles.css` (1 664 l.) | Thème sombre, layout, racks, popovers, topologie | ✅ complet |
+| `styles.css` (2 300 l.) | Thème, layout, racks, popovers, topologie, vue 3D | ✅ complet |
+| `view3d.js` | Vue 3D immersive (module ES) : scène Three.js, baies, devices, câbles, caméra | ✅ complet |
 | `server.py` (148 l.) | Serveur Python stdlib : statique + API `/api/state` (GET/PUT) → `data/state.json` | ✅ fonctionnel |
 | `.github/workflows/pages.yml` | Déploiement GitHub Pages (mode 💾 localStorage) | ✅ fonctionnel |
 | `assets/` | Logo, favicons, photos WatchGuard, icône RJ45 | ✅ |
@@ -45,6 +46,14 @@
    câblage, ports).
 9. **Transverse** : recherche globale multi-workspaces, annuler/rétablir
    (40 niveaux), sauvegarde serveur + secours localStorage, zoom/pan infini.
+10. **Vue 3D immersive** (nouveau) : reconstitution WebGL/Three.js du
+    datacenter — baies 19" avec PDU et guides de câblage, face avant photo
+    des devices + LED animées, face arrière procédurale (PSU, ventilation,
+    connecteurs teintés à la couleur du câble branché), câbles 3D routés
+    (port → guide vertical → allée arrière), orbite caméra + presets
+    (Avant/Arrière/Dessus/Allée), survol/clic device-port-câble avec fiches,
+    légende filtrante par domaine, capture PNG, caméra mémorisée par
+    workspace. Bibliothèque `vendor/three/` embarquée (hors-ligne).
 
 ### A.3 Structure actuelle du PDF LLD généré
 
