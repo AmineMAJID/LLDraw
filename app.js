@@ -5454,9 +5454,10 @@ const XLSX = (() => {
     const views = freeze
       ? '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
       : '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
+    const fmtPr = opts.dcw ? `<sheetFormatPr defaultColWidth="${opts.dcw}" defaultRowHeight="15"/>` : '';
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-      views + cols + '<sheetData>' + body + '</sheetData>' + merges + '</worksheet>';
+      views + fmtPr + cols + '<sheetData>' + body + '</sheetData>' + merges + '</worksheet>';
   }
   const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
   // ZIP minimal (méthode « store », sans compression)
@@ -5512,7 +5513,44 @@ const XLSX = (() => {
     return out;
   }
 
-  function build(sheets) {
+  function build(sheets, extra = {}) {
+    /* extra = { stylesXml, themeXml } : styles et thème repris VERBATIM d'un
+       template Excel — les indices s= des cellules référencent alors directement
+       ses cellXfs (fidélité parfaite). Sans extra, moteur de styles interne. */
+    if (extra.stylesXml) {
+      const files2 = [
+        { name: '[Content_Types].xml', data: XML_DECL +
+          '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+          '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+          '<Default Extension="xml" ContentType="application/xml"/>' +
+          '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+          '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+          '<Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>' +
+          sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') +
+          '</Types>' },
+        { name: '_rels/.rels', data: XML_DECL +
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+          '</Relationships>' },
+        { name: 'xl/workbook.xml', data: XML_DECL +
+          '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+          'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+          '<sheets>' + sheets.map((s, i) =>
+            `<sheet name="${xmlEsc(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') +
+          '</sheets></workbook>' },
+        { name: 'xl/_rels/workbook.xml.rels', data: XML_DECL +
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          sheets.map((s, i) =>
+            `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') +
+          `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
+          `<Relationship Id="rId${sheets.length + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>` +
+          '</Relationships>' },
+        { name: 'xl/styles.xml', data: extra.stylesXml },
+        { name: 'xl/theme/theme1.xml', data: extra.themeXml },
+        ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.rows, s.opts || {}) }))
+      ];
+      return new Blob([zip(files2)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
     /* Moteur de styles : les 9 styles historiques (0..8) gardent leur index pour
        les 9 feuilles existantes ; les feuilles LLD/Governance passent des
        descripteurs { b, sz, name, color, fill, border:{l,r,t,b}, h, v, wrap,
@@ -5644,183 +5682,324 @@ const XLSX = (() => {
   return { build };
 })();
 
-/* ---------- Feuille 1 : page de garde « LLD » (réplique du template) ---------- */
-function lldCoverRows(ws) {
-  const L = ws.lld || {};
-  const sites = [...new Set(ws.racks.map(r => siteName(ws, r)).filter(Boolean))];
-  const project = L.client
-    ? `Mise en place d'une infrastructure IT pour ${L.client}`
-    : (sites.join(' / ') || ws.name);
-  // styles du template : libellés Calibri 22 gras, valeur titre 18 gras centrée,
-  // sous-titre Arial 22 gris ; bandeaux blancs masquant le quadrillage
-  const LBL = { b: 1, sz: 22, fill: 'FFFFFFFF' };
-  const VAL = { b: 1, sz: 18, v: 'center', fill: 'FFFFFFFF' };
-  const SUB = { name: 'Arial', b: 1, sz: 22, color: 'FF4D5156' };
-  const row = (label, value, band) => {
-    const r = new Array(band ? 17 : 5).fill('');
-    r[0] = { v: label, s: LBL };
-    if (value) r[4] = value;
-    if (band) for (let i = 5; i < 17; i++) r[i] = { v: '', s: VAL };
-    return r;
-  };
-  return {
-    rows: [
-      row('Nom de site', { v: project, s: VAL }, true),
-      row('LLD', { v: 'La conception à bas niveau', s: SUB }),
-      row('Auteur', { v: L.author || '', s: VAL }),
-      row('Version', { v: L.version || '', s: VAL })
-    ],
-    opts: {
-      freeze: false, autoHeader: false,
-      cols: [{ min: 1, max: 1, width: 46.86 }, { min: 2, max: 16384, width: 8.86 }],
-      heights: { 1: 28.5, 2: 28.5, 3: 28.5, 4: 28.5 }
-    }
-  };
-}
+/* ============================================================
+   EXPORT XLSX « template » : réplique exacte du classeur LLD
+   ------------------------------------------------------------
+   Le classeur exporté reproduit le template Excel fourni
+   (24 feuilles : LLD, Governance, Contenu, chapitres 1→15.1)
+   feuille par feuille, cellule par cellule : les largeurs de
+   colonnes, hauteurs, fusions et STYLES (indices s=) proviennent
+   d'assets/lld/layout.json, extrait du template, et xl/styles.xml
+   + xl/theme1.xml sont recopiés verbatim. Seules les valeurs
+   project-specific sont remplacées par les données du workspace.
+   ============================================================ */
+const LLD_TPL = (() => {
 
-/* ---------- Feuille 2 : « Governance » (réplique exacte du template) ----------
-   Bandeaux bleu marine (FF002060) texte blanc, en-têtes gris (E7E6E6),
-   grille fine noire avec bords moyens, ligne de clôture basse moyenne :
-   1) Statut de révision du document (rempli depuis ws.lld.revs)
-   2) Approbateurs : 3 lignes par version cible, version fusionnée sur les 3
-   3) Réviseurs : 4 colonnes, une ligne par version */
-function governanceRows(ws) {
-  const L = ws.lld || {};
-  const revs = L.revs || [];
-  const approvers = L.approvers || [];
-  const reviewers = L.reviewers || [];
-  const rows = [];
-  const merges = [];
-  const heights = { 1: 25.9 };
-  const NAVY = 'FF002060', GRIS = 'FFE7E6E6';
-
-  // styles paramétrés par position (bord extrême = medium)
-  const banner = e => ({ b: 1, color: 'FFFFFFFF', fill: NAVY, h: 'left', v: 'center',
-    border: { t: 'medium', b: 'thin', l: e.l ? 'medium' : '', r: e.r ? 'medium' : '' } });
-  const head = e => ({ fill: GRIS, border: { t: 'thin', b: 'thin', l: e.l ? 'medium' : 'thin', r: e.r ? 'medium' : 'thin' } });
-  const cell = e => ({ h: 'left', v: 'center', border: { t: 'thin', b: 'thin', l: e.l ? 'medium' : 'thin', r: e.r ? 'medium' : 'thin' } });
-  const cellW = e => ({ ...cell(e), wrap: 1 });
-  const close = e => ({ h: 'left', v: 'center', border: { b: 'medium', l: e.l ? 'medium' : 'thin', r: e.r ? 'medium' : 'thin' } });
-
-  // date ISO -> numéro de série Excel (format date court, numFmtId 14)
-  const dateSerial = iso => {
-    const m = /^((?:\d{4}))-(\d{2})-(\d{2})/.exec(iso || '');
-    return m ? Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) + 25569 : (iso || '');
-  };
-  const lineCount = s => String(s || '').split('\n').length;
-
-  function section(title, nCols, headers, dataRows) {
-    const last = nCols - 1;
-    const br = rows.length + 1;
-    rows.push(headers.map((_, i) => ({ v: i === 0 ? title : '', s: banner({ l: i === 0, r: i === last }) })));
-    merges.push(`A${br}:${'ABCDE'[last]}${br}`);
-    heights[br] = 14.45;
-    rows.push(headers.map((h, i) => ({ v: h, s: head({ l: i === 0, r: i === last }) })));
-    heights[rows.length] = 14.45;
-    dataRows.forEach(dr => {
-      rows.push(dr);
-      const nLines = Math.max(...dr.map(c => lineCount(c && typeof c === 'object' ? c.v : c)));
-      heights[rows.length] = nLines > 1 ? nLines * 15 : 14.45;
-    });
+  function colIdx(letters) {
+    let n = 0;
+    for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64);
+    return n - 1;
   }
-  const closeRow = nCols => {
-    const last = nCols - 1;
-    rows.push(Array.from({ length: nCols }, (_, i) => ({ v: '', s: close({ l: i === 0, r: i === last }) })));
-  };
 
-  // — Titre + respiration (template : ligne 2 vide) —
-  rows.push([{ v: 'Governance', s: { b: 1, sz: 20, fill: 'FFFFFFFF' } }]);
-  rows.push([]);
+  /* Reconstruit les lignes d'une feuille depuis le layout (runs RLE).
+     Les plages de cellules vides stylées sont plafonnées à la colonne 120. */
+  function fromLayout(sheet) {
+    const rows = [], heights = {};
+    for (let r = 1; r <= sheet.maxrow; r++) rows.push([]);
+    for (const [rn, rd] of Object.entries(sheet.rows)) {
+      const r = +rn;
+      if (rd.ht) heights[r] = rd.ht;
+      // format run (extrait du template) : [colDébut, style, valeur, colFin]
+      for (const [c0, s, v, c1] of rd.cells) {
+        const stop = v == null ? Math.min(c1, 119) : c1;   // bandes : cap col 120
+        for (let c = c0; c <= stop; c++) rows[r - 1][c] = { v: v == null ? '' : v, s };
+      }
+    }
+    return { rows, heights };
+  }
 
-  // — 1) Statut de révision du document —
-  const approvedVers = new Set(approvers.map(a => a.approvedVersion).filter(Boolean));
-  const hasApprovers = approvers.length > 0;
-  section('Statut de révision du document', 5,
-    ['Version', 'Auteur', 'Commentaires et mises à jour', 'Date', 'Statut'],
-    revs.map(rv => {
-      const d = dateSerial(rv.date);
-      return [
-        { v: rv.rev || '', s: cell({ l: 1 }) },
-        { v: rv.author || '', s: cell({}) },
-        { v: rv.note || '', s: lineCount(rv.note) > 1 ? cellW({}) : cell({}) },
-        { v: d, s: { ...cell({}), numFmt: 14 } },
+  function set(rows, ref, value, forceStyle) {
+    const m = /^([A-Z]+)(\d+)$/.exec(ref);
+    const r = rows[+m[2] - 1];
+    const c = colIdx(m[1]);
+    const prev = r[c];
+    r[c] = { v: value, s: forceStyle !== undefined ? forceStyle : (prev ? prev.s : 0) };
+  }
+
+  function out(sheet, rows, heights, extraMerges) {
+    return {
+      name: sheet.name,
+      rows,
+      opts: {
+        freeze: false, autoHeader: false,
+        cols: sheet.cols, dcw: sheet.dcw,
+        heights, merges: sheet.merges.concat(extraMerges || [])
+      }
+    };
+  }
+
+  const proseLines = (t, max) => String(t || '').split('\n').map(x => x.trim())
+    .filter(Boolean).slice(0, max || 40);
+
+  function dateSerial(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+    return m ? Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) + 25569 : (iso || '');
+  }
+
+  /* Groupements inventaire : par catégorie et par modèle */
+  function invGroups(ws) {
+    const byCat = new Map(), byModel = new Map();
+    for (const { inst } of sortedRackInstances(ws)) {
+      const model = `${inst.brand || ''} ${inst.model || ''}`.trim() || inst.name;
+      byModel.set(model, (byModel.get(model) || 0) + 1);
+      const cat = catLabel(inst.cat);
+      const g = byCat.get(cat) || { n: 0, models: new Map() };
+      g.n++;
+      g.models.set(model, (g.models.get(model) || 0) + 1);
+      byCat.set(cat, g);
+    }
+    return { byCat, byModel };
+  }
+
+  /* — Feuille « LLD » : page de garde — */
+  function lld(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const L = ws.lld || {};
+    const sites = ws.sites || [];
+    const project = L.client
+      ? `Mise en place d'une infrastructure IT pour ${L.client}`
+      : (sites.map(s => s.name).join(' / ') || ws.name);
+    set(rows, 'E1', project);
+    set(rows, 'E3', L.author || '', 104);
+    // ligne « Version » (absente du template, ajoutée avec ses styles)
+    rows[3] = new Array(17).fill('');
+    rows[3][0] = { v: 'Version', s: 14 };
+    for (let c = 4; c < 17; c++) rows[3][c] = { v: c === 4 ? (L.version || '') : '', s: 104 };
+    heights[4] = 28.5;
+    return out(sheet, rows, heights);
+  }
+
+  /* — Feuille « Governance » : reconstruite (contenu variable),
+       styles strictement ceux du template — */
+  function governance(sheet, ws) {
+    const L = ws.lld || {};
+    const revs = L.revs || [], approvers = L.approvers || [], reviewers = L.reviewers || [];
+    const rows = [], merges = [], heights = {};
+    const R = (cells, ht) => { rows.push(cells); if (ht) heights[rows.length] = ht; };
+    const banner = (styles, title, n) => {
+      const r0 = rows.length + 1;
+      R(styles.map((s, i) => ({ v: i === 0 ? title : '', s })), 14.45);
+      merges.push(`A${r0}:${'ABCDE'[n - 1]}${r0}`);
+    };
+    const headers5 = () => R([141, 2, 2, 142, 143].map((s, i) =>
+      ({ v: ['Version', 'Auteur', 'Commentaires et mises à jour', 'Date', 'Statut'][i], s })), 14.45);
+
+    R([{ v: 'Governance', s: 51 }], 25.9);
+    R([]);
+
+    // 1) Statut de révision du document
+    banner([177, 178, 178, 178, 179], 'Statut de révision du document', 5);
+    headers5();
+    const approvedVers = new Set(approvers.map(a => a.approvedVersion).filter(Boolean));
+    revs.forEach((rv, i) => {
+      const last = i === revs.length - 1;
+      const note = String(rv.note || '');
+      R([
+        { v: rv.rev || '', s: last ? 146 : 144 },
+        { v: rv.author || '', s: last ? 102 : 8 },
+        { v: note, s: 150 },
+        { v: dateSerial(rv.date), s: last ? 147 : 145 },
         { v: (rv.rev && approvedVers.has(rv.rev)) ? 'Approuvé'
-              : (hasApprovers ? 'Pas encore approuvé' : ''), s: cell({ r: 1 }) }
-      ];
-    }));
-  closeRow(5);
-  rows.push([]); rows.push([]);
+              : (approvers.length ? 'Pas encore approuvé' : ''), s: last ? 158 : 133 }
+      ], Math.max(1, note.split('\n').length) * 15);
+    });
+    R([148, 135, 135, 149, 136].map(s => ({ v: '', s })), 15.75);
+    R([]); R([]);
 
-  // — 2) Approbateurs : 3 lignes par version cible (hors versions 0.x), version fusionnée —
-  let vers = revs.map(x => x.rev).filter(v => v && !/^0\./.test(v));
-  if (!vers.length && L.version) vers = [L.version];
-  if (!vers.length) vers = [''];
-  section('Approbateurs', 5,
-    ['Nom', 'Position', 'Organisation', 'Version approuvée', 'Signature'],
-    (() => {
-      const out = [];
-      vers.forEach((ver, vi) => {
-        const signataires = approvers.filter(a => a.approvedVersion === ver);
-        const lastBlock = vi === vers.length - 1;
-        // 1re ligne (1-based) du bloc : +2 pour le bandeau et l'en-tête que
-        // section() ajoutera avant les données
-        const blockStart = rows.length + out.length + 3;
-        merges.push(`D${blockStart}:D${blockStart + 2}`); // version fusionnée sur 3 lignes
-        for (let k = 0; k < 3; k++) {
-          const a = signataires[k] || {};
-          const fin = lastBlock && k === 2;   // dernière ligne du dernier bloc : bas medium
-          const st = fin ? close : cell;
-          out.push([
-            { v: a.name || '', s: st({ l: 1 }) },
-            { v: a.position || '', s: st({}) },
-            { v: a.organization || '', s: st({}) },
-            { v: k === 0 ? ver : '', s: st({}) },
-            { v: '', s: st({ r: 1 }) }
-          ]);
-        }
-      });
-      return out;
-    })());
-  closeRow(5);
-  rows.push([]); rows.push([]);
+    // 2) Approbateurs : un bloc de 3 lignes par version cible (hors 0.x)
+    banner([174, 175, 175, 175, 176], 'Approbateurs', 5);
+    R([141, 2, 2, 142, 143].map((s, i) =>
+      ({ v: ['Nom', 'Position', 'Organisation', 'Version approuvée', 'Signature'][i], s })), 14.45);
+    let vers = revs.map(x => x.rev).filter(v => v && !/^0\./.test(v));
+    if (!vers.length && L.version) vers = [L.version];
+    if (!vers.length) vers = [''];
+    vers.forEach(ver => {
+      const sign = approvers.filter(a => a.approvedVersion === ver);
+      const r0 = rows.length + 1;
+      merges.push(`D${r0}:D${r0 + 2}`);
+      for (let k = 0; k < 3; k++) {
+        const a = sign[k] || {};
+        const last = k === 2;
+        R([
+          { v: a.name || '', s: last ? 148 : 144 },
+          { v: a.position || '', s: last ? 135 : 8 },
+          { v: a.organization || '', s: last ? 135 : 8 },
+          { v: k === 0 ? ver : '', s: last ? 182 : 180 },
+          { v: '', s: last ? 136 : 133 }
+        ], 14.45);
+      }
+    });
+    R([{ v: '', s: 151 }]);
+    R([]);
 
-  // — 3) Réviseurs : 4 colonnes, une ligne par version —
-  const revVers = revs.length ? revs.map(x => x.rev || '') : (reviewers.length ? reviewers.map(x => x.approvedVersion || '') : ['']);
-  section('Réviseurs', 4,
-    ['Nom', 'Position', 'Organisation', 'Version approuvée'],
-    revVers.map(ver => {
+    // 3) Réviseurs : une ligne par version
+    banner([174, 175, 175, 176], 'Réviseurs', 4);
+    R([3, 2, 2, 4].map((s, i) =>
+      ({ v: ['Nom', 'Position', 'Organisation', 'Version approuvée'][i], s })), 14.45);
+    const rvVers = revs.length ? revs.map(x => x.rev || '')
+      : (reviewers.length ? reviewers.map(x => x.approvedVersion || '') : ['']);
+    rvVers.forEach(ver => {
       const rv = reviewers.find(x => x.approvedVersion === ver) || {};
-      return [
-        { v: rv.name || '', s: cell({ l: 1 }) },
-        { v: rv.position || '', s: cell({}) },
-        { v: rv.organization || '', s: cell({}) },
-        { v: ver, s: cell({ r: 1 }) }
-      ];
-    }));
-  closeRow(4);
+      R([{ v: rv.name || '', s: 102 }, { v: rv.position || '', s: 8 },
+         { v: rv.organization || '', s: 8 }, { v: ver, s: 9 }], 14.45);
+    });
+    R([{ v: '', s: 10 }, { v: '', s: 11 }, { v: '', s: 11 }, { v: '', s: 12 }], 14.45);
+    return out(sheet, rows, heights, merges);
+  }
 
-  return { rows, opts: { freeze: false, autoHeader: false, merges, heights,
-    cols: [28.14, 28.14, 61.57, 28.14, 19.57] } };
-}
+  /* — Feuille « 1 » : objectif du document (texte de l'app) — */
+  function ch1(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    proseLines(ws.lld && ws.lld.objectif, 40).forEach((t, i) => {
+      const r = 9 + i;
+      while (rows.length < r) rows.push([]);
+      rows[r - 1][0] = { v: t, s: 129 };
+    });
+    return out(sheet, rows, heights);
+  }
 
-$('#export-xlsx').addEventListener('click', () => {
+  /* — Feuille « 2 » : aperçu du site + infrastructure existante — */
+  function ch2(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const L = ws.lld || {};
+    const site = (ws.sites || [])[0] || {};
+    const fai = L.fai || {};
+    set(rows, 'C6', site.name || '');
+    set(rows, 'E6', site.address || '');
+    set(rows, 'C7', '');
+    set(rows, 'E7', '');
+    set(rows, 'C8', '');
+    set(rows, 'C9', fai.down || '');
+    set(rows, 'C10', String(fai.notes || '').split('\n')[0]);
+    // 2.2 : texte « infrastructure existante » de l'app (zone vide r16+)
+    proseLines(L.existant, 30).forEach((t, i) => {
+      const r = 16 + i;
+      rows[r - 1][1] = { v: t, s: 129 };
+    });
+    // 2.2 : tableau des dispositifs (r51-59) : FAI + inventaire par catégorie
+    const { byCat } = invGroups(ws);
+    const cats = [...byCat.entries()];
+    set(rows, 'D51', fai.operator
+      ? `${fai.operator}${fai.down ? ' — ' + fai.down : ''}` : '');
+    cats.slice(0, 8).forEach(([cat, g], i) => {
+      const r = 52 + i;
+      const models = [...g.models.entries()].map(([m, n]) => n > 1 ? `${m} x${n}` : m);
+      set(rows, `B${r}`, cat);
+      set(rows, `D${r}`, `x${g.n} (${models.join(' + ')})`);
+    });
+    for (let r = 52 + Math.min(cats.length, 8); r <= 59; r++) { set(rows, `B${r}`, ''); set(rows, `D${r}`, ''); }
+    return out(sheet, rows, heights);
+  }
+
+  /* — Feuille « 3 » : architecture cible + équipements — */
+  function ch3(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    proseLines(ws.lld && ws.lld.architecture, 33).forEach((t, i) => {
+      rows[1 + i][0] = { v: t, s: 129 };
+    });
+    // 3.1 : équipements (r41-76) depuis l'inventaire, groupés par modèle
+    const { byModel } = invGroups(ws);
+    const groups = [...byModel.entries()];
+    groups.slice(0, 36).forEach(([model, n], i) => {
+      const r = 41 + i;
+      set(rows, `B${r}`, model, i % 2 ? 197 : 190);
+      set(rows, `D${r}`, `x${n}`, i % 2 ? 198 : 195);
+    });
+    for (let r = 41 + Math.min(groups.length, 36); r <= 76; r++) {
+      set(rows, `B${r}`, '', rows[r - 1][1] ? rows[r - 1][1].s : 190);
+      set(rows, `D${r}`, '', rows[r - 1][3] ? rows[r - 1][3].s : 195);
+    }
+    return out(sheet, rows, heights);
+  }
+
+  /* — Feuille « 4 » : nomenclature (template) + adressage VLAN (app) — */
+  function ch4(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const vlans = (ws.lld && ws.lld.vlans) || [];
+    vlans.slice(0, 27).forEach((v, i) => {
+      const r = 143 + i;
+      set(rows, `B${r}`, v.vid ? `VLAN ${v.vid} — ${v.name || ''}` : (v.name || ''), 6);
+      set(rows, `C${r}`, v.subnet || '', 1);
+      // colonne GW : garde le style du template si la cellule existe déjà
+      set(rows, `D${r}`, v.gw || '', rows[r - 1][3] ? rows[r - 1][3].s : 1);
+    });
+    for (let r = 143 + Math.min(vlans.length, 27); r <= 169; r++) {
+      set(rows, `B${r}`, '', 6);
+      set(rows, `C${r}`, '', 1);
+      if (rows[r - 1][3]) set(rows, `D${r}`, '', 1);
+    }
+    return out(sheet, rows, heights);
+  }
+
+  /* — Feuille « 5 » : FAI (infos de l'app) + câblage — */
+  function ch5(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const fai = (ws.lld && ws.lld.fai) || {};
+    set(rows, 'C35', fai.operator
+      ? `${fai.operator}${fai.offer ? ' — ' + fai.offer : ''}` : '');
+    set(rows, 'D35', fai.down || '');
+    set(rows, 'T35', fai.up ? `Montant : ${fai.up}` : '');
+    for (const r of [36, 37, 38]) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    // 5.2 câblage FAI : valeurs du template effacées (à câbler par projet)
+    for (const ref of ['C46', 'C48', 'C50', 'C52',
+                       'D46', 'D47', 'D48', 'D49', 'D50', 'D51', 'D52', 'D53']) set(rows, ref, '');
+    return out(sheet, rows, heights);
+  }
+
+  /* — Feuille « 6 » : interconnexion site à site — */
+  function ch6(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const ic = (ws.lld && ws.lld.interco) || {};
+    const fai = (ws.lld && ws.lld.fai) || {};
+    if (ic.epA) { set(rows, 'B30', ic.epA); set(rows, 'C62', ic.epA); }
+    if (ic.epB) { set(rows, 'B31', ic.epB); set(rows, 'C67', ic.epB); }
+    set(rows, 'B45', fai.operator ? `WAN 1 — ${fai.operator}` : 'WAN 1');
+    set(rows, 'B46', 'WAN 2');
+    set(rows, 'B47', 'WAN 3');
+    for (const ref of ['E62', 'E63', 'E64', 'E67', 'E68', 'E69']) set(rows, ref, '');
+    return out(sheet, rows, heights);
+  }
+
+  const FILLS = { 'LLD': lld, 'Governance': governance, '1': ch1, '2': ch2,
+                  '3': ch3, '4': ch4, '5': ch5, '6': ch6 };
+
+  function buildAll(ws, layout, stylesXml, themeXml) {
+    const sheets = layout.map(sheet => {
+      const fill = FILLS[sheet.name];
+      if (fill) return fill(sheet, ws);
+      const { rows, heights } = fromLayout(sheet);
+      return out(sheet, rows, heights);
+    });
+    return XLSX.build(sheets, { stylesXml, themeXml });
+  }
+
+  return { buildAll };
+})();
+
+$('#export-xlsx').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
   const ws = active();
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Export Excel' }); return; }
-  const sheets = [
-    { name: 'LLD',        ...lldCoverRows(ws) },
-    { name: 'Governance', ...governanceRows(ws) },
-    { name: 'Inventaire',    rows: invRows(ws) },
-    { name: 'Câblage',       rows: cablingRows(ws) },
-    { name: 'Ports',         rows: portsRows(ws) },
-    { name: 'Racks',         rows: racksRows(ws) },
-    { name: 'Sites',         rows: sitesRows(ws) },
-    { name: 'Nomenclature',  rows: nomenRows(ws) },
-    { name: 'Adressage IP',  rows: addressingRows(ws) },
-    { name: 'Garanties',     rows: warrantyRows(ws) },
-    { name: 'Flux',          rows: flowsRows(ws) }
-  ].filter(s => s.rows.length > 1);   // feuilles vides omises
-  downloadBlob(XLSX.build(sheets), exportFileBase() + '.xlsx');
+  try {
+    const [layout, stylesXml, themeXml] = await Promise.all([
+      fetch('assets/lld/layout.json').then(r => { if (!r.ok) throw new Error('layout'); return r.json(); }),
+      fetch('assets/lld/styles.xml').then(r => { if (!r.ok) throw new Error('styles'); return r.text(); }),
+      fetch('assets/lld/theme1.xml').then(r => { if (!r.ok) throw new Error('theme'); return r.text(); })
+    ]);
+    downloadBlob(LLD_TPL.buildAll(ws, layout, stylesXml, themeXml), exportFileBase() + '.xlsx');
+  } catch (e) {
+    lldAlert("Impossible de charger le template Excel (assets/lld/) : l'export XLSX nécessite ces fichiers à côté de l'application.", { title: '📊 Export Excel' });
+  }
 });
 
 /* ============================================================
