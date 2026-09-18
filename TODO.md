@@ -321,7 +321,9 @@ interconnexion, domaines de câblage, flux) et exportable en Excel/CSV.
 
 ### Champs NON encore saisis dans l'app (à ajouter plus tard) :
 
-1. **ch.2 — 2.1 Info site** : type de site, pays, nombre d'utilisateurs.
+1. ~~**ch.2 — 2.1 Info site** : type de site, pays, nombre d'utilisateurs.~~
+   ✅ FAIT — champs ajoutés à la fiche de chaque site (fiche LLD) et projetés
+   dans l'export (C7/E7/C8 de la feuille « 2 »).
 2. **ch.2 — 2.2 Existant** : tableau détaillé des dispositifs existants
    (le template liste FAI/baie/switch/onduleur avec quantités) — aujourd'hui
    rempli par catégories d'inventaire, pas dispositif par dispositif.
@@ -330,8 +332,12 @@ interconnexion, domaines de câblage, flux) et exportable en Excel/CSV.
 4. **ch.4 — Nomenclature détaillée** : arbre par catégorie (FAI, Firewall,
    Switch, Serveurs… avec préfixes de nommage) — l'app a une nomenclature
    simple (type/préfixe/exemple/règle) non projetée dans cet arbre.
-5. **ch.5 — FAI** : lignes FAI multiples (le template en a 4), IP/Mask/GW/DNS
-   LAN, IPv6, DHCP, Port Forwarding (profil/ports/protocole), DMZ, WLAN (SSID).
+5. **ch.5 — FAI** : ✅ FAIT — liste dynamique de FAI (fiche LLD, « ＋ Ajouter
+   un FAI » ; l'ancien FAI unique est migré automatiquement, le 1er reste
+   synchronisé avec le PDF). Projetés dans l'export : lignes 35-38 de la
+   feuille « 5 » et boîtiers du câblage 5.2 (C46/C48/C50/C52).
+   Reste à saisir **par FAI** : IP/Mask/GW/DNS LAN, IPv6, DHCP, Port
+   Forwarding (profil/ports/protocole), DMZ, WLAN (SSID).
 6. **ch.5 — 5.2 Câblage FAI** : branchements physiques des FAI (WAN x → boîtier).
 7. **ch.6 — 6.1 Interco** : SN, firmware, HA (group, rôle, IP virtuelle),
    WAN Connection Settings (méthode, IP, bande montante/descendante, health

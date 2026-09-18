@@ -125,6 +125,21 @@ function normLldInfo(w) {
   }
   if (typeof L.fai.notes !== 'string') L.fai.notes = '';
   L.fai.notes = L.fai.notes.slice(0, 2000);
+  // FAI multiples (ch. 5) : L.fais est la liste source ; L.fai (= 1er FAI)
+  // reste synchronisé pour le PDF et les traitements historiques.
+  const normFai = f => {
+    const o = {};
+    for (const k of ['operator', 'offer', 'linkType', 'down', 'up', 'publicBlock', 'cpe', 'cpeIp'])
+      o[k] = String(f[k] ?? '').slice(0, 120);
+    o.notes = String(f.notes ?? '').slice(0, 2000);
+    return o;
+  };
+  L.fais = Array.isArray(L.fais) ? L.fais.filter(f => f && typeof f === 'object').map(normFai) : [];
+  if (!L.fais.length) {
+    const f0 = normFai(L.fai || {});
+    if (f0.operator || f0.offer || f0.down || f0.notes) L.fais = [f0];   // migration ancien état
+  }
+  L.fai = L.fais[0] || normFai({});
   if (!L.interco || typeof L.interco !== 'object') L.interco = {};
   for (const k of ['tech', 'epA', 'epB', 'localSubnets', 'remoteSubnets', 'routing', 'encryption']) {
     if (typeof L.interco[k] !== 'string') L.interco[k] = '';
@@ -383,6 +398,9 @@ function normSites(w) {
   w.sites = (arr ?? defaultSites()).filter(s => s && typeof s === 'object').map(s => ({
     id: String(s.id || uid()),
     name: String(s.name ?? '').slice(0, 40).trim() || 'Site',
+    type: String(s.type ?? '').slice(0, 40),
+    country: String(s.country ?? '').slice(0, 40),
+    users: String(s.users ?? '').slice(0, 20),
     address: String(s.address ?? '').slice(0, 80),
     contact: String(s.contact ?? '').slice(0, 80),
     desc: String(s.desc ?? '').slice(0, 200)
@@ -3831,12 +3849,7 @@ const LLD_SIGNATORY_COLS = [
 // Colonne « Site » : libre pour l'instant, sera reliée aux sites déclarés au lot 2
 const LLD_VLAN_COLS = [['vid', 'VLAN', 44], ['name', 'Nom', 96], ['site', 'Site', 80], ['subnet', 'Subnet', 120], ['gw', 'Passerelle', 106], ['purpose', 'Usage', 'flex']];
 const LLD_NOMEN_COLS = [['type', "Type d'objet", 150], ['prefix', 'Préfixe', 78], ['example', 'Exemple', 140], ['rule', 'Règle de nommage', 'flex']];
-// Champs FAI (ch. 5) et interconnexion (ch. 6) : [clé, sélecteur HTML]
-const LLD_FAI_FIELDS = [
-  ['operator', '#lld-fai-operator'], ['offer', '#lld-fai-offer'], ['linkType', '#lld-fai-type'],
-  ['down', '#lld-fai-down'], ['up', '#lld-fai-up'], ['publicBlock', '#lld-fai-block'],
-  ['cpe', '#lld-fai-cpe'], ['cpeIp', '#lld-fai-cpeip'], ['notes', '#lld-fai-notes']
-];
+// Champs interconnexion (ch. 6) : [clé, sélecteur HTML]
 const LLD_IC_FIELDS = [
   ['tech', '#lld-ic-tech'], ['epA', '#lld-ic-epa'], ['epB', '#lld-ic-epb'],
   ['localSubnets', '#lld-ic-local'], ['remoteSubnets', '#lld-ic-remote'],
@@ -3905,6 +3918,9 @@ function lldAddSiteRow(container, site = {}) {
       <button type="button" class="lld-row-del" title="Supprimer ce site">✕</button>
     </div>
     <div class="lld-row">
+      <input type="text" data-k="type" placeholder="Type (ex : Siège)" maxlength="40" style="width:112px">
+      <input type="text" data-k="country" placeholder="Pays" maxlength="40" style="width:92px">
+      <input type="text" data-k="users" placeholder="Utilisateurs" maxlength="20" style="width:92px">
       <input type="text" data-k="desc" placeholder="Description / notes" maxlength="200" class="lld-flex">
     </div>`;
   card.querySelectorAll('input').forEach(inp => { inp.value = site[inp.dataset.k] || ''; });
@@ -3916,6 +3932,74 @@ function lldSitesFrom(container) {
   return [...container.querySelectorAll('.lld-site')].map(card => {
     const o = { id: card.dataset.id || '' };
     card.querySelectorAll('input').forEach(inp => { o[inp.dataset.k] = inp.value; });
+    return o;
+  });
+}
+
+// ---- Blocs « FAI » (ch. 5) : liste dynamique de fournisseurs d'accès ----
+function lldRenumberFais(container) {
+  container.querySelectorAll('.lld-fai-num').forEach((el, i) => { el.textContent = `FAI ${i + 1}`; });
+}
+function lldAddFaiBlock(container, fai = {}) {
+  const card = document.createElement('div');
+  card.className = 'lld-site lld-fai';
+  card.innerHTML = `
+    <div class="lld-fai-head">
+      <strong class="lld-fai-num"></strong>
+      <button type="button" class="lld-row-del" title="Supprimer ce FAI">✕</button>
+    </div>
+    <div class="d-grid lld-fai-grid">
+      <label>Opérateur
+        <input type="text" data-k="operator" placeholder="Ex : Maroc Telecom" maxlength="60">
+      </label>
+      <label>Offre
+        <input type="text" data-k="offer" placeholder="Ex : FTTO Pro 100M" maxlength="60">
+      </label>
+      <label>Type de lien
+        <select data-k="linkType">
+          <option value="">—</option>
+          <option>FTTH</option>
+          <option>FTTO</option>
+          <option>Fibre dédiée</option>
+          <option>EoC (Ethernet over Coax)</option>
+          <option>ADSL / VDSL</option>
+          <option>Liaison spécialisée</option>
+          <option>4G / 5G (secours)</option>
+          <option>Autre</option>
+        </select>
+      </label>
+      <label>Débit descendant
+        <input type="text" data-k="down" placeholder="Ex : 100 Mbps" maxlength="40">
+      </label>
+      <label>Débit montant
+        <input type="text" data-k="up" placeholder="Ex : 100 Mbps" maxlength="40">
+      </label>
+      <label>Bloc IP publiques
+        <input type="text" data-k="publicBlock" placeholder="Ex : 41.92.10.0/29" maxlength="60">
+      </label>
+      <label>CPE — modèle
+        <input type="text" data-k="cpe" placeholder="Ex : Huawei EG8148" maxlength="60">
+      </label>
+      <label>CPE — IP
+        <input type="text" data-k="cpeIp" placeholder="Ex : 41.92.10.1" maxlength="45">
+      </label>
+    </div>
+    <label class="lld-fai-notes">Notes de configuration
+      <textarea data-k="notes" rows="2" maxlength="2000"
+        placeholder="Ex : CPE en mode bridge, IP publique sur l'interface WAN du pare-feu…"></textarea>
+    </label>`;
+  card.querySelectorAll('[data-k]').forEach(inp => { inp.value = fai[inp.dataset.k] || ''; });
+  card.querySelector('.lld-row-del').addEventListener('click', () => {
+    card.remove();
+    lldRenumberFais(container);
+  });
+  container.appendChild(card);
+  lldRenumberFais(container);
+}
+function lldFaisFrom(container) {
+  return [...container.querySelectorAll('.lld-fai')].map(card => {
+    const o = {};
+    card.querySelectorAll('[data-k]').forEach(inp => { o[inp.dataset.k] = inp.value; });
     return o;
   });
 }
@@ -4025,7 +4109,9 @@ function openLldModal() {
   const vlans = $('#lld-vlans');
   vlans.innerHTML = '';
   L.vlans.forEach(v => lldAddRow(vlans, LLD_VLAN_COLS, v));
-  LLD_FAI_FIELDS.forEach(([k, sel]) => { $(sel).value = L.fai[k] || ''; });
+  const faisEl = $('#lld-fais');
+  faisEl.innerHTML = '';
+  (L.fais && L.fais.length ? L.fais : [{}]).forEach(f => lldAddFaiBlock(faisEl, f));
   LLD_IC_FIELDS.forEach(([k, sel]) => { $(sel).value = L.interco[k] || ''; });
   const zonesEl = $('#lld-zones');
   zonesEl.innerHTML = '';
@@ -4064,6 +4150,11 @@ $('#lld-add-vlan').addEventListener('click', () => lldAddRow($('#lld-vlans'), LL
 $('#lld-add-nomen').addEventListener('click', () => {
   lldAddRow($('#lld-nomen'), LLD_NOMEN_COLS, {});
   [...$('#lld-nomen').querySelectorAll('.lld-row')].pop().querySelector('input').focus();
+});
+$('#lld-add-fai').addEventListener('click', () => {
+  const el = $('#lld-fais');
+  lldAddFaiBlock(el, {});
+  [...el.querySelectorAll('.lld-fai')].pop().querySelector('input').focus();
 });
 $('#lld-add-site').addEventListener('click', () => {
   lldAddSiteRow($('#lld-sites'), {});
@@ -4150,7 +4241,11 @@ $('#lld-save').addEventListener('click', () => {
   L.revs = lldRowsFrom($('#lld-revs')).filter(r => r.rev.trim() || r.note.trim());
   L.nomen = lldRowsFrom($('#lld-nomen')).filter(r => r.type.trim() || r.prefix.trim());
   L.vlans = lldRowsFrom($('#lld-vlans')).filter(v => v.vid.trim() || v.name.trim());
-  LLD_FAI_FIELDS.forEach(([k, sel]) => { L.fai[k] = $(sel).value.slice(0, 2000); });
+  L.fais = lldFaisFrom($('#lld-fais'))
+    .filter(f => f.operator.trim() || f.offer.trim() || f.down.trim() ||
+                 f.publicBlock.trim() || f.notes.trim());
+  L.fai = L.fais[0] || { operator: '', offer: '', linkType: '', down: '', up: '',
+                         publicBlock: '', cpe: '', cpeIp: '', notes: '' };
   LLD_IC_FIELDS.forEach(([k, sel]) => { L.interco[k] = $(sel).value.slice(0, 2000); });
   LLD_NOTE_FIELDS.forEach(([k, sel]) => { L.catNotes[k] = $(sel).value.slice(0, 2000); });
 
@@ -4189,6 +4284,9 @@ $('#lld-save').addEventListener('click', () => {
     .map(s => ({
       id: s.id && prevIds.has(s.id) ? s.id : uid(),
       name: s.name.trim().slice(0, 40),
+      type: s.type.trim().slice(0, 40),
+      country: s.country.trim().slice(0, 40),
+      users: s.users.trim().slice(0, 20),
       address: s.address.trim().slice(0, 80),
       contact: s.contact.trim().slice(0, 80),
       desc: s.desc.trim().slice(0, 200)
@@ -6018,9 +6116,9 @@ const LLD_TPL = (() => {
     const fai = L.fai || {};
     set(rows, 'C6', site.name || '');
     set(rows, 'E6', site.address || '');
-    set(rows, 'C7', '');
-    set(rows, 'E7', '');
-    set(rows, 'C8', '');
+    set(rows, 'C7', site.type || '');
+    set(rows, 'E7', site.country || '');
+    set(rows, 'C8', site.users || '');
     set(rows, 'C9', fai.down || '');
     set(rows, 'C10', String(fai.notes || '').split('\n')[0]);
     // 2.2 : texte « infrastructure existante » de l'app (zone vide r16+)
@@ -6086,16 +6184,22 @@ const LLD_TPL = (() => {
   /* — Feuille « 5 » : FAI (infos de l'app) + câblage — */
   function ch5(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
-    const fai = (ws.lld && ws.lld.fai) || {};
-    set(rows, 'C35', fai.operator
-      ? `${fai.operator}${fai.offer ? ' — ' + fai.offer : ''}` : '');
-    set(rows, 'D35', fai.down || '');
-    const faiNote = String(fai.notes || '').split('\n')[0];
-    set(rows, 'T35', faiNote || (fai.up ? `Montant : ${fai.up}` : ''));
-    for (const r of [36, 37, 38]) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
-    // 5.2 câblage FAI : valeurs du template effacées (à câbler par projet)
-    for (const ref of ['C46', 'C48', 'C50', 'C52',
-                       'D46', 'D47', 'D48', 'D49', 'D50', 'D51', 'D52', 'D53']) set(rows, ref, '');
+    const L = ws.lld || {};
+    const fais = (L.fais && L.fais.length) ? L.fais
+      : (L.fai && (L.fai.operator || L.fai.offer || L.fai.down) ? [L.fai] : []);
+    const lblFai = f => f.operator ? `${f.operator}${f.offer ? ' — ' + f.offer : ''}` : '';
+    // 5.1 : jusqu'à 4 FAI (lignes 35-38 du template)
+    fais.slice(0, 4).forEach((f, i) => {
+      set(rows, `C${35 + i}`, lblFai(f));
+      set(rows, `D${35 + i}`, f.down || '');
+    });
+    for (let r = 35 + Math.min(fais.length, 4); r <= 38; r++) {
+      set(rows, `C${r}`, ''); set(rows, `D${r}`, '');
+    }
+    set(rows, 'T35', String((fais[0] || {}).notes || '').split('\n')[0]);
+    // 5.2 câblage : boîtiers = opérateurs ; ports WAN vidés (saisie à venir)
+    ['C46', 'C48', 'C50', 'C52'].forEach((ref, i) => set(rows, ref, lblFai(fais[i] || {})));
+    for (const ref of ['D46', 'D47', 'D48', 'D49', 'D50', 'D51', 'D52', 'D53']) set(rows, ref, '');
     return out(sheet, rows, heights);
   }
 

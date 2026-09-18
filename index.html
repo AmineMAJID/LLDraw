@@ -452,46 +452,10 @@
         </div>
 
         <div class="d-inv-title" style="margin-top:14px">FAI — accès Internet (ch. 5)</div>
-        <div class="d-grid">
-          <label>Opérateur
-            <input id="lld-fai-operator" type="text" placeholder="Ex : Maroc Telecom" maxlength="60">
-          </label>
-          <label>Offre
-            <input id="lld-fai-offer" type="text" placeholder="Ex : FTTO Pro 100M" maxlength="60">
-          </label>
-          <label>Type de lien
-            <select id="lld-fai-type">
-              <option value="">—</option>
-              <option>FTTH</option>
-              <option>FTTO</option>
-              <option>Fibre dédiée</option>
-              <option>EoC (Ethernet over Coax)</option>
-              <option>ADSL / VDSL</option>
-              <option>Liaison spécialisée</option>
-              <option>4G / 5G (secours)</option>
-              <option>Autre</option>
-            </select>
-          </label>
-          <label>Débit descendant
-            <input id="lld-fai-down" type="text" placeholder="Ex : 100 Mbps" maxlength="40">
-          </label>
-          <label>Débit montant
-            <input id="lld-fai-up" type="text" placeholder="Ex : 100 Mbps" maxlength="40">
-          </label>
-          <label>Bloc IP publiques
-            <input id="lld-fai-block" type="text" placeholder="Ex : 41.92.10.0/29" maxlength="60">
-          </label>
-          <label>CPE — modèle
-            <input id="lld-fai-cpe" type="text" placeholder="Ex : Huawei EG8148" maxlength="60">
-          </label>
-          <label>CPE — IP
-            <input id="lld-fai-cpeip" type="text" placeholder="Ex : 41.92.10.1" maxlength="45">
-          </label>
+        <div class="lld-table" id="lld-fais"></div>
+        <div class="lld-vlan-actions">
+          <button id="lld-add-fai" class="btn btn-ghost btn-sm">＋ Ajouter un FAI</button>
         </div>
-        <label>Notes de configuration (FAI)
-          <textarea id="lld-fai-notes" rows="3" maxlength="2000"
-            placeholder="Ex : CPE en mode bridge, IP publique sur l'interface WAN du pare-feu…"></textarea>
-        </label>
 
         <div class="d-inv-title" style="margin-top:14px">Interconnexion site 2 site (ch. 6)</div>
         <div class="d-grid">
@@ -677,7 +641,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=77"></script>
+  <script src="app.js?v=80"></script>
   <script type="importmap">
   {
     "imports": {
