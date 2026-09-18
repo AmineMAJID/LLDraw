@@ -48,7 +48,7 @@ let rafId = 0;
 let world = null;                        // groupe racine reconstruit à chaque refresh
 let clock = new THREE.Clock();
 let active3d = false;
-let refreshTimer = null, camSaveTimer = null;
+let refreshTimer = null;
 let camTween = null;
 
 let pickables = [];                      // meshes raycastables
@@ -120,10 +120,6 @@ function ensureRenderer() {
   controls.maxPolarAngle = Math.PI * 0.495;   // ne pas passer sous le sol
   controls.autoRotateSpeed = 0.7;
   controls.target.set(0, 1.0, 0);
-  controls.addEventListener('end', () => {
-    clearTimeout(camSaveTimer);
-    camSaveTimer = setTimeout(persistCamera, 700);
-  });
 
   const ro = new ResizeObserver(resize);
   ro.observe(document.getElementById('board-viewport'));
@@ -420,7 +416,7 @@ function buildRack(root, ws, rack, wx, wz) {
   // Étiquette flottante
   const site = app.siteName(ws, rack);
   const sprite = makeLabelSprite(rack.name || 'Rack', site, sc || '#2563eb');
-  sprite.position.set(0, H + 0.14, 0);
+  sprite.position.set(0, H + 0.07, 0);
   g.add(sprite);
   nameplates.push(sprite);
 
@@ -832,13 +828,16 @@ function buildCables(root, ws) {
 
 /* ---------- Routage réaliste des cordons ----------
    Équipements actifs (switch, routeur, firewall) : ports en FAÇADE.
-   Panneaux de brassage / à balais : le cordon est branché devant et
-   ressort derrière le panneau quand il poursuit vers un device passif
-   (serveur, AP, caméra…) — comme en vrai brassage. */
+   Le cordon sort du port, tourne IMMÉDIATEMENT vers le canal latéral et
+   longe les faces dans un faisceau serré (comme un habillage réel avec
+   velcros). Panneaux de brassage : le cordon est branché devant et
+   ressort derrière le panneau vers le device passif. Inter-baies :
+   descente par le guide arrière, traversée au sol de l'allée, remontée. */
 const ACTIVE_CATS = new Set(['switch', 'router', 'firewall']);
 const FRONT_CH_X = 0.225;    // canal vertical avant (repère baie)
 const REAR_CH_X  = 0.19;     // guide vertical arrière
-const SIDE_IN_X  = 0.245;    // passage intérieur le long des rails
+const SIDE_IN_X  = 0.250;    // passage intérieur le long des rails
+const FRONT_PLANE = RACK_D / 2 - 0.038;  // plan des cordons avant : colle aux faces
 const FLOOR_Y    = 0.045;    // hauteur d'un cordon au sol
 
 function rackPos3d(rack) {
@@ -846,97 +845,98 @@ function rackPos3d(rack) {
 }
 
 function cableWaypoints(pa, pb, fa, fb, idx) {
-  const jx  = (((idx * 37) % 11) - 5) * 0.012;
-  const jz  = (((idx * 53) % 9) - 4) * 0.010;
-  const jx2 = (((idx * 23) % 7) - 3) * 0.014;
+  // Jitter très réduit + décalage faisceau : chaque cordon à côté de l'autre
+  const jx  = (((idx * 37) % 11) - 5) * 0.005;
+  const jz  = (((idx * 53) % 9) - 4) * 0.005;
+  const jx2 = (((idx * 23) % 7) - 3) * 0.006;
+  const bundleX = (idx % 8) * 0.0034;    // 8 cordons côte à côte (~27 mm)
+  const bundleZ = (idx % 5) * 0.0018;
   const A = { pos: pa[fa === 'front' ? 'posFront' : 'posRear'], u: pa.u };
   const B = { pos: pb[fb === 'front' ? 'posFront' : 'posRear'], u: pb.u };
 
   /* --- Même baie --- */
   if (pa.rack === pb.rack) {
     const { wx, wz } = rackPos3d(pa.rack);
-    const fzo = wz + RACK_D / 2 + 0.045 + jz * 0.35;   // plan du guide avant
-    const rzo = wz - RACK_D / 2 - 0.075 + jz * 0.35;   // plan du guide arrière
+    const zF = wz + FRONT_PLANE + bundleZ;            // collé aux faces avant
+    const zR = wz - RACK_D / 2 - 0.075 + bundleZ;     // guide arrière
     if (fa === 'front' && fb === 'front') {
-      // Cordon apparent EN FAÇADE : sort du port, rejoint le guide vertical
-      // avant, monte/descend le long, revient sur l'autre port (arc léger).
+      // Cordon apparent EN FAÇADE, plaqué : sortie de port courte,
+      // canal latéral en faisceau, retour sur l'autre port.
       const side = (A.u + B.u) / 2 < 0.5 ? -1 : 1;
-      const cx = wx + side * FRONT_CH_X + jx * 0.5;
-      const midY = (A.pos.y + B.pos.y) / 2 - 0.008;
+      const chanX = wx + side * (0.242 + bundleX) + jx * 0.3;
+      const e = 0.012;
+      const midY = (A.pos.y + B.pos.y) / 2 + (idx % 2 ? 0.005 : -0.005);
       return [
         A.pos,
-        new THREE.Vector3(A.pos.x, A.pos.y, fzo + 0.030),
-        new THREE.Vector3(cx, A.pos.y, fzo),
-        new THREE.Vector3(cx, midY, fzo + 0.024),
-        new THREE.Vector3(cx, B.pos.y, fzo),
-        new THREE.Vector3(B.pos.x, B.pos.y, fzo + 0.030),
+        new THREE.Vector3(A.pos.x, A.pos.y, zF + e),
+        new THREE.Vector3(chanX, A.pos.y, zF),
+        new THREE.Vector3(chanX, midY, zF + 0.003),
+        new THREE.Vector3(chanX, B.pos.y, zF),
+        new THREE.Vector3(B.pos.x, B.pos.y, zF + e),
         B.pos
       ];
     }
-    // Au moins une extrémité à l'ARRIÈRE d'un panneau : le cordon se
-    // déporte sur le côté et chemine À L'INTÉRIEUR de la baie, le long
-    // des rails (gestionnaire de câbles vertical), du plan avant vers
-    // le plan arrière — invisible depuis l'allée, réaliste depuis
-    // l'arrière où l'on voit le cordon déboucher au niveau du panneau.
-    const inX = side => wx + side * SIDE_IN_X + jx2 * 0.35;
+    // Au moins une extrémité à l'ARRIÈRE d'un panneau : cheminement
+    // intérieur le long des rails entre le plan avant et le guide arrière.
     const sA = A.u < 0.5 ? -1 : 1;
-    const zA = fa === 'front' ? fzo : rzo, zB = fb === 'front' ? fzo : rzo;
+    const inX = wx + sA * (SIDE_IN_X + bundleX * 0.6) + jx2;
+    const zA = fa === 'front' ? zF : zR, zB = fb === 'front' ? zF : zR;
     const cxA = wx + sA * (fa === 'front' ? FRONT_CH_X : REAR_CH_X) + jx * 0.5;
     const cxB = wx + sA * (fb === 'front' ? FRONT_CH_X : REAR_CH_X) + jx * 0.5;
     const midY = (A.pos.y + B.pos.y) / 2;
     const shB = B.pos.y + (B.pos.y > A.pos.y ? -0.018 : 0.018);   // épaule d'arrivée
     return [
       A.pos,
-      new THREE.Vector3(A.pos.x, A.pos.y, zA + (fa === 'front' ? 0.028 : -0.028)),
+      new THREE.Vector3(A.pos.x, A.pos.y, zA + (fa === 'front' ? 0.014 : -0.014)),
       new THREE.Vector3(cxA, A.pos.y, zA),
-      new THREE.Vector3(inX(sA), A.pos.y, zA + (fa === 'front' ? 0.015 : -0.015)),
-      new THREE.Vector3(inX(sA), midY, (zA + zB) / 2),
-      new THREE.Vector3(inX(sA), shB, zB + (fb === 'front' ? 0.012 : -0.012)),
+      new THREE.Vector3(inX, A.pos.y, zA + (fa === 'front' ? 0.010 : -0.010)),
+      new THREE.Vector3(inX, midY, (zA + zB) / 2),
+      new THREE.Vector3(inX, shB, zB + (fb === 'front' ? 0.010 : -0.010)),
       new THREE.Vector3(cxB, B.pos.y, zB),
-      new THREE.Vector3(B.pos.x, B.pos.y, zB + (fb === 'front' ? 0.028 : -0.028)),
+      new THREE.Vector3(B.pos.x, B.pos.y, zB + (fb === 'front' ? 0.014 : -0.014)),
       B.pos
     ];
   }
 
-  /* --- Baies différentes : façade -> côté -> guide arrière -> sol -> allée --- */
+  /* --- Baies différentes --- */
   const ra = rackPos3d(pa.rack), rb = rackPos3d(pb.rack);
   const sA = A.u < 0.5 ? -1 : 1, sB = B.u < 0.5 ? -1 : 1;
-  const fzA = ra.wz + RACK_D / 2 + 0.045, rzA = ra.wz - RACK_D / 2 - 0.075;
-  const fzB = rb.wz + RACK_D / 2 + 0.045, rzB = rb.wz - RACK_D / 2 - 0.075;
-  const chXA = ra.wx + sA * REAR_CH_X + jx * 0.6;
-  const chXB = rb.wx + sB * REAR_CH_X + jx * 0.6;
-  const laneZ = Math.min(rzA, rzB) - 0.32 + jz;
+  const zFA = ra.wz + FRONT_PLANE + bundleZ, rzA = ra.wz - RACK_D / 2 - 0.075;
+  const zFB = rb.wz + FRONT_PLANE + bundleZ, rzB = rb.wz - RACK_D / 2 - 0.075;
+  const chXA = ra.wx + sA * (REAR_CH_X + bundleX * 0.5) + jx * 0.5;
+  const chXB = rb.wx + sB * (REAR_CH_X + bundleX * 0.5) + jx * 0.5;
+  const laneZ = Math.min(rzA, rzB) - 0.30 + jz;
   const y0 = FLOOR_Y;
 
   const p = [A.pos];
   if (fa === 'front') {
-    p.push(new THREE.Vector3(A.pos.x, A.pos.y, fzA + 0.030));
-    p.push(new THREE.Vector3(ra.wx + sA * FRONT_CH_X + jx * 0.4, A.pos.y, fzA));
+    p.push(new THREE.Vector3(A.pos.x, A.pos.y, zFA + 0.014));
+    p.push(new THREE.Vector3(ra.wx + sA * (0.242 + bundleX), A.pos.y, zFA));
     // déport vers le coin intérieur arrière de la baie
-    p.push(new THREE.Vector3(ra.wx + sA * SIDE_IN_X + jx2 * 0.4, A.pos.y, fzA - 0.05));
-    p.push(new THREE.Vector3(chXA + sA * 0.03, A.pos.y, rzA + 0.05));
+    p.push(new THREE.Vector3(ra.wx + sA * SIDE_IN_X + jx2, A.pos.y, zFA - 0.045));
+    p.push(new THREE.Vector3(chXA + sA * 0.035, A.pos.y, rzA + 0.05));
   } else {
-    p.push(new THREE.Vector3(A.pos.x, A.pos.y, rzA - 0.030));
+    p.push(new THREE.Vector3(A.pos.x, A.pos.y, rzA - 0.016));
   }
   p.push(new THREE.Vector3(chXA, A.pos.y, rzA));
-  p.push(new THREE.Vector3(chXA, y0 + 0.02, rzA - 0.06));
-  p.push(new THREE.Vector3(chXA, y0, rzA - 0.14));
+  p.push(new THREE.Vector3(chXA, y0 + 0.02, rzA - 0.05));
+  p.push(new THREE.Vector3(chXA, y0, rzA - 0.12));
   // épaule de départ : quitter le guide horizontalement avant de plonger
   p.push(new THREE.Vector3(chXA, A.pos.y - (A.pos.y > y0 + 0.06 ? 0.02 : 0), rzA - 0.02));
   p.push(new THREE.Vector3(chXA, A.pos.y, rzA));
   // Traversée au sol dans l'allée arrière
   p.push(new THREE.Vector3((chXA + chXB) / 2 + jx2 * 0.5, y0, laneZ));
-  p.push(new THREE.Vector3(chXB, y0, rzB - 0.14));
-  p.push(new THREE.Vector3(chXB, y0 + 0.02, rzB - 0.06));
+  p.push(new THREE.Vector3(chXB, y0, rzB - 0.12));
+  p.push(new THREE.Vector3(chXB, y0 + 0.02, rzB - 0.05));
   // épaule d'arrivée : terminer horizontalement dans le guide
   p.push(new THREE.Vector3(chXB, B.pos.y, rzB - 0.03));
   p.push(new THREE.Vector3(chXB, B.pos.y, rzB));
   if (fb === 'front') {
-    // remontée par le coin intérieur arrière puis le guide avant
-    p.push(new THREE.Vector3(chXB + sB * 0.03, B.pos.y, rzB + 0.05));
-    p.push(new THREE.Vector3(rb.wx + sB * SIDE_IN_X + jx2 * 0.4, B.pos.y, fzB - 0.05));
-    p.push(new THREE.Vector3(rb.wx + sB * FRONT_CH_X + jx * 0.4, B.pos.y, fzB));
-    p.push(new THREE.Vector3(B.pos.x, B.pos.y, fzB + 0.030));
+    // remontée par le coin intérieur arrière puis le canal avant
+    p.push(new THREE.Vector3(chXB + sB * 0.035, B.pos.y, rzB + 0.05));
+    p.push(new THREE.Vector3(rb.wx + sB * SIDE_IN_X + jx2, B.pos.y, zFB - 0.045));
+    p.push(new THREE.Vector3(rb.wx + sB * (0.242 + bundleX), B.pos.y, zFB));
+    p.push(new THREE.Vector3(B.pos.x, B.pos.y, zFB + 0.014));
   }
   p.push(B.pos);
   return p;
@@ -983,8 +983,10 @@ function makeLabelSprite(name, sub, accent) {
   }
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-  const s = 0.0031;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: tex, transparent: true, depthWrite: false, opacity: 0.92
+  }));
+  const s = 0.00098;              // discretes, même en vue allée rapprochée
   sprite.scale.set(W * s, H * s, 1);
   sprite.userData = { type: 'label' };
   return sprite;
@@ -1080,33 +1082,20 @@ function buildScene() {
     return r;
   });
 
-  // Caméra initiale : mémorisée par workspace, sinon cadrage par défaut
-  const saved = ws.view3d;
-  if (saved && Array.isArray(saved.p) && Array.isArray(saved.t)) {
-    camera.position.fromArray(saved.p);
-    controls.target.fromArray(saved.t);
-  } else {
-    resetCameraDefault();
-  }
-  controls.update();
+  // Vue par défaut à chaque entrée en 3D : dans l'allée, près des baies.
+  resetCameraDefault();
   applyVisibility();
 }
 
 function rackHeight3d(rack) { return 28 + 16 + (rack.sizeU || 12) * 33; }  // px board (miroir app.js)
 
 function resetCameraDefault() {
-  const c = layout.center || new THREE.Vector3(0, 1, 0);
-  const d = Math.max(3.5, layout.radius * 2.1);
-  camera.position.set(c.x + d * 0.42, c.y + d * 0.30, c.z + d * 0.92);
-  controls.target.copy(c);
+  // Vue par défaut : DEBOUT DANS L'ALLÉE AVANT, à hauteur d'œil, face
+  // aux baies (le cadrage large reste accessible via « ⧢ Tout voir »).
+  const { pos, target } = camPose('aisle');
+  camera.position.copy(pos);
+  controls.target.copy(target);
   controls.update();
-}
-
-function persistCamera() {
-  const ws = app.ws();
-  if (!ws || !active3d) return;
-  ws.view3d = { p: camera.position.toArray(), t: controls.target.toArray() };
-  app.save();
 }
 
 /* ============================================================
@@ -1479,13 +1468,7 @@ function stepTween() {
   const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
   camera.position.lerpVectors(camTween.p0, camTween.p1, e);
   controls.target.lerpVectors(camTween.t0, camTween.t1, e);
-  if (k >= 1) {
-    camTween = null;
-    // Preset terminé : mémoriser la pose (OrbitControls ne émet « end »
-    // que pour les interactions utilisateur, pas pour les tweens).
-    clearTimeout(camSaveTimer);
-    camSaveTimer = setTimeout(persistCamera, 700);
-  }
+  if (k >= 1) camTween = null;
 }
 
 function camPose(dirName) {
@@ -1495,7 +1478,7 @@ function camPose(dirName) {
     front: new THREE.Vector3(c.x + d * 0.35, c.y + d * 0.30, c.z + d * 0.92),
     back:  new THREE.Vector3(c.x - d * 0.35, c.y + d * 0.30, c.z - d * 0.92),
     top:   new THREE.Vector3(c.x + 0.01, c.y + d * 1.25, c.z + d * 0.30),
-    aisle: new THREE.Vector3(c.x, c.y + 0.55, c.z + Math.max(1.6, layout.radius * 0.55)),
+    aisle: new THREE.Vector3(c.x, Math.max(1.45, c.y + 0.55), c.z + Math.max(1.6, Math.min(layout.radius * 0.6, 5.5))),
     fit:   new THREE.Vector3(c.x + d * 0.42, c.y + d * 0.30, c.z + d * 0.92)
   };
   return { pos: poses[dirName] || poses.fit, target: c };
@@ -1585,8 +1568,6 @@ function enter() {
 
 function exit() {
   active3d = false;
-  clearTimeout(camSaveTimer);
-  persistCamera();
   document.getElementById('view3d-root')?.classList.add('hidden');
   if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
 }
