@@ -324,30 +324,31 @@ interconnexion, domaines de câblage, flux) et exportable en Excel/CSV.
 1. ~~**ch.2 — 2.1 Info site** : type de site, pays, nombre d'utilisateurs.~~
    ✅ FAIT — champs ajoutés à la fiche de chaque site (fiche LLD) et projetés
    dans l'export (C7/E7/C8 de la feuille « 2 »).
-2. **ch.2 — 2.2 Existant** : tableau détaillé des dispositifs existants
-   (le template liste FAI/baie/switch/onduleur avec quantités) — aujourd'hui
-   rempli par catégories d'inventaire, pas dispositif par dispositif.
+2. **ch.2 — 2.2 Existant** : ✅ FAIT — tableau rempli dispositif par modèle
+   (B52-59 : modèle + quantité), FAI en ligne 51.
 3. **ch.3 — 3.1 Equipments** : distinction besoin/existant/nouveau
-   (« x1 (besoin) ») et colonnes Remarques/Statut.
-4. **ch.4 — Nomenclature détaillée** : arbre par catégorie (FAI, Firewall,
-   Switch, Serveurs… avec préfixes de nommage) — l'app a une nomenclature
-   simple (type/préfixe/exemple/règle) non projetée dans cet arbre.
-5. **ch.5 — FAI** : ✅ FAIT — liste dynamique de FAI (fiche LLD, « ＋ Ajouter
-   un FAI » ; l'ancien FAI unique est migré automatiquement, le 1er reste
-   synchronisé avec le PDF). Projetés dans l'export : lignes 35-38 de la
-   feuille « 5 » et boîtiers du câblage 5.2 (C46/C48/C50/C52).
-   Reste à saisir **par FAI** : IP/Mask/GW/DNS LAN, IPv6, DHCP, Port
-   Forwarding (profil/ports/protocole), DMZ, WLAN (SSID).
-6. **ch.5 — 5.2 Câblage FAI** : branchements physiques des FAI (WAN x → boîtier).
-7. **ch.6 — 6.1 Interco** : SN, firmware, HA (group, rôle, IP virtuelle),
-   WAN Connection Settings (méthode, IP, bande montante/descendante, health
-   check), Admin Security (users, protocoles), LAN (réseaux par VLAN).
-8. **ch.6 — 6.2 Câblage** : ports physiques des liaisons (aujourd'hui vidés).
-9. **ch.7 Firewall, ch.8.x Switching (config par rôle), ch.9 Serveurs,
-   ch.10 Stockage, ch.11 IDS, ch.12 CCTV, ch.13 Pointage** : feuilles du
-   template quasi vides (titre seul) — à alimenter par saisie dédiée.
-10. **ch.15 Cablage/Rack** : tableaux de câblage/élévations par baie
-    (l'app a les données : câbles + inventaire — à projeter).
+   (« x1 (besoin) ») et colonnes Remarques/Statut — MANUEL (concept d'achat
+   non suivi par l'app ; colonnes laissées vides).
+4. **ch.4 — Nomenclature détaillée** : l'arbre du template reste manuel ;
+   ✅ le registre de l'app est projeté en bloc annexe sous le tableau (r171+).
+5. **ch.5 — FAI** : ✅ FAIT — FAI multiples avec réglages avancés par FAI :
+   mode IP WAN (DHCP/Statique), IP WAN, IPv6, LAN IP/Mask/GW/DNS, DHCP,
+   Port Forwarding, DMZ, Firewall, WLAN/SSID → colonnes C-T des lignes 35-38.
+6. **ch.5 — 5.2 Câblage FAI** : ✅ FAIT — champ « Liaison physique » par FAI
+   (wanLabel) → boîtiers C46-52 + liaisons D46-53.
+7. **ch.6 — 6.1 Interco** : ✅ FAIT — par extrémité : N° série, firmware,
+   groupe HA, rôle préféré (Master/Slave → Resume Master déduit), IP admin ;
+   IP virtuelle par site ; WAN Connection Settings depuis les FAI (méthode,
+   IP, débits) ; LAN (routing, nb VLANs, subnets). Reste manuel : health
+   check, Admin Security (users/mots de passe).
+8. **ch.6 — 6.2 Câblage** : ✅ FAIT — liaisons WAN (wanLabel des FAI) et
+   LAN 1 (« LAN 1 connecté à » par extrémité) → E62-E71.
+9. **ch.7-13** : ✅ FAIT — 7.3 Règles & NAT (table « fw »), 9.2 Machines
+   virtuelles (table « vms »), 10.2 Volumes/LUN (table « vols »), 12.2
+   Caméras (table « cams »), VLANs par zone de switching (ch. 8). Reste
+   manuel : VPN SSL/alias/cluster firewall (7.3 note), configs poussées par
+   switch (8.x), emplacements IDS/SPO (11/13).
+10. **ch.15 Cablage/Rack** : ✅ FAIT (câblage complet + élévations par baie).
 
 ### Chapitres 7 → 15.1 — remplis par l'export depuis l'app (fait) :
 

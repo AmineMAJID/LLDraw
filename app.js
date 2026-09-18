@@ -129,7 +129,9 @@ function normLldInfo(w) {
   // reste synchronisé pour le PDF et les traitements historiques.
   const normFai = f => {
     const o = {};
-    for (const k of ['operator', 'offer', 'linkType', 'down', 'up', 'publicBlock', 'cpe', 'cpeIp'])
+    for (const k of ['operator', 'offer', 'linkType', 'down', 'up', 'publicBlock', 'cpe', 'cpeIp',
+                     'ipMode', 'wanIp', 'wanLabel', 'lanIp', 'lanMask', 'lanGw', 'lanDns',
+                     'ipv6', 'dhcp', 'pf', 'dmz', 'firewall', 'wlan'])
       o[k] = String(f[k] ?? '').slice(0, 120);
     o.notes = String(f.notes ?? '').slice(0, 2000);
     return o;
@@ -141,10 +143,24 @@ function normLldInfo(w) {
   }
   L.fai = L.fais[0] || normFai({});
   if (!L.interco || typeof L.interco !== 'object') L.interco = {};
-  for (const k of ['tech', 'epA', 'epB', 'localSubnets', 'remoteSubnets', 'routing', 'encryption']) {
+  for (const k of ['tech', 'epA', 'epB', 'localSubnets', 'remoteSubnets', 'routing', 'encryption',
+                   'snA', 'fwA', 'haA', 'roleA', 'vipA', 'mgmtA', 'lanA',
+                   'snB', 'fwB', 'haB', 'roleB', 'vipB', 'mgmtB', 'lanB']) {
     if (typeof L.interco[k] !== 'string') L.interco[k] = '';
     L.interco[k] = L.interco[k].slice(0, 120);
   }
+  // Règles/NAT firewall (ch. 7), VMs (ch. 9), volumes/LUN (ch. 10), caméras (ch. 12)
+  const normTable = (arr, spec) => Array.isArray(arr)
+    ? arr.filter(r => r && typeof r === 'object').map(r => {
+        const o = {};
+        for (const [k, n] of spec) o[k] = String(r[k] ?? '').slice(0, n);
+        return o;
+      })
+    : [];
+  L.fw = normTable(L.fw, [['type', 12], ['name', 40], ['src', 60], ['dst', 60], ['service', 60], ['action', 20]]);
+  L.vms = normTable(L.vms, [['name', 40], ['role', 60], ['host', 40], ['ip', 40]]);
+  L.vols = normTable(L.vols, [['name', 40], ['size', 30], ['type', 30], ['srv', 40]]);
+  L.cams = normTable(L.cams, [['name', 40], ['loc', 60], ['model', 40], ['ip', 40]]);
   if (typeof L.interco.notes !== 'string') L.interco.notes = '';
   L.interco.notes = L.interco.notes.slice(0, 2000);
   // Notes de configuration par chapitre (ch. 7 à 13)
@@ -156,7 +172,8 @@ function normLldInfo(w) {
   // Zones de Switching (sous-chapitres 8.1, 8.2…) — par défaut : structure cible
   L.swZones = Array.isArray(L.swZones) ? L.swZones.filter(z => z && typeof z === 'object').map(z => ({
     id: String(z.id || uid()),
-    name: String(z.name ?? '').slice(0, 40).trim() || 'Zone'
+    name: String(z.name ?? '').slice(0, 40).trim() || 'Zone',
+    vlans: String(z.vlans ?? '').slice(0, 100)
   })) : [
     { id: uid(), name: 'INFRA' },
     { id: uid(), name: 'LAN Site B' },
@@ -3853,8 +3870,18 @@ const LLD_NOMEN_COLS = [['type', "Type d'objet", 150], ['prefix', 'Préfixe', 78
 const LLD_IC_FIELDS = [
   ['tech', '#lld-ic-tech'], ['epA', '#lld-ic-epa'], ['epB', '#lld-ic-epb'],
   ['localSubnets', '#lld-ic-local'], ['remoteSubnets', '#lld-ic-remote'],
-  ['routing', '#lld-ic-routing'], ['encryption', '#lld-ic-enc'], ['notes', '#lld-ic-notes']
+  ['routing', '#lld-ic-routing'], ['encryption', '#lld-ic-enc'], ['notes', '#lld-ic-notes'],
+  ['snA', '#lld-ic-sna'], ['fwA', '#lld-ic-fwa'], ['haA', '#lld-ic-haa'], ['roleA', '#lld-ic-rolea'],
+  ['vipA', '#lld-ic-vipa'], ['mgmtA', '#lld-ic-mgmta'], ['lanA', '#lld-ic-lana'],
+  ['snB', '#lld-ic-snb'], ['fwB', '#lld-ic-fwb'], ['haB', '#lld-ic-hab'], ['roleB', '#lld-ic-roleb'],
+  ['vipB', '#lld-ic-vipb'], ['mgmtB', '#lld-ic-mgmtb'], ['lanB', '#lld-ic-lanb']
 ];
+// Tables par chapitre : règles/NAT firewall (7), VMs (9), volumes (10), caméras (12)
+const LLD_FW_COLS = [['type', 'Type', 74], ['name', 'Nom / Règle', 'flex'], ['src', 'Source', 130],
+                     ['dst', 'Destination', 130], ['service', 'Service / Ports', 120], ['action', 'Action', 66]];
+const LLD_VM_COLS = [['name', 'VM', 120], ['role', 'Rôle', 'flex'], ['host', 'Hôte', 110], ['ip', 'IP / VLAN', 100]];
+const LLD_VOL_COLS = [['name', 'Volume / LUN', 'flex'], ['size', 'Capacité', 90], ['type', 'Type', 90], ['srv', 'Serveur', 120]];
+const LLD_CAM_COLS = [['name', 'Caméra', 110], ['loc', 'Emplacement', 'flex'], ['model', 'Modèle', 120], ['ip', 'IP', 100]];
 // Notes de configuration par chapitre (clé = domaine du chapitre)
 const LLD_NOTE_FIELDS = [
   ['firewall', '#lld-note-firewall'], ['switching', '#lld-note-switching'],
@@ -3984,6 +4011,55 @@ function lldAddFaiBlock(container, fai = {}) {
         <input type="text" data-k="cpeIp" placeholder="Ex : 41.92.10.1" maxlength="45">
       </label>
     </div>
+    <div class="d-grid lld-fai-grid">
+      <label>Liaison physique (boîtier → port WAN)
+        <input type="text" data-k="wanLabel" placeholder="Ex : Port eth1 (ONT) → WAN 1" maxlength="120">
+      </label>
+      <label>Mode IP WAN
+        <select data-k="ipMode">
+          <option value="">—</option>
+          <option>DHCP</option>
+          <option>Static IP</option>
+        </select>
+      </label>
+      <label>IP WAN
+        <input type="text" data-k="wanIp" placeholder="Ex : 41.92.10.2" maxlength="45">
+      </label>
+      <label>IPv6
+        <input type="text" data-k="ipv6" placeholder="Ex : 2a01:…/64" maxlength="60">
+      </label>
+      <label>LAN — IP
+        <input type="text" data-k="lanIp" placeholder="Ex : 10.10.40.1" maxlength="45">
+      </label>
+      <label>LAN — Mask
+        <input type="text" data-k="lanMask" placeholder="Ex : 255.255.255.0" maxlength="45">
+      </label>
+      <label>LAN — GW
+        <input type="text" data-k="lanGw" placeholder="Ex : 10.10.40.254" maxlength="45">
+      </label>
+      <label>LAN — DNS
+        <input type="text" data-k="lanDns" placeholder="Ex : 10.10.99.53" maxlength="45">
+      </label>
+      <label>DHCP
+        <select data-k="dhcp">
+          <option value="">—</option>
+          <option>Oui</option>
+          <option>Non</option>
+        </select>
+      </label>
+      <label>Port Forwarding
+        <input type="text" data-k="pf" placeholder="Ex : TCP 443 → 10.10.20.11" maxlength="120">
+      </label>
+      <label>DMZ
+        <input type="text" data-k="dmz" placeholder="Ex : 10.10.20.11 (reverse-proxy)" maxlength="120">
+      </label>
+      <label>Firewall
+        <input type="text" data-k="firewall" placeholder="Ex : entrée 443 uniquement" maxlength="120">
+      </label>
+      <label>WLAN (SSID)
+        <input type="text" data-k="wlan" placeholder="Ex : corp-secure / invité" maxlength="120">
+      </label>
+    </div>
     <label class="lld-fai-notes">Notes de configuration
       <textarea data-k="notes" rows="2" maxlength="2000"
         placeholder="Ex : CPE en mode bridge, IP publique sur l'interface WAN du pare-feu…"></textarea>
@@ -4013,9 +4089,11 @@ function lldAddZoneRow(container, zone = {}) {
     <button type="button" class="lld-zone-up" title="Monter cette zone">↑</button>
     <button type="button" class="lld-zone-down" title="Descendre cette zone">↓</button>
     <input type="text" data-k="name" placeholder="Nom de la zone (ex : LAN Site A)" maxlength="40" class="lld-flex">
+    <input type="text" data-k="vlans" placeholder="VLANs (ex : 10,20,30-40)" maxlength="100" style="width:170px">
     <button type="button" class="lld-row-del" title="Supprimer cette zone">✕</button>`;
-  const nameInp = row.querySelector('input');
+  const nameInp = row.querySelector('input[data-k="name"]');
   nameInp.value = zone.name || '';
+  row.querySelector('input[data-k="vlans"]').value = zone.vlans || '';
   row.querySelector('.lld-zone-up').addEventListener('click', () => {
     const prev = row.previousElementSibling;
     if (prev && prev.classList.contains('lld-zone-row')) container.insertBefore(row, prev);
@@ -4031,7 +4109,8 @@ function lldAddZoneRow(container, zone = {}) {
 function lldZonesFrom(container) {
   return [...container.querySelectorAll('.lld-zone-row')].map(r => ({
     id: r.dataset.id || '',
-    name: r.querySelector('input').value
+    name: r.querySelector('input[data-k="name"]').value,
+    vlans: (r.querySelector('input[data-k="vlans"]') || {}).value || ''
   }));
 }
 
@@ -4112,6 +4191,13 @@ function openLldModal() {
   const faisEl = $('#lld-fais');
   faisEl.innerHTML = '';
   (L.fais && L.fais.length ? L.fais : [{}]).forEach(f => lldAddFaiBlock(faisEl, f));
+  [['#lld-fw', L.fw, LLD_FW_COLS], ['#lld-vms', L.vms, LLD_VM_COLS],
+   ['#lld-vols', L.vols, LLD_VOL_COLS], ['#lld-cams', L.cams, LLD_CAM_COLS]]
+    .forEach(([sel, tbl, cols]) => {
+      const el = $(sel);
+      el.innerHTML = '';
+      (tbl || []).forEach(r => lldAddRow(el, cols, r));
+    });
   LLD_IC_FIELDS.forEach(([k, sel]) => { $(sel).value = L.interco[k] || ''; });
   const zonesEl = $('#lld-zones');
   zonesEl.innerHTML = '';
@@ -4151,6 +4237,10 @@ $('#lld-add-nomen').addEventListener('click', () => {
   lldAddRow($('#lld-nomen'), LLD_NOMEN_COLS, {});
   [...$('#lld-nomen').querySelectorAll('.lld-row')].pop().querySelector('input').focus();
 });
+$('#lld-add-fw').addEventListener('click', () => lldAddRow($('#lld-fw'), LLD_FW_COLS, { type: 'Règle' }));
+$('#lld-add-vm').addEventListener('click', () => lldAddRow($('#lld-vms'), LLD_VM_COLS, {}));
+$('#lld-add-vol').addEventListener('click', () => lldAddRow($('#lld-vols'), LLD_VOL_COLS, {}));
+$('#lld-add-cam').addEventListener('click', () => lldAddRow($('#lld-cams'), LLD_CAM_COLS, {}));
 $('#lld-add-fai').addEventListener('click', () => {
   const el = $('#lld-fais');
   lldAddFaiBlock(el, {});
@@ -4241,6 +4331,10 @@ $('#lld-save').addEventListener('click', () => {
   L.revs = lldRowsFrom($('#lld-revs')).filter(r => r.rev.trim() || r.note.trim());
   L.nomen = lldRowsFrom($('#lld-nomen')).filter(r => r.type.trim() || r.prefix.trim());
   L.vlans = lldRowsFrom($('#lld-vlans')).filter(v => v.vid.trim() || v.name.trim());
+  L.fw = lldRowsFrom($('#lld-fw')).filter(r => r.name.trim());
+  L.vms = lldRowsFrom($('#lld-vms')).filter(r => r.name.trim());
+  L.vols = lldRowsFrom($('#lld-vols')).filter(r => r.name.trim());
+  L.cams = lldRowsFrom($('#lld-cams')).filter(r => r.name.trim());
   L.fais = lldFaisFrom($('#lld-fais'))
     .filter(f => f.operator.trim() || f.offer.trim() || f.down.trim() ||
                  f.publicBlock.trim() || f.notes.trim());
@@ -4253,7 +4347,8 @@ $('#lld-save').addEventListener('click', () => {
   const prevZoneIds = new Set(L.swZones.map(z => z.id));
   L.swZones = lldZonesFrom($('#lld-zones'))
     .filter(z => z.name.trim())
-    .map(z => ({ id: z.id && prevZoneIds.has(z.id) ? z.id : uid(), name: z.name.trim().slice(0, 40) }));
+    .map(z => ({ id: z.id && prevZoneIds.has(z.id) ? z.id : uid(),
+                 name: z.name.trim().slice(0, 40), vlans: z.vlans.trim().slice(0, 100) }));
   const zoneIds = new Set(L.swZones.map(z => z.id));
   let dezoned = 0;
   ws.racks.forEach(r => r.instances.forEach(i => {
@@ -5889,8 +5984,19 @@ const LLD_TPL = (() => {
       vlans.forEach((v, i) => rows.push(D([
         v.vid ? `VLAN ${v.vid}` : '', v.name || '', v.subnet || '', v.gw || ''], i % 2)));
     }
-    pushNote(rows, "À compléter manuellement : NAT, règles et alias, VPN SSL, cluster/HA (non saisis dans l'application).");
-    return out(sheet, rows, heights, null, [3.43, 46, 30, 22, 22]);
+    const fw = (ws.lld && ws.lld.fw) || [];
+    if (fw.length) {
+      rows.push([]); rows.push([]);
+      rows.push(SEC('7.3. Règles et NAT'));
+      rows.push([]);
+      rows.push(H(['Type', 'Nom', 'Source', 'Destination', 'Service / Ports', 'Action']));
+      fw.forEach((r0, i) => rows.push(D([
+        r0.type || '', r0.name || '', r0.src || '', r0.dst || '', r0.service || '', r0.action || ''], i % 2)));
+    }
+    pushNote(rows, fw.length
+      ? "À compléter manuellement : alias, VPN SSL (profils utilisateurs) et cluster/HA."
+      : "À compléter manuellement : NAT, règles et alias, VPN SSL, cluster/HA (non saisis dans l'application).");
+    return out(sheet, rows, heights, null, [3.43, 46, 30, 22, 22, 30, 16]);
   }
 
   /* — 8.x Switching : équipements de la zone correspondant au titre — */
@@ -5906,6 +6012,7 @@ const LLD_TPL = (() => {
     if (sws.length) {
       equipTable(rows, sws, { titre: `Equipements Switching${zone ? ' — zone ' + zone.name : ''}`,
         cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
+      if (zone && zone.vlans) rows.push([{ v: `VLANs de la zone : ${zone.vlans}`, s: 129 }]);
       const portRows = portsRowsByCat(ws, ['switch']).slice(1);
       if (portRows.length) {
         rows.push([]); rows.push([]);
@@ -5926,6 +6033,26 @@ const LLD_TPL = (() => {
       if (list.length) equipTable(rows, list, { titre, cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
       else pushNote(rows, note || "Aucun équipement de cette catégorie dans l'inventaire actuel.");
       if (note) pushNote(rows, note);
+      return out(sheet, rows, heights, null, [3.43, 40, 36, 22, 26]);
+    };
+  }
+
+  /* — Équipements d'une catégorie + table annexe (VMs, volumes, caméras…) — */
+  function chapterWith(cat, titre, titre2, cols2, key, note) {
+    return (sheet, ws) => {
+      const { rows, heights } = fromLayout(sheet);
+      const list = byCat(ws, [cat]);
+      if (list.length) equipTable(rows, list, { titre, cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
+      const tbl = (ws.lld && ws.lld[key]) || [];
+      if (tbl.length) {
+        rows.push([]); rows.push([]);
+        rows.push(SEC(titre2));
+        rows.push([]);
+        rows.push(H(cols2.map(([lbl]) => lbl)));
+        tbl.forEach((r0, i) => rows.push(D(cols2.map(([, k]) => r0[k] || ''), i % 2)));
+      }
+      if (!list.length && !tbl.length) pushNote(rows, "Aucun équipement de cette catégorie dans l'inventaire actuel.");
+      else if (note) pushNote(rows, note);
       return out(sheet, rows, heights, null, [3.43, 40, 36, 22, 26]);
     };
   }
@@ -6126,18 +6253,17 @@ const LLD_TPL = (() => {
       const r = 16 + i;
       rows[r - 1][1] = { v: t, s: 129 };
     });
-    // 2.2 : tableau des dispositifs (r51-59) : FAI + inventaire par catégorie
-    const { byCat } = invGroups(ws);
-    const cats = [...byCat.entries()];
+    // 2.2 : tableau des dispositifs (r51-59) : FAI + un dispositif par modèle
+    const { byModel } = invGroups(ws);
+    const models = [...byModel.entries()];
     set(rows, 'D51', fai.operator
       ? `${fai.operator}${fai.down ? ' — ' + fai.down : ''}` : '');
-    cats.slice(0, 8).forEach(([cat, g], i) => {
+    models.slice(0, 8).forEach(([model, n], i) => {
       const r = 52 + i;
-      const models = [...g.models.entries()].map(([m, n]) => n > 1 ? `${m} x${n}` : m);
-      set(rows, `B${r}`, cat);
-      set(rows, `D${r}`, `x${g.n} (${models.join(' + ')})`);
+      set(rows, `B${r}`, model);
+      set(rows, `D${r}`, `x${n}`);
     });
-    for (let r = 52 + Math.min(cats.length, 8); r <= 59; r++) { set(rows, `B${r}`, ''); set(rows, `D${r}`, ''); }
+    for (let r = 52 + Math.min(models.length, 8); r <= 59; r++) { set(rows, `B${r}`, ''); set(rows, `D${r}`, ''); }
     return out(sheet, rows, heights);
   }
 
@@ -6178,43 +6304,123 @@ const LLD_TPL = (() => {
       set(rows, `C${r}`, '', 1);
       if (rows[r - 1][3]) set(rows, `D${r}`, '', 1);
     }
+    // Nomenclature : le registre saisi dans l'app est ajouté sous le tableau
+    const nomen = (ws.lld && ws.lld.nomen) || [];
+    if (nomen.length) {
+      const put = (r, col, v, s) => {
+        while (rows.length < r) rows.push([]);
+        rows[r - 1][col] = { v, s };
+      };
+      put(171, 1, "Nomenclature — registre de l'application", 50);
+      put(172, 1, "Type d'objet", 141); put(172, 2, 'Préfixe', 2);
+      put(172, 3, 'Exemple', 2); put(172, 4, 'Règle de nommage', 143);
+      nomen.slice(0, 25).forEach((nm, i) => {
+        const st = i % 2 ? 197 : 8;
+        put(173 + i, 1, nm.type || '', st); put(173 + i, 2, nm.prefix || '', st);
+        put(173 + i, 3, nm.example || '', st); put(173 + i, 4, nm.rule || '', st);
+      });
+    }
     return out(sheet, rows, heights);
   }
 
-  /* — Feuille « 5 » : FAI (infos de l'app) + câblage — */
+  /* — Feuille « 5 » : FAI (infos + réglages avancés) + câblage — */
   function ch5(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
     const L = ws.lld || {};
     const fais = (L.fais && L.fais.length) ? L.fais
       : (L.fai && (L.fai.operator || L.fai.offer || L.fai.down) ? [L.fai] : []);
     const lblFai = f => f.operator ? `${f.operator}${f.offer ? ' — ' + f.offer : ''}` : '';
-    // 5.1 : jusqu'à 4 FAI (lignes 35-38 du template)
+    const COLS5 = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'P', 'Q', 'R', 'T'];
     fais.slice(0, 4).forEach((f, i) => {
-      set(rows, `C${35 + i}`, lblFai(f));
-      set(rows, `D${35 + i}`, f.down || '');
+      const r = 35 + i;
+      set(rows, `C${r}`, lblFai(f));
+      set(rows, `D${r}`, f.down || '');
+      set(rows, `E${r}`, f.lanIp || '');
+      set(rows, `F${r}`, f.lanMask || '');
+      set(rows, `G${r}`, f.lanGw || '');
+      set(rows, `H${r}`, f.lanDns || '');
+      set(rows, `I${r}`, f.ipv6 || '');
+      set(rows, `J${r}`, f.dhcp || '');
+      set(rows, `K${r}`, f.pf || '');
+      set(rows, `P${r}`, f.dmz || '');
+      set(rows, `Q${r}`, f.firewall || '');
+      set(rows, `R${r}`, f.wlan || '');
+      set(rows, `T${r}`, String(f.notes || '').split('\n')[0]);
     });
-    for (let r = 35 + Math.min(fais.length, 4); r <= 38; r++) {
-      set(rows, `C${r}`, ''); set(rows, `D${r}`, '');
+    for (let r = 35 + Math.min(fais.length, 4); r <= 38; r++)
+      COLS5.forEach(c2 => set(rows, `${c2}${r}`, ''));
+    // 5.2 câblage : boîtier (CPE) + liaison physique saisie sur le FAI
+    fais.slice(0, 4).forEach((f, i) => {
+      set(rows, `C${46 + i * 2}`, f.cpe ? f.cpe : lblFai(f));
+      set(rows, `D${46 + i * 2}`, f.wanLabel || '');
+      set(rows, `D${47 + i * 2}`, '');
+    });
+    for (let i = Math.min(fais.length, 4); i < 4; i++) {
+      set(rows, `C${46 + i * 2}`, '');
+      set(rows, `D${46 + i * 2}`, '');
+      set(rows, `D${47 + i * 2}`, '');
     }
-    set(rows, 'T35', String((fais[0] || {}).notes || '').split('\n')[0]);
-    // 5.2 câblage : boîtiers = opérateurs ; ports WAN vidés (saisie à venir)
-    ['C46', 'C48', 'C50', 'C52'].forEach((ref, i) => set(rows, ref, lblFai(fais[i] || {})));
-    for (const ref of ['D46', 'D47', 'D48', 'D49', 'D50', 'D51', 'D52', 'D53']) set(rows, ref, '');
     return out(sheet, rows, heights);
   }
 
-  /* — Feuille « 6 » : interconnexion site à site — */
+  /* — Feuille « 6 » : interconnexion site à site (complète) — */
   function ch6(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
-    const ic = (ws.lld && ws.lld.interco) || {};
-    const fai = (ws.lld && ws.lld.fai) || {};
-    if (ic.epA) { set(rows, 'B30', ic.epA); set(rows, 'C62', ic.epA); }
-    if (ic.epB) { set(rows, 'B31', ic.epB); set(rows, 'C67', ic.epB); }
-    set(rows, 'B45', fai.operator ? `WAN 1 — ${fai.operator}` : 'WAN 1');
-    set(rows, 'B46', 'WAN 2');
-    set(rows, 'B47', 'WAN 3');
+    const L = ws.lld || {};
+    const ic = L.interco || {};
+    const fais = (L.fais && L.fais.length) ? L.fais
+      : (L.fai && (L.fai.operator || L.fai.down) ? [L.fai] : []);
+    const short = s => String(s || '').split(' — ')[0];
+    // 6.1 — extrémités (r30/31) : identité, SN, firmware, HA (J→O), VIP partagée (N30)
+    const endpoints = [
+      ['30', 'B', ic.epA, ic.snA, ic.fwA, ic.haA, ic.roleA, ic.mgmtA, 'C62'],
+      ['31', 'B', ic.epB, ic.snB, ic.fwB, ic.haB, ic.roleB, ic.mgmtB, 'C67']
+    ];
+    endpoints.forEach(([r, col, ep, sn, fw, ha, role, mgmt, cabRef]) => {
+      if (ep) {
+        set(rows, `${col}${r}`, ep);
+        if (cabRef) set(rows, cabRef, short(ep));
+      }
+      set(rows, `D${r}`, sn || '');
+      set(rows, `E${r}`, fw || '');
+      set(rows, `J${r}`, ha ? 'Oui' : '');
+      set(rows, `K${r}`, ha || '');
+      set(rows, `L${r}`, role || '');
+      set(rows, `M${r}`, /master/i.test(role || '') ? 'Oui' : '');
+      set(rows, `O${r}`, mgmt || '');
+    });
+    if (ic.vipA) set(rows, 'N30', ic.vipA);
+    if (ic.vipB) set(rows, 'N31', ic.vipB);
+    // WAN Connection Settings (r45-47) : alimenté par les FAI
+    fais.slice(0, 3).forEach((f, i) => {
+      const r = 45 + i;
+      set(rows, `B${r}`, f.operator ? `WAN ${i + 1} — ${f.operator}` : `WAN ${i + 1}`);
+      set(rows, `C${r}`, 'Oui');
+      set(rows, `D${r}`, f.ipMode || '');
+      set(rows, `E${r}`, 'NAT');
+      set(rows, `F${r}`, f.wanIp || '');
+      set(rows, `K${r}`, f.up || '');
+      set(rows, `L${r}`, f.down || '');
+      set(rows, `M${r}`, f.down || '');
+    });
+    for (let r = 45 + Math.min(fais.length, 3); r <= 47; r++)
+      ['B', 'C', 'D', 'E', 'F', 'K', 'L', 'M'].forEach(c2 => set(rows, `${c2}${r}`, ''));
+    // LAN (r52-53)
+    if (ic.routing) set(rows, 'C52', ic.routing);
+    const nv = (L.vlans || []).length;
+    set(rows, 'D52', nv ? `x${nv} VLANs routés` : '');
     if (ic.localSubnets) set(rows, 'B53', `LAN — ${ic.localSubnets}`);
-    for (const ref of ['E62', 'E63', 'E64', 'E67', 'E68', 'E69']) set(rows, ref, '');
+    // 6.2 câblage : liaisons WAN (E62-64 / E67-69) + LAN 1 (E66 / E71)
+    fais.slice(0, 3).forEach((f, i) => {
+      set(rows, `E${62 + i}`, f.wanLabel || '');
+      set(rows, `E${67 + i}`, f.wanLabel || '');
+    });
+    for (let i = Math.min(fais.length, 3); i < 3; i++) {
+      set(rows, `E${62 + i}`, '');
+      set(rows, `E${67 + i}`, '');
+    }
+    set(rows, 'E66', ic.lanA || '');
+    set(rows, 'E71', ic.lanB || '');
     return out(sheet, rows, heights);
   }
 
@@ -6223,12 +6429,16 @@ const LLD_TPL = (() => {
                   '7': ch7,
                   '8': switchZone, '8.1': switchZone, '8.2': switchZone,
                   '8.3': switchZone, '8.4': switchZone, '8.5': switchZone,
-                  '9':  chapterEquip(['server'], '9.1. Serveurs',
-                        "À compléter : machines virtuelles et rôles (non saisis dans l'application)."),
-                  '10': chapterEquip(['storage'], '10.1. Stockage',
-                        "À compléter : volumes/LUN et sauvegardes (non saisis dans l'application)."),
+                  '9':  chapterWith('server', '9.1. Serveurs', '9.2. Machines virtuelles',
+                        [['VM', 'name'], ['Rôle', 'role'], ['Hôte', 'host'], ['IP / VLAN', 'ip']], 'vms',
+                        "À compléter : rôles et affectation des machines virtuelles."),
+                  '10': chapterWith('storage', '10.1. Stockage', '10.2. Volumes / LUN',
+                        [['Volume', 'name'], ['Capacité', 'size'], ['Type', 'type'], ['Serveur', 'srv']], 'vols',
+                        "À compléter : volumes/LUN et plan de sauvegarde."),
                   '11': chapterEquip(['ids'], "11.1. Détection d'intrusion"),
-                  '12': chapterEquip(['cctv'], '12.1. Caméras et enregistreur (NVR)'),
+                  '12': chapterWith('cctv', '12.1. Caméras et enregistreur (NVR)', '12.2. Caméras',
+                        [['Caméra', 'name'], ['Emplacement', 'loc'], ['Modèle', 'model'], ['IP', 'ip']], 'cams',
+                        "À compléter : emplacements et plans d'implantation des caméras."),
                   '13': chapterEquip(['pointage'], '13.1. Pointeuses'),
                   '14': ch14, '15': ch15, '15.1': ch151 };
 

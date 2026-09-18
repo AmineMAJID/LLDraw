@@ -3636,7 +3636,21 @@
      "remoteSubnets": "10.11.0.0/16 (agence)",
      "routing": "SpeedFusion — routage statique + priorité de flux",
      "encryption": "AES-256 — chiffrement de bout en bout",
-     "notes": "Tunnel SD-WAN entre les deux Peplink Balance 20X, établi sur les deux accès FTTO. En cas de coupure d’un accès, le tunnel bascule automatiquement sur la 4G (SIM intégrée). Le trafic de réplication NAS est prioritaire, les flux d’administration sont limités à 10 Mbps."
+     "notes": "Tunnel SD-WAN entre les deux Peplink Balance 20X, établi sur les deux accès FTTO. En cas de coupure d’un accès, le tunnel bascule automatiquement sur la 4G (SIM intégrée). Le trafic de réplication NAS est prioritaire, les flux d’administration sont limités à 10 Mbps.",
+     "snA": "PL5815421",
+     "fwA": "8.3.2",
+     "haA": "Group 1",
+     "roleA": "Master",
+     "vipA": "41.92.10.1",
+     "mgmtA": "10.10.99.12",
+     "lanA": "Switch HA — SW-01 port 25",
+     "snB": "PL5815422",
+     "fwB": "8.3.2",
+     "haB": "Group 1",
+     "roleB": "Slave",
+     "vipB": "105.157.20.1",
+     "mgmtB": "10.11.99.12",
+     "lanB": "Switch HA — SW-02 port 25"
     },
     "catNotes": {
      "firewall": "Deux Firebox M390 en architecture déportée (une par site). Politique par défaut : tout le trafic sortant autorisé en NAT, entrant bloqué sauf publication HTTPS (443) vers le reverse-proxy du VLAN 20. HA non activé sur la démo — remplacement à froid sous 4 h (matériel de rechange au siège). Administration via Fireware Web UI sur le VLAN 99.",
@@ -3654,7 +3668,8 @@
      },
      {
       "id": "zone-lan-b",
-      "name": "LAN Site B"
+      "name": "LAN Site B",
+      "vlans": "10,20,40"
      },
      {
       "id": "zone-ap-a",
@@ -3666,7 +3681,8 @@
      },
      {
       "id": "zone-lan-a",
-      "name": "LAN Site A"
+      "name": "LAN Site A",
+      "vlans": "10,20,21,30,40,50,60,99"
      }
     ],
     "fais": [
@@ -3679,7 +3695,19 @@
       "publicBlock": "41.92.10.0/29 (siège) · 105.157.20.0/29 (agence)",
       "cpe": "Huawei EG8148 (siège) · Zyxel (agence) — mode bridge",
       "cpeIp": "41.92.10.1 / 105.157.20.1",
-      "notes": "Site A : FTTO Maroc Telecom 100/100 Mbps, CPE en mode bridge sur RTR-01 WAN1.\nSite B : FTTO Inwi 100/50 Mbps, bloc 105.157.20.0/29, CPE 105.157.20.1 (bridge) sur RTR-02 WAN1.\nAccès 4G de secours via carte SIM intégrée aux Peplink Balance 20X (WAN2)."
+      "notes": "Site A : FTTO Maroc Telecom 100/100 Mbps, CPE en mode bridge sur RTR-01 WAN1.\nSite B : FTTO Inwi 100/50 Mbps, bloc 105.157.20.0/29, CPE 105.157.20.1 (bridge) sur RTR-02 WAN1.\nAccès 4G de secours via carte SIM intégrée aux Peplink Balance 20X (WAN2).",
+      "ipMode": "Static IP",
+      "wanIp": "41.92.10.2",
+      "wanLabel": "Port eth1 (ONT M. Télécom) → WAN 1 RTR-01",
+      "lanIp": "10.10.40.1",
+      "lanMask": "255.255.255.0",
+      "lanGw": "10.10.40.254",
+      "lanDns": "10.10.99.53",
+      "dhcp": "Oui",
+      "pf": "TCP 443 → 10.10.20.11 (reverse-proxy)",
+      "dmz": "10.10.20.11",
+      "firewall": "Entrée : 443 uniquement",
+      "wlan": "corp-secure (802.1X)"
      },
      {
       "operator": "Inwi",
@@ -3690,7 +3718,88 @@
       "publicBlock": "105.157.20.0/29",
       "cpe": "Zyxel PMG3010 (agence) — mode bridge",
       "cpeIp": "105.157.20.1",
-      "notes": "Site B (agence de Rabat) : secours inter-sites, routé vers RTR-02."
+      "notes": "Site B (agence de Rabat) : secours inter-sites, routé vers RTR-02.",
+      "ipMode": "Static IP",
+      "wanIp": "105.157.20.2",
+      "wanLabel": "Port eth1 (ONT Inwi) → WAN 1 RTR-02",
+      "lanIp": "10.11.40.1",
+      "lanMask": "255.255.255.0",
+      "dhcp": "Oui",
+      "firewall": "Entrée : VPN uniquement"
+     }
+    ],
+    "fw": [
+     {
+      "type": "NAT",
+      "name": "NAT 1-to-1 DMZ",
+      "src": "41.92.10.3 (public)",
+      "dst": "10.10.20.11",
+      "service": "TCP 443, 80",
+      "action": "Autoriser"
+     },
+     {
+      "type": "Règle",
+      "name": "DMZ → LAN restreint",
+      "src": "VLAN 20 (DMZ)",
+      "dst": "10.10.10.21-23 (NX)",
+      "service": "TCP 443",
+      "action": "Autoriser"
+     },
+     {
+      "type": "Règle",
+      "name": "LAN → Internet",
+      "src": "VLANs 40,50,60",
+      "dst": "ANY",
+      "service": "HTTP/S, DNS",
+      "action": "Autoriser"
+     },
+     {
+      "type": "Règle",
+      "name": "Invités isolés",
+      "src": "VLAN 60 (invités)",
+      "dst": "LAN interne",
+      "service": "Tous",
+      "action": "Bloquer"
+     }
+    ],
+    "vms": [
+     {
+      "name": "SRV-DC1",
+      "role": "Active Directory / DNS / DHCP",
+      "host": "NX-01",
+      "ip": "10.10.10.11 — VLAN 10"
+     },
+     {
+      "name": "SRV-DC2",
+      "role": "Active Directory (secondaire)",
+      "host": "NX-02",
+      "ip": "10.10.10.12 — VLAN 10"
+     },
+     {
+      "name": "SRV-VEEAM",
+      "role": "Sauvegarde Veeam BR",
+      "host": "NX-03",
+      "ip": "10.10.21.10 — VLAN 21"
+     },
+     {
+      "name": "SRV-WEB",
+      "role": "Reverse-proxy DMZ (nginx)",
+      "host": "NX-01",
+      "ip": "10.10.20.11 — VLAN 20"
+     }
+    ],
+    "vols": [
+     {
+      "name": "VOL-PROD-01",
+      "size": "4 To (SSD)",
+      "type": "iSCSI — VMs",
+      "srv": "NX-01..03 (cluster)"
+     },
+     {
+      "name": "VOL-BAK-01",
+      "size": "8 To (SAS)",
+      "type": "NFS — sauvegardes",
+      "srv": "SRV-VEEAM / NAS-01"
      }
     ]
    },
