@@ -6294,10 +6294,63 @@ const LLD_TPL = (() => {
     return out(sheet, rows, heights);
   }
 
-  /* — Feuille « 4 » : nomenclature (template) + adressage VLAN (app) — */
+  /* — Feuille « 4 » : matrice d'adressage globale + registre VLAN + nomenclature — */
   function ch4(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
-    const vlans = (ws.lld && ws.lld.vlans) || [];
+    const L = ws.lld || {};
+    /* — Matrice du haut : remplie depuis l'app (identités + IP) — */
+    const ipFrom = s => { const m = /((?:\d{1,3}\.){3}\d{1,3}(?:\/\d+)?)/.exec(String(s || '')); return m ? m[1] : ''; };
+    const shortName = s => String(s || '').split(/[ (—]/)[0].trim();
+    const fais = (L.fais && L.fais.length) ? L.fais : (L.fai && L.fai.operator ? [L.fai] : []);
+    // FAI (FTTH 1-3) et WAN 1-3 : IP WAN
+    fais.slice(0, 3).forEach((f, i) => {
+      set(rows, `D${6 + i}`, f.wanIp || '');
+      set(rows, `D${12 + i}`, f.wanIp || '');
+    });
+    // Interconnexion S2S : extrémités, VIP
+    const ic = L.interco || {};
+    if (ic.epA) { set(rows, 'C9', shortName(ic.epA)); set(rows, 'D9', ipFrom(ic.epA)); }
+    if (ic.epB) { set(rows, 'C10', shortName(ic.epB)); set(rows, 'D10', ipFrom(ic.epB)); }
+    if (ic.vipA) set(rows, 'D11', ic.vipA);
+    // Firewall : équipements + première règle NAT
+    const fws = byCat(ws, ['firewall']);
+    fws.slice(0, 2).forEach((x, i) => {
+      set(rows, `C${19 + i}`, x.inst.name || '');
+      set(rows, `D${19 + i}`, x.inst.ipMgmt || '');
+    });
+    const nat = (L.fw || []).find(r0 => /nat/i.test(r0.type || ''));
+    if (nat) { set(rows, 'C21', nat.name || ''); set(rows, 'D21', nat.dst || ''); }
+    // Switch 1-6 : IP de mgmt
+    const sws = byCat(ws, ['switch']);
+    sws.slice(0, 6).forEach((x, i) => set(rows, `D${70 + i}`, x.inst.ipMgmt || ''));
+    // Serveur physique 1 / SAN
+    const srvs = byCat(ws, ['server']);
+    if (srvs[0]) { set(rows, 'C100', srvs[0].inst.name || ''); set(rows, 'D100', srvs[0].inst.ipMgmt || ''); }
+    const stos = byCat(ws, ['storage']);
+    if (stos[0]) { set(rows, 'C108', stos[0].inst.name || ''); set(rows, 'D108', stos[0].inst.ipMgmt || ''); }
+    // VM NX (BI/BC/AD/Web ×2) : appariement par mots-clés sur nom + rôle
+    const vms = L.vms || [];
+    const pick = (re, idx) => vms.filter(v => re.test(`${v.name} ${v.role}`))[idx];
+    [['113', /\bBI\b|BI[-_ ]/i, 0], ['114', /\bBC\b|BC[-_ ]|VEEAM|backup|sauvegarde/i, 0],
+     ['115', /\bAD\b|AD[-_ ]|DC[-_ ]|Active.?Directory/i, 0], ['116', /WEB|proxy/i, 0],
+     ['117', /\bBI\b|BI[-_ ]/i, 1], ['118', /\bBC\b|BC[-_ ]|VEEAM|backup|sauvegarde/i, 1],
+     ['119', /\bAD\b|AD[-_ ]|DC[-_ ]|Active.?Directory/i, 1], ['120', /WEB|proxy/i, 1]]
+      .forEach(([r, re, idx]) => {
+        const v = pick(re, idx);
+        if (v) { set(rows, `C${r}`, v.name || ''); set(rows, `D${r}`, v.ip || ''); }
+      });
+    // Points d'accès, onduleurs, IDS, NVR, pointeuses
+    const fillRows = (list, r0, n) => list.slice(0, n).forEach((x, i) => {
+      set(rows, `C${r0 + i}`, x.inst.name || '');
+      set(rows, `D${r0 + i}`, x.inst.ipMgmt || '');
+    });
+    fillRows(byCat(ws, ['ap']), 121, 6);
+    fillRows(byCat(ws, ['ups']), 131, 2);
+    fillRows(byCat(ws, ['ids']), 133, 2);
+    fillRows(byCat(ws, ['cctv']), 135, 1);
+    fillRows(byCat(ws, ['pointage']), 136, 1);
+
+    const vlans = L.vlans || [];
     vlans.slice(0, 27).forEach((v, i) => {
       const r = 143 + i;
       set(rows, `B${r}`, v.vid ? `VLAN ${v.vid} — ${v.name || ''}` : (v.name || ''), 6);
@@ -6311,7 +6364,7 @@ const LLD_TPL = (() => {
       if (rows[r - 1][3]) set(rows, `D${r}`, '', 1);
     }
     // Nomenclature : le registre saisi dans l'app est ajouté sous le tableau
-    const nomen = (ws.lld && ws.lld.nomen) || [];
+    const nomen = L.nomen || [];
     if (nomen.length) {
       const put = (r, col, v, s) => {
         while (rows.length < r) rows.push([]);
