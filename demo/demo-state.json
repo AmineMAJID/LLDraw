@@ -574,7 +574,7 @@
      "name": "RACK-A — Siège Casablanca",
      "x": 150,
      "y": 120,
-     "sizeU": 18,
+     "sizeU": 24,
      "siteId": "site-a",
      "maxWatts": 5000,
      "maxKg": 300,
@@ -1925,7 +1925,7 @@
        "zone": "zone-lan-a",
        "photo": "",
        "brand": "HPE Aruba",
-       "model": "Aruba 6100 24G PoE (JL677A)",
+       "model": "6100 24G PoE (JL677A)",
        "partRef": "JL677A",
        "serial": "CN4XF7Q1",
        "ipMgmt": "10.10.99.21",
@@ -2027,7 +2027,7 @@
        "zone": "zone-infra",
        "photo": "",
        "brand": "HPE Aruba",
-       "model": "Aruba 6000 12G (R8N89A)",
+       "model": "6000 12G (R8N89A)",
        "partRef": "R8N89A",
        "serial": "CN4XF7Q0",
        "ipMgmt": "10.10.99.20",
@@ -2096,6 +2096,218 @@
          "size": 0.7,
          "ip": "",
          "vlan": "VLAN 121"
+        }
+       ]
+      },
+      {
+       "id": "inst-ids-01",
+       "deviceId": "dev-ids-01",
+       "name": "IDS-01",
+       "slot": 18,
+       "sizeU": 1,
+       "cat": "ids",
+       "zone": "",
+       "photo": "",
+       "brand": "WatchGuard",
+       "model": "Dimension + TDR",
+       "partRef": "",
+       "serial": "WG-DIM-8841",
+       "ipMgmt": "10.10.99.51",
+       "vlan": "",
+       "watts": 60,
+       "weightKg": 3,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-ids-01-1",
+         "name": "1",
+         "label": "VLAN 99",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 99"
+        },
+        {
+         "id": "p-ids-01-2",
+         "name": "2",
+         "label": "VLAN 91",
+         "xPct": 86.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 91"
+        }
+       ]
+      },
+      {
+       "id": "inst-ups-01",
+       "deviceId": "dev-ups-01",
+       "name": "UPS-01",
+       "slot": 19,
+       "sizeU": 1,
+       "cat": "ups",
+       "zone": "",
+       "photo": "",
+       "brand": "APC",
+       "model": "Smart-UPS SRT 3000VA (SRT3000XLI)",
+       "partRef": "",
+       "serial": "APC-SRT-9931",
+       "ipMgmt": "10.10.99.81",
+       "vlan": "",
+       "watts": 0,
+       "weightKg": 28,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-ups-01-1",
+         "name": "1",
+         "label": "VLAN 31",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 31"
+        }
+       ]
+      },
+      {
+       "id": "inst-nvr-01",
+       "deviceId": "dev-nvr-01",
+       "name": "NVR-01",
+       "slot": 20,
+       "sizeU": 1,
+       "cat": "cctv",
+       "zone": "",
+       "photo": "",
+       "brand": "Hikvision",
+       "model": "DS-7732NI-K4 (32 canaux)",
+       "partRef": "",
+       "serial": "DS7732-2219",
+       "ipMgmt": "10.10.99.61",
+       "vlan": "",
+       "watts": 40,
+       "weightKg": 3,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-nvr-01-1",
+         "name": "1",
+         "label": "VLAN 91",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 91"
+        },
+        {
+         "id": "p-nvr-01-2",
+         "name": "2",
+         "label": "VLAN 91",
+         "xPct": 86.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 91"
+        }
+       ]
+      },
+      {
+       "id": "inst-spo-01",
+       "deviceId": "dev-spo-01",
+       "name": "SPO-01",
+       "slot": 21,
+       "sizeU": 1,
+       "cat": "pointage",
+       "zone": "",
+       "photo": "",
+       "brand": "ZKTeco",
+       "model": "SpeedFace-V5L",
+       "partRef": "",
+       "serial": "ZK-V5L-3301",
+       "ipMgmt": "10.10.99.71",
+       "vlan": "",
+       "watts": 15,
+       "weightKg": 3,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-spo-01-1",
+         "name": "1",
+         "label": "VLAN 101",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 101"
+        }
+       ]
+      },
+      {
+       "id": "inst-prt-01",
+       "deviceId": "dev-prt-01",
+       "name": "PRT-01",
+       "slot": 22,
+       "sizeU": 1,
+       "cat": "other",
+       "zone": "",
+       "photo": "",
+       "brand": "HP",
+       "model": "LaserJet Enterprise M527",
+       "partRef": "",
+       "serial": "",
+       "ipMgmt": "10.10.70.11",
+       "vlan": "VLAN 70",
+       "watts": 20,
+       "weightKg": 2,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-prt-01-1",
+         "name": "1",
+         "label": "VLAN 70",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 70"
+        }
+       ]
+      },
+      {
+       "id": "inst-prt-02",
+       "deviceId": "dev-prt-02",
+       "name": "PRT-02",
+       "slot": 23,
+       "sizeU": 1,
+       "cat": "other",
+       "zone": "",
+       "photo": "",
+       "brand": "HP",
+       "model": "LaserJet M428",
+       "partRef": "",
+       "serial": "HP-M428-2210",
+       "ipMgmt": "10.10.70.12",
+       "vlan": "VLAN 70",
+       "watts": 15,
+       "weightKg": 10,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-prt-02-1",
+         "name": "1",
+         "label": "VLAN 70",
+         "xPct": 50,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 70"
         }
        ]
       }
@@ -2966,7 +3178,7 @@
        "zone": "zone-lan-b",
        "photo": "",
        "brand": "HPE Aruba",
-       "model": "Aruba 6100 12G (JL678A)",
+       "model": "6100 12G (JL678A)",
        "partRef": "JL678A",
        "serial": "CN4XF8A2",
        "ipMgmt": "10.11.99.21",
@@ -3039,18 +3251,17 @@
        ]
       },
       {
-       "id": "inst-ids-01",
-       "deviceId": "dev-ids-01",
-       "name": "IDS-01",
+       "id": "inst-ids-02",
+       "name": "IDS-02",
        "slot": 10,
        "sizeU": 1,
        "cat": "ids",
        "zone": "",
        "photo": "",
        "brand": "WatchGuard",
-       "model": "WatchGuard Dimension + TDR",
+       "model": "Dimension + TDR",
        "partRef": "",
-       "serial": "WG-DIM-8841",
+       "serial": "WG-DIM-8842",
        "ipMgmt": "10.11.99.51",
        "vlan": "",
        "watts": 60,
@@ -3059,7 +3270,7 @@
        "warrantyEnd": "2028-01-15",
        "ports": [
         {
-         "id": "p-ids-01-1",
+         "id": "p-ids-02-1",
          "name": "1",
          "label": "VLAN 99",
          "xPct": 14.0,
@@ -3069,10 +3280,10 @@
          "vlan": "VLAN 99"
         },
         {
-         "id": "p-ids-01-2",
+         "id": "p-ids-02-2",
          "name": "2",
          "label": "VLAN 91",
-         "xPct": 86.0,
+         "xPct": 86,
          "yPct": 62,
          "size": 0.7,
          "ip": "",
@@ -3081,133 +3292,26 @@
        ]
       },
       {
-       "id": "inst-nvr-01",
-       "deviceId": "dev-nvr-01",
-       "name": "NVR-01",
+       "id": "inst-prt-03",
+       "name": "PRT-03",
        "slot": 11,
-       "sizeU": 1,
-       "cat": "cctv",
-       "zone": "",
-       "photo": "",
-       "brand": "Hikvision",
-       "model": "DS-7732NI-K4 (32 canaux)",
-       "partRef": "",
-       "serial": "DS7732-2219",
-       "ipMgmt": "10.11.99.61",
-       "vlan": "",
-       "watts": 40,
-       "weightKg": 3,
-       "warranty": "CT-2026-88",
-       "warrantyEnd": "2028-01-15",
-       "ports": [
-        {
-         "id": "p-nvr-01-1",
-         "name": "1",
-         "label": "VLAN 91",
-         "xPct": 14.0,
-         "yPct": 62,
-         "size": 0.7,
-         "ip": "",
-         "vlan": "VLAN 91"
-        },
-        {
-         "id": "p-nvr-01-2",
-         "name": "2",
-         "label": "VLAN 91",
-         "xPct": 86.0,
-         "yPct": 62,
-         "size": 0.7,
-         "ip": "",
-         "vlan": "VLAN 91"
-        }
-       ]
-      },
-      {
-       "id": "inst-spo-01",
-       "deviceId": "dev-spo-01",
-       "name": "SPO-01",
-       "slot": 12,
-       "sizeU": 1,
-       "cat": "pointage",
-       "zone": "",
-       "photo": "",
-       "brand": "ZKTeco",
-       "model": "SpeedFace-V5L",
-       "partRef": "",
-       "serial": "ZK-V5L-3301",
-       "ipMgmt": "10.11.99.71",
-       "vlan": "",
-       "watts": 15,
-       "weightKg": 3,
-       "warranty": "CT-2026-88",
-       "warrantyEnd": "2028-01-15",
-       "ports": [
-        {
-         "id": "p-spo-01-1",
-         "name": "1",
-         "label": "VLAN 101",
-         "xPct": 14.0,
-         "yPct": 62,
-         "size": 0.7,
-         "ip": "",
-         "vlan": "VLAN 101"
-        }
-       ]
-      },
-      {
-       "id": "inst-ups-01",
-       "deviceId": "dev-ups-01",
-       "name": "UPS-01",
-       "slot": 13,
-       "sizeU": 1,
-       "cat": "ups",
-       "zone": "",
-       "photo": "",
-       "brand": "APC",
-       "model": "Smart-UPS SRT 3000VA (SRT3000XLI)",
-       "partRef": "",
-       "serial": "APC-SRT-9931",
-       "ipMgmt": "10.11.99.81",
-       "vlan": "",
-       "watts": 0,
-       "weightKg": 28,
-       "warranty": "CT-2026-88",
-       "warrantyEnd": "2028-01-15",
-       "ports": [
-        {
-         "id": "p-ups-01-1",
-         "name": "1",
-         "label": "VLAN 31",
-         "xPct": 14.0,
-         "yPct": 62,
-         "size": 0.7,
-         "ip": "",
-         "vlan": "VLAN 31"
-        }
-       ]
-      },
-      {
-       "id": "inst-prt-01",
-       "deviceId": "dev-prt-01",
-       "name": "PRT-01",
-       "slot": 15,
        "sizeU": 1,
        "cat": "other",
        "zone": "",
        "photo": "",
        "brand": "HP",
-       "model": "LaserJet Enterprise M527 (accès RDC)",
+       "model": "LaserJet M428",
        "partRef": "",
-       "serial": "",
+       "serial": "HP-M428-0203",
        "ipMgmt": "10.11.70.11",
-       "vlan": "VLAN 70",
-       "watts": 20,
-       "weightKg": 2,
-       "warranty": "CT-2026-88",
-       "warrantyEnd": "2028-01-15",
+       "vlan": "",
+       "watts": 80,
+       "weightKg": 12,
+       "warranty": "CT-2026-91",
+       "warrantyEnd": "2027-09-30",
        "ports": [
         {
-         "id": "p-prt-01-1",
+         "id": "p-prt-03-1",
          "name": "1",
          "label": "VLAN 70",
          "xPct": 14.0,
@@ -3219,10 +3323,72 @@
        ]
       },
       {
+       "id": "inst-prt-04",
+       "name": "PRT-04",
+       "slot": 12,
+       "sizeU": 1,
+       "cat": "other",
+       "zone": "",
+       "photo": "",
+       "brand": "HP",
+       "model": "LaserJet Enterprise M527",
+       "partRef": "",
+       "serial": "HP-M527-0204",
+       "ipMgmt": "10.11.70.12",
+       "vlan": "",
+       "watts": 120,
+       "weightKg": 21,
+       "warranty": "CT-2026-91",
+       "warrantyEnd": "2027-09-30",
+       "ports": [
+        {
+         "id": "p-prt-04-1",
+         "name": "1",
+         "label": "VLAN 70",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 70"
+        }
+       ]
+      },
+      {
+       "id": "inst-ups-02",
+       "name": "UPS-02",
+       "slot": 13,
+       "sizeU": 1,
+       "cat": "ups",
+       "zone": "",
+       "photo": "",
+       "brand": "APC",
+       "model": "Smart-UPS SRT 3000VA (SRT3000XLI)",
+       "partRef": "",
+       "serial": "APC-SRT-9932",
+       "ipMgmt": "10.11.99.81",
+       "vlan": "",
+       "watts": 0,
+       "weightKg": 28,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-ups-02-1",
+         "name": "1",
+         "label": "VLAN 31",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 31"
+        }
+       ]
+      },
+      {
        "id": "inst-clim-01",
        "deviceId": "dev-clim-01",
        "name": "CLIM-01",
-       "slot": 16,
+       "slot": 14,
        "sizeU": 1,
        "cat": "other",
        "zone": "",
@@ -3231,7 +3397,7 @@
        "model": "FTX-KV — split précision 1er étage",
        "partRef": "",
        "serial": "DK-FTX-7712",
-       "ipMgmt": "",
+       "ipMgmt": "10.11.99.72",
        "vlan": "",
        "watts": 20,
        "weightKg": 2,
@@ -3247,38 +3413,6 @@
          "size": 0.7,
          "ip": "",
          "vlan": ""
-        }
-       ]
-      },
-      {
-       "id": "inst-prt-02",
-       "deviceId": "dev-prt-02",
-       "name": "PRT-02",
-       "slot": 17,
-       "sizeU": 1,
-       "cat": "other",
-       "zone": "",
-       "photo": "",
-       "brand": "HP",
-       "model": "LaserJet M428 (agence)",
-       "partRef": "",
-       "serial": "HP-M428-2210",
-       "ipMgmt": "10.11.70.12",
-       "vlan": "VLAN 70",
-       "watts": 15,
-       "weightKg": 10,
-       "warranty": "CT-2026-88",
-       "warrantyEnd": "2028-01-15",
-       "ports": [
-        {
-         "id": "p-prt-02-1",
-         "name": "1",
-         "label": "VLAN 70",
-         "xPct": 50,
-         "yPct": 62,
-         "size": 0.7,
-         "ip": "",
-         "vlan": "VLAN 70"
         }
        ]
       }
@@ -3390,7 +3524,7 @@
      "a": {
       "rackId": "rack-a",
       "instId": "inst-dell-01",
-      "portId": "p-inst-dell-01-iDRAC"
+      "portId": "p-srv-idrac"
      },
      "b": {
       "rackId": "rack-a",
@@ -3400,13 +3534,13 @@
     },
     {
      "id": "cab-008",
-     "name": "CAB-008 · NAS-01 LAN1 → BR-A-01/7",
+     "name": "CAB-008 · NAS-01 MGMT → BR-A-01/7",
      "color": "#a78bfa",
      "domain": "mgmt",
      "a": {
       "rackId": "rack-a",
       "instId": "inst-nas-01",
-      "portId": "p-inst-nas-01-LAN1"
+      "portId": "p-nas-mgmt"
      },
      "b": {
       "rackId": "rack-a",
@@ -3544,13 +3678,13 @@
     },
     {
      "id": "cab-017",
-     "name": "CAB-017 · SRV-DELL-01 ETH0 → BR-A-02/8",
+     "name": "CAB-017 · SRV-DELL-01 LAN1 → BR-A-02/8",
      "color": "#60a5fa",
      "domain": "lan",
      "a": {
       "rackId": "rack-a",
       "instId": "inst-dell-01",
-      "portId": "p-inst-dell-01-eth0"
+      "portId": "p-srv-lan1"
      },
      "b": {
       "rackId": "rack-a",
@@ -3560,13 +3694,13 @@
     },
     {
      "id": "cab-018",
-     "name": "CAB-018 · SRV-DELL-01 ETH1 → BR-A-02/9",
+     "name": "CAB-018 · SRV-DELL-01 LAN2 → BR-A-02/9",
      "color": "#60a5fa",
      "domain": "lan",
      "a": {
       "rackId": "rack-a",
       "instId": "inst-dell-01",
-      "portId": "p-inst-dell-01-eth1"
+      "portId": "p-srv-lan2"
      },
      "b": {
       "rackId": "rack-a",
@@ -3576,13 +3710,13 @@
     },
     {
      "id": "cab-019",
-     "name": "CAB-019 · NAS-01 LAN2 → BR-A-02/10",
+     "name": "CAB-019 · NAS-01 ISCSI1 → BR-A-02/10",
      "color": "#f472b6",
      "domain": "san",
      "a": {
       "rackId": "rack-a",
       "instId": "inst-nas-01",
-      "portId": "p-inst-nas-01-LAN2"
+      "portId": "p-nas-iscsi1"
      },
      "b": {
       "rackId": "rack-a",
@@ -3701,6 +3835,186 @@
       "instId": "inst-pp-b2",
       "portId": "p-inst-pp-b2-2"
      }
+    },
+    {
+     "name": "CAB-020 · IDS-01 → BR-A-01/9",
+     "domain": "mgmt",
+     "color": "#a78bfa",
+     "a": {
+      "rackId": "rack-a",
+      "instId": "inst-ids-01",
+      "portId": "p-ids-01-1"
+     },
+     "b": {
+      "rackId": "rack-a",
+      "instId": "inst-pp-a1",
+      "portId": "p-inst-pp-a1-9"
+     }
+    },
+    {
+     "name": "CAB-021 · IDS-01 → BR-A-02/11",
+     "domain": "ids",
+     "color": "#f97316",
+     "a": {
+      "rackId": "rack-a",
+      "instId": "inst-ids-01",
+      "portId": "p-ids-01-2"
+     },
+     "b": {
+      "rackId": "rack-a",
+      "instId": "inst-pp-a2",
+      "portId": "p-inst-pp-a2-11"
+     }
+    },
+    {
+     "name": "CAB-022 · UPS-01 → BR-A-01/10",
+     "domain": "mgmt",
+     "color": "#a78bfa",
+     "a": {
+      "rackId": "rack-a",
+      "instId": "inst-ups-01",
+      "portId": "p-ups-01-1"
+     },
+     "b": {
+      "rackId": "rack-a",
+      "instId": "inst-pp-a1",
+      "portId": "p-inst-pp-a1-10"
+     }
+    },
+    {
+     "name": "CAB-023 · NVR-01 → BR-A-01/11",
+     "domain": "mgmt",
+     "color": "#a78bfa",
+     "a": {
+      "rackId": "rack-a",
+      "instId": "inst-nvr-01",
+      "portId": "p-nvr-01-1"
+     },
+     "b": {
+      "rackId": "rack-a",
+      "instId": "inst-pp-a1",
+      "portId": "p-inst-pp-a1-11"
+     }
+    },
+    {
+     "name": "CAB-024 · NVR-01 → BR-A-02/12",
+     "domain": "cctv",
+     "color": "#22d3ee",
+     "a": {
+      "rackId": "rack-a",
+      "instId": "inst-nvr-01",
+      "portId": "p-nvr-01-2"
+     },
+     "b": {
+      "rackId": "rack-a",
+      "instId": "inst-pp-a2",
+      "portId": "p-inst-pp-a2-12"
+     }
+    },
+    {
+     "name": "CAB-025 · SPO-01 → BR-A-01/12",
+     "domain": "mgmt",
+     "color": "#a78bfa",
+     "a": {
+      "rackId": "rack-a",
+      "instId": "inst-spo-01",
+      "portId": "p-spo-01-1"
+     },
+     "b": {
+      "rackId": "rack-a",
+      "instId": "inst-pp-a1",
+      "portId": "p-inst-pp-a1-12"
+     }
+    },
+    {
+     "name": "CAB-026 · SW-01 → BR-A-01/13",
+     "domain": "lan",
+     "color": "#60a5fa",
+     "a": {
+      "rackId": "rack-a",
+      "instId": "inst-sw-01",
+      "portId": "p-sw-01-8"
+     },
+     "b": {
+      "rackId": "rack-a",
+      "instId": "inst-pp-a1",
+      "portId": "p-inst-pp-a1-13"
+     }
+    },
+    {
+     "name": "CAB-027 · BR-A-03/14 → FW-01 eth3",
+     "domain": "lan",
+     "color": "#e11d48",
+     "a": {
+      "rackId": "rack-a",
+      "instId": "inst-pp-a3",
+      "portId": "p-inst-pp-a3-14"
+     },
+     "b": {
+      "rackId": "rack-a",
+      "instId": "inst-fw-a",
+      "portId": "p-inst-fw-a-eth3"
+     }
+    },
+    {
+     "name": "CAB-028 · SW-INFRA → BR-A-02/13",
+     "domain": "lan",
+     "color": "#60a5fa",
+     "a": {
+      "rackId": "rack-a",
+      "instId": "inst-sw-infra",
+      "portId": "p-sw-infra-1"
+     },
+     "b": {
+      "rackId": "rack-a",
+      "instId": "inst-pp-a2",
+      "portId": "p-inst-pp-a2-13"
+     }
+    },
+    {
+     "name": "CAB-109 · IDS-02 → BR-B-01/5",
+     "domain": "mgmt",
+     "color": "#a78bfa",
+     "a": {
+      "rackId": "rack-b",
+      "instId": "inst-ids-02",
+      "portId": "p-ids-02-1"
+     },
+     "b": {
+      "rackId": "rack-b",
+      "instId": "inst-pp-b1",
+      "portId": "p-inst-pp-b1-5"
+     }
+    },
+    {
+     "name": "CAB-110 · UPS-02 → BR-B-01/6",
+     "domain": "mgmt",
+     "color": "#a78bfa",
+     "a": {
+      "rackId": "rack-b",
+      "instId": "inst-ups-02",
+      "portId": "p-ups-02-1"
+     },
+     "b": {
+      "rackId": "rack-b",
+      "instId": "inst-pp-b1",
+      "portId": "p-inst-pp-b1-6"
+     }
+    },
+    {
+     "name": "CAB-111 · SW-02 → BR-B-02/3",
+     "domain": "lan",
+     "color": "#60a5fa",
+     "a": {
+      "rackId": "rack-b",
+      "instId": "inst-sw-02",
+      "portId": "p-sw-02-6"
+     },
+     "b": {
+      "rackId": "rack-b",
+      "instId": "inst-pp-b2",
+      "portId": "p-inst-pp-b2-3"
+     }
     }
    ],
    "sites": [
@@ -3709,7 +4023,7 @@
      "name": "Datacenter Siège — Casablanca",
      "address": "Zone Industrielle Sidi Maârouf, Casablanca",
      "contact": "Amine MJID — amine.mjid@demo.ma — +212 6 61 00 00 00",
-     "desc": "Baie principale RACK-A (18U) : hyperconvergence Nutanix (3 nœuds), serveur physique Dell R740, NAS Synology, pare-feu WatchGuard, routeur SD-WAN Peplink, borne Aruba et capteur AKCP. Refroidissement par façade, double alimentation.",
+     "desc": "Baie principale RACK-A (24U) : hyperconvergence Nutanix (3 nœuds), serveur physique Dell R740, NAS Synology, pare-feu WatchGuard, routeur SD-WAN Peplink, switches d'accès Aruba, borne WiFi, capteur AKCP, IDS, NVR, pointeuse, onduleur et imprimantes réseau. Refroidissement par façade, double alimentation.",
      "type": "Siège / Datacenter",
      "country": "Maroc",
      "users": "120"
@@ -3719,7 +4033,7 @@
      "name": "Agence Rabat",
      "address": "Angle avenue Mohammed V, Rabat",
      "contact": "Support N2 — support@demo.ma — +212 5 37 00 00 00",
-     "desc": "Baie secondaire RACK-B (16U) : pare-feu WatchGuard, routeur SD-WAN Peplink, NAS de réplication, borne Aruba et capteur environnemental AKCP. Site de secours relié au siège par tunnel SD-WAN SpeedFusion.",
+     "desc": "Baie secondaire RACK-B (18U) : pare-feu WatchGuard, routeur SD-WAN Peplink, switch d'accès Aruba, NAS de réplication, borne WiFi, capteur environnemental AKCP, IDS, imprimantes, onduleur et climatisation de précision. Site de secours relié au siège par tunnel SD-WAN SpeedFusion.",
      "type": "Agence",
      "country": "Maroc",
      "users": "25"
@@ -4014,11 +4328,11 @@
    "lld": {
     "client": "Démo Industries SA — Siège Casablanca",
     "author": "Amine MJID — Ingénieur systèmes & réseaux",
-    "version": "1.0",
+    "version": "1.2",
     "date": "2026-09-08",
     "objectif": "Ce dossier décrit l'infrastructure réseau et système du siège de Démo Industries (Casablanca) et de son agence de Rabat. Il a été produit avec LLDraw à des fins de démonstration : il illustre la tenue d'un dossier LLD complet à partir d'un plan de baies.\n\nL'objectif fonctionnel : héberger la production (ERP, fichiers, applications internes) sur une plateforme hyperconvergée Nutanix au siège, répliquer les données vers l'agence de Rabat, et sécuriser les échanges par deux pare-feu WatchGuard reliés par un tunnel SD-WAN Peplink.",
     "existant": "Avant le projet : une seule baie 24U au siège, des serveurs physiques vieillissants (5 ans), des sauvegardes sur disques USB externes et aucun équipement sur le site de Rabat.\n\nLe présent dossier décrit l'infrastructure cible déployée en 2026 : deux baies (RACK-A au siège, RACK-B à l'agence), un cluster Nutanix de 3 nœuds, un serveur physique Dell R740, deux NAS Synology en réplication, deux pare-feu WatchGuard Firebox M390, deux routeurs SD-WAN Peplink Balance 20X, deux bornes WiFi Aruba AP-515 et deux capteurs environnementaux AKCP.",
-    "architecture": "Le siège (RACK-A) concentre la production : le cluster Nutanix NX-01 à NX-03 porte les machines virtuelles (18 VM : AD/DNS, fichiers, ERP, Veeam, Zabbix), le Dell R740 héberge le reverse-proxy et la supervision, le NAS-01 sert de cible de sauvegarde. La baie RACK-B à Rabat héberge le second pare-feu, le routeur SD-WAN et le NAS de réplication.\n\nChaque site dispose d'un accès FTTO dédié ; les deux sites sont reliés par un tunnel SD-WAN SpeedFusion (Peplink) avec secours 4G. Le WiFi Aruba est déployé en mode contrôleur virtuel instant, un SSID par population (corporate VLAN 40, invités isolés). La supervision Zabbix collecte les métriques des équipements via le VLAN 99, y compris la température et l'hygrométrie des baies (sondes AKCP).",
+    "architecture": "Le siège (RACK-A, 24U) concentre la production : le cluster Nutanix NX-01 à NX-03 porte les machines virtuelles (ERP, AD/DNS, fichiers, Veeam, BI, reverse-proxy), le Dell R740 héberge la supervision, le NAS-01 sert de cible de sauvegarde. Le switch d'accès SW-INFRA (Aruba 6000) et SW-01 (Aruba 6100 PoE) desservent le management (VLAN 99), les utilisateurs, l'impression (VLAN 70), la vidéosurveillance (NVR-01, VLAN 91), le pointage (SPO-01, VLAN 101) et l'IDS (VLAN 81) ; l'onduleur APC UPS-01 supervise l'énergie (VLAN 31).\nLa baie RACK-B à Rabat (18U) héberge le second pare-feu, le routeur SD-WAN (SW-02), le NAS de réplication, l'IDS-02, les imprimantes de l'agence et l'onduleur UPS-02.\nChaque site dispose d'un accès FTTO dédié (plus une 5G de secours au siège) ; les deux sites sont reliés par un tunnel SD-WAN SpeedFusion (Peplink). Le WiFi Aruba est déployé en mode contrôleur virtuel instant, un SSID par population (corporate VLAN 40, invités isolés). La supervision Zabbix collecte les métriques des équipements via le VLAN 99, y compris la température et l'hygrométrie des baies (sondes AKCP).",
     "revs": [
      {
       "rev": "0.1",
@@ -4037,6 +4351,12 @@
       "date": "2026-09-15",
       "author": "Amine MJID",
       "note": "+ Ajout switchs d'accès et plan de ports\n+ FAI de secours 5G\n+ Table caméras CCTV"
+     },
+     {
+      "rev": "1.2",
+      "date": "2026-09-21",
+      "author": "Amine MJID",
+      "note": "+ Complétude du dossier : imprimantes, UPS, IDS, NVR, pointeuse, clime (site A et B)\n+ Registre VLAN agence (123-134) et alias firewall 3\n+ Redirection de ports FAI détaillée (ch. 5) et nomenclature étendue"
      }
     ],
     "nomen": [
@@ -4093,6 +4413,48 @@
       "prefix": "AKCP-",
       "example": "AKCP-01",
       "rule": "NN sur 2 chiffres, un par baie."
+     },
+     {
+      "type": "Switch d'accès",
+      "prefix": "SW-",
+      "example": "SW-01",
+      "rule": "SW-<SITE/ROLE>-NN."
+     },
+     {
+      "type": "Imprimante réseau",
+      "prefix": "PRT-",
+      "example": "PRT-01",
+      "rule": "NN sur 2 chiffres, par site (01-02 siège, 03-04 agence)."
+     },
+     {
+      "type": "Onduleur",
+      "prefix": "UPS-",
+      "example": "UPS-01",
+      "rule": "NN sur 2 chiffres, un par baie."
+     },
+     {
+      "type": "Intrusion (IDS)",
+      "prefix": "IDS-",
+      "example": "IDS-01",
+      "rule": "NN sur 2 chiffres, un par site."
+     },
+     {
+      "type": "Enregistreur CCTV",
+      "prefix": "NVR-",
+      "example": "NVR-01",
+      "rule": "NN sur 2 chiffres, au siège."
+     },
+     {
+      "type": "Pointage (SPO)",
+      "prefix": "SPO-",
+      "example": "SPO-01",
+      "rule": "NN sur 2 chiffres, un par site."
+     },
+     {
+      "type": "Climatisation de précision",
+      "prefix": "CLIM-",
+      "example": "CLIM-01",
+      "rule": "NN sur 2 chiffres, une par salle technique."
      }
     ],
     "vlans": [
@@ -4101,47 +4463,53 @@
       "name": "vMgmt",
       "subnet": "10.10.10.0/24",
       "gw": "10.10.10.1",
-      "purpose": "Management Nutanix (CVM, Prism)"
+      "purpose": "Management Nutanix (CVM, Prism)",
+      "site": "Siège — Casablanca"
      },
      {
       "vid": "20",
       "name": "vServers",
       "subnet": "10.10.20.0/24",
       "gw": "10.10.20.1",
-      "purpose": "Serveurs et VM de production"
+      "purpose": "Serveurs et VM de production",
+      "site": "Siège — Casablanca"
      },
      {
       "vid": "21",
       "name": "vBackup",
       "subnet": "10.10.21.0/24",
       "gw": "10.10.21.1",
-      "purpose": "Réseau de sauvegarde isolé (Veeam)"
+      "purpose": "Réseau de sauvegarde isolé (Veeam)",
+      "site": "Siège — Casablanca"
      },
      {
       "vid": "30",
       "name": "vStorage",
       "subnet": "10.10.30.0/24",
       "gw": "10.10.30.1",
-      "purpose": "Stockage NAS et réplication inter-sites"
+      "purpose": "Stockage NAS et réplication inter-sites",
+      "site": "Siège — Casablanca"
      },
      {
       "vid": "40",
       "name": "vUsers",
       "subnet": "10.10.40.0/24",
       "gw": "10.10.40.1",
-      "purpose": "Utilisateurs filaire et WiFi"
+      "purpose": "Utilisateurs filaire et WiFi",
+      "site": "Siège — Casablanca"
      },
      {
       "vid": "99",
       "name": "vMgmtIPMI",
       "subnet": "10.10.99.0/24",
       "gw": "10.10.99.1",
-      "purpose": "iDRAC, AP, capteurs, IPs de management"
+      "purpose": "iDRAC, AP, capteurs, IPs de management",
+      "site": "Siège — Casablanca"
      },
      {
       "vid": "11",
       "name": "vDMZ",
-      "site": "",
+      "site": "Siège — Casablanca",
       "subnet": "10.10.11.0/24",
       "gw": "10.10.11.1",
       "purpose": "Zone démilitarisée (reverse-proxy, publication)"
@@ -4149,7 +4517,7 @@
      {
       "vid": "31",
       "name": "vUPS",
-      "site": "",
+      "site": "Siège — Casablanca",
       "subnet": "10.10.31.0/24",
       "gw": "10.10.31.1",
       "purpose": "Onduleurs et PDU (supervision énergie)"
@@ -4157,7 +4525,7 @@
      {
       "vid": "60",
       "name": "vGuests",
-      "site": "",
+      "site": "Siège — Casablanca",
       "subnet": "10.10.60.0/24",
       "gw": "10.10.60.1",
       "purpose": "Invités WiFi isolés"
@@ -4165,7 +4533,7 @@
      {
       "vid": "70",
       "name": "vPrinters",
-      "site": "",
+      "site": "Siège — Casablanca",
       "subnet": "10.10.70.0/24",
       "gw": "10.10.70.1",
       "purpose": "Imprimantes réseau"
@@ -4173,7 +4541,7 @@
      {
       "vid": "81",
       "name": "vIDS",
-      "site": "",
+      "site": "Siège — Casablanca",
       "subnet": "10.10.81.0/24",
       "gw": "10.10.81.1",
       "purpose": "Détection d'intrusion"
@@ -4181,7 +4549,7 @@
      {
       "vid": "91",
       "name": "vCCTV",
-      "site": "",
+      "site": "Siège — Casablanca",
       "subnet": "10.10.91.0/24",
       "gw": "10.10.91.1",
       "purpose": "Caméras et NVR"
@@ -4189,7 +4557,7 @@
      {
       "vid": "101",
       "name": "vSPO",
-      "site": "",
+      "site": "Siège — Casablanca",
       "subnet": "10.10.101.0/24",
       "gw": "10.10.101.1",
       "purpose": "Pointeuses"
@@ -4197,10 +4565,114 @@
      {
       "vid": "121",
       "name": "viDRAC",
-      "site": "",
+      "site": "Siège — Casablanca",
       "subnet": "10.10.121.0/24",
       "gw": "10.10.121.1",
       "purpose": "Cartes de management hors-bande"
+     },
+     {
+      "vid": "111",
+      "name": "vVOIP",
+      "site": "Siège — Casablanca",
+      "subnet": "10.10.111.0/24",
+      "gw": "10.10.111.1",
+      "purpose": "Téléphonie IP (TOIP)"
+     },
+     {
+      "vid": "123",
+      "name": "vDMZ Agence",
+      "site": "Agence — Rabat",
+      "subnet": "10.11.11.0/24",
+      "gw": "10.11.11.1",
+      "purpose": "DMZ du site de Rabat"
+     },
+     {
+      "vid": "124",
+      "name": "vStorage Agence",
+      "site": "Agence — Rabat",
+      "subnet": "10.11.30.0/24",
+      "gw": "10.11.30.1",
+      "purpose": "Stockage NAS-02 et réplication"
+     },
+     {
+      "vid": "125",
+      "name": "vUPS Agence",
+      "site": "Agence — Rabat",
+      "subnet": "10.11.31.0/24",
+      "gw": "10.11.31.1",
+      "purpose": "Onduleurs (UPS-02, PDU)"
+     },
+     {
+      "vid": "126",
+      "name": "vMgmt Agence",
+      "site": "Agence — Rabat",
+      "subnet": "10.11.10.0/24",
+      "gw": "10.11.10.1",
+      "purpose": "Management Nutanix agence"
+     },
+     {
+      "vid": "127",
+      "name": "vUsers Agence",
+      "site": "Agence — Rabat",
+      "subnet": "10.11.40.0/24",
+      "gw": "10.11.40.1",
+      "purpose": "Utilisateurs filaire et WiFi agence"
+     },
+     {
+      "vid": "128",
+      "name": "vGuests Agence",
+      "site": "Agence — Rabat",
+      "subnet": "10.11.60.0/24",
+      "gw": "10.11.60.1",
+      "purpose": "Invités WiFi isolés agence"
+     },
+     {
+      "vid": "129",
+      "name": "vPrinters Agence",
+      "site": "Agence — Rabat",
+      "subnet": "10.11.70.0/24",
+      "gw": "10.11.70.1",
+      "purpose": "Imprimantes réseau agence"
+     },
+     {
+      "vid": "130",
+      "name": "vIDS Agence",
+      "site": "Agence — Rabat",
+      "subnet": "10.11.81.0/24",
+      "gw": "10.11.81.1",
+      "purpose": "Détection d'intrusion agence"
+     },
+     {
+      "vid": "131",
+      "name": "vCCTV Agence",
+      "site": "Agence — Rabat",
+      "subnet": "10.11.91.0/24",
+      "gw": "10.11.91.1",
+      "purpose": "Caméras de l’agence"
+     },
+     {
+      "vid": "132",
+      "name": "vSPO Agence",
+      "site": "Agence — Rabat",
+      "subnet": "10.11.101.0/24",
+      "gw": "10.11.101.1",
+      "purpose": "Pointeuse agence"
+     },
+     {
+      "vid": "133",
+      "name": "vVOIP Agence",
+      "site": "Agence — Rabat",
+      "subnet": "10.11.111.0/24",
+      "gw": "10.11.111.1",
+      "purpose": "Téléphonie IP agence"
+     },
+     {
+      "vid": "134",
+      "name": "viDRAC Agence",
+      "site": "Agence — Rabat",
+      "subnet": "10.11.121.0/24",
+      "gw": "10.11.121.1",
+      "purpose": "Management hors-bande agence"
      }
     ],
     "fai": {
@@ -4247,27 +4719,30 @@
      "switching": "Le cœur de commutation est assuré par les panneaux de brassage CAT 6A : BR-A-01 (management 1G), BR-A-02 (production 10G), BR-A-03 (réserve), BR-B-01 et BR-B-02 (agence). Les liens 10 Gb/s des nœuds Nutanix et du Dell R740 sont repris sur la face arrière des baies. Le WiFi Aruba (AP-515) est déployé en mode contrôleur virtuel instant, un SSID par population (corporate VLAN 40, invités isolés).",
      "server": "Cluster Nutanix AHV de 3 nœuds NX-3155-G6 (hyperconvergence, ~12 To utiles, réplication RF2). Le Dell R740 héberge physiquement le reverse-proxy et le serveur de supervision. Virtualisation : 18 VM (AD/DNS, fichiers, ERP, Veeam, Zabbix). Sauvegarde Veeam quotidienne vers NAS-01, réplication nightly vers NAS-02.",
      "storage": "Deux Synology RS1221+ en réplication Snapshot toutes les nuits : NAS-01 (siège, 64 To brut, RAID 6) et NAS-02 (agence, 32 To brut, RAID 6). Le NAS-01 sert aussi de cible Veeam pour les sauvegardes de VM (VLAN 30 dédié).",
-     "ids": "",
-     "cctv": "",
-     "pointage": ""
+     "ids": "Sondes WatchGuard Dimension (TDR) : analyse réseau (NDR) des flux inter-VLAN, miroir de ports configuré sur SW-INFRA (siège) et SW-02 (agence). Alertes relayées vers Zabbix (VLAN 99).",
+     "cctv": "NVR Hikvision 32 canaux au siège (VLAN 91) : 3 caméras (accès principal, salle technique agence, réception agence). Rétention 30 jours, flux H.265, visualisation restreinte au poste de supervision.",
+     "pointage": "Pointeuse ZKTeco SpeedFace (reconnaissance faciale + badge) reliée au VLAN 101 ; synchronisation du log d'activité vers l'ERP toutes les 15 minutes."
     },
     "swZones": [
      {
       "id": "zone-infra",
-      "name": "INFRA"
+      "name": "INFRA",
+      "vlans": "11,21,31,41,51,61,71,81,91,101,111,121"
      },
      {
       "id": "zone-lan-b",
       "name": "LAN Site B",
-      "vlans": "10,20,40"
+      "vlans": "123,124,125,126,127,128,129,130,131,132,133,134,135"
      },
      {
       "id": "zone-ap-a",
-      "name": "Aruba AP Site A"
+      "name": "Aruba AP Site A",
+      "vlans": "40,60"
      },
      {
       "id": "zone-ap-b",
-      "name": "Aruba AP Site B"
+      "name": "Aruba AP Site B",
+      "vlans": "127,128"
      },
      {
       "id": "zone-lan-a",
@@ -4297,10 +4772,16 @@
       "pf": "TCP 443 → 10.10.20.11 (reverse-proxy)",
       "dmz": "10.10.20.11",
       "firewall": "Entrée : 443 uniquement",
-      "wlan": "corp-secure (802.1X)",
+      "wlan": "corp-secure · corp-guest",
       "wanMask": "255.255.255.248",
       "wanGw": "41.92.10.1",
-      "wanDns": "212.217.0.1"
+      "wanDns": "212.217.0.1",
+      "ipv6": "2a01:cb08:9000:100::/56 (préfixe délégué)",
+      "pfPortWan": "TCP 443",
+      "pfPortLan": "443",
+      "pfClient": "10.10.20.11",
+      "pfProto": "TCP",
+      "wlanStat": "Activé — 802.1X"
      },
      {
       "operator": "Inwi",
@@ -4321,7 +4802,18 @@
       "firewall": "Entrée : VPN uniquement",
       "wanMask": "255.255.255.248",
       "wanGw": "105.157.20.1",
-      "wanDns": "41.128.0.1"
+      "wanDns": "41.128.0.1",
+      "lanGw": "10.11.40.254",
+      "lanDns": "10.11.10.11 (DC agence)",
+      "ipv6": "2a01:cb20:5000:200::/56 (préfixe délégué)",
+      "pf": "UDP 4500 → RTR-02 (VPN)",
+      "pfPortWan": "UDP 4500",
+      "pfPortLan": "4500",
+      "pfClient": "10.11.99.12",
+      "pfProto": "UDP",
+      "dmz": "— (VPN uniquement)",
+      "wlanStat": "Activé — WPA3",
+      "wlan": "corp-agence"
      },
      {
       "operator": "Orange",
@@ -4340,7 +4832,20 @@
       "wanDns": "",
       "wanLabel": "Port WAN 2 RTR-01 (5G)",
       "dhcp": "Oui",
-      "firewall": "Sortie uniquement"
+      "firewall": "Sortie uniquement",
+      "lanIp": "192.168.9.2 (bride 5G)",
+      "lanMask": "255.255.255.0",
+      "lanGw": "192.168.9.1",
+      "lanDns": "— (DNS opérateur)",
+      "ipv6": "— (SLAAC opérateur)",
+      "pf": "Sortie seule — aucune publication",
+      "pfPortWan": "—",
+      "pfPortLan": "—",
+      "pfClient": "—",
+      "pfProto": "—",
+      "dmz": "— (sortie seule)",
+      "wlanStat": "—",
+      "wlan": "—"
      }
     ],
     "fw": [
@@ -4401,6 +4906,30 @@
       "role": "Reverse-proxy DMZ (nginx)",
       "host": "NX-01",
       "ip": "10.10.20.11 — VLAN 20"
+     },
+     {
+      "name": "SRV-BI-01",
+      "role": "Décisionnel — SQL + SSRS",
+      "host": "NX-02",
+      "ip": "10.10.20.21 — VLAN 20"
+     },
+     {
+      "name": "SRV-BI-02",
+      "role": "Réplique reporting (tests)",
+      "host": "NX-03",
+      "ip": "10.10.20.22 — VLAN 20"
+     },
+     {
+      "name": "SRV-BC-02",
+      "role": "Continuité — réplique Veeam (agence)",
+      "host": "NX-02",
+      "ip": "10.10.21.11 — VLAN 21"
+     },
+     {
+      "name": "SRV-WEB-02",
+      "role": "Reverse-proxy secours",
+      "host": "NX-02",
+      "ip": "10.10.20.13 — VLAN 20"
      }
     ],
     "vols": [
@@ -4471,6 +5000,18 @@
      {
       "name": "SSL2",
       "value": "pool VPN SSL agence"
+     },
+     {
+      "name": "LAN3",
+      "value": "10.10.60.0/24 (invités siège)"
+     },
+     {
+      "name": "EXTERNAL3",
+      "value": "NAT opérateur 5G (Orange)"
+     },
+     {
+      "name": "SSL3",
+      "value": "pool VPN SSL secours — 10.10.61.0/24"
      }
     ],
     "fwProfiles": {
@@ -4600,5 +5141,5 @@
   }
  ],
  "activeWorkspaceId": "demo-dc",
- "demoVer": 4
+ "demoVer": 5
 }

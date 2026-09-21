@@ -113,6 +113,7 @@ function normLldInfo(w) {
   L.vlans = Array.isArray(L.vlans) ? L.vlans.filter(v => v && typeof v === 'object').map(v => ({
     vid: String(v.vid ?? '').slice(0, 6),
     name: String(v.name ?? '').slice(0, 40),
+    site: String(v.site ?? '').slice(0, 60),
     subnet: String(v.subnet ?? '').slice(0, 50),
     gw: String(v.gw ?? '').slice(0, 50),
     purpose: String(v.purpose ?? '').slice(0, 60)
@@ -131,7 +132,8 @@ function normLldInfo(w) {
     const o = {};
     for (const k of ['operator', 'offer', 'linkType', 'down', 'up', 'publicBlock', 'cpe', 'cpeIp',
                      'ipMode', 'wanIp', 'wanMask', 'wanGw', 'wanDns', 'wanLabel', 'lanIp', 'lanMask', 'lanGw', 'lanDns',
-                     'ipv6', 'dhcp', 'pf', 'dmz', 'firewall', 'wlan'])
+                     'ipv6', 'dhcp', 'pf', 'pfPortWan', 'pfPortLan', 'pfClient', 'pfProto',
+                     'dmz', 'firewall', 'wlan', 'wlanStat'])
       o[k] = String(f[k] ?? '').slice(0, 120);
     o.notes = String(f.notes ?? '').slice(0, 2000);
     return o;
@@ -4127,14 +4129,29 @@ function lldAddFaiBlock(container, fai = {}) {
           <option>Non</option>
         </select>
       </label>
-      <label>Port Forwarding
+      <label>Port Forwarding (règle)
         <input type="text" data-k="pf" placeholder="Ex : TCP 443 → 10.10.20.11" maxlength="120">
+      </label>
+      <label>PF — Port WAN
+        <input type="text" data-k="pfPortWan" placeholder="Ex : TCP 443" maxlength="60">
+      </label>
+      <label>PF — Port LAN
+        <input type="text" data-k="pfPortLan" placeholder="Ex : 443" maxlength="60">
+      </label>
+      <label>PF — Client interne
+        <input type="text" data-k="pfClient" placeholder="Ex : 10.10.20.11" maxlength="60">
+      </label>
+      <label>PF — Protocole
+        <input type="text" data-k="pfProto" placeholder="Ex : TCP" maxlength="20">
       </label>
       <label>DMZ
         <input type="text" data-k="dmz" placeholder="Ex : 10.10.20.11 (reverse-proxy)" maxlength="120">
       </label>
       <label>Firewall
         <input type="text" data-k="firewall" placeholder="Ex : entrée 443 uniquement" maxlength="120">
+      </label>
+      <label>WLAN (statut)
+        <input type="text" data-k="wlanStat" placeholder="Ex : Activé — 802.1X" maxlength="60">
       </label>
       <label>WLAN (SSID)
         <input type="text" data-k="wlan" placeholder="Ex : corp-secure / invité" maxlength="120">
@@ -6086,9 +6103,17 @@ const LLD_TPL = (() => {
       fw.forEach((r0, i) => rows.push(D([
         r0.type || '', r0.name || '', r0.src || '', r0.dst || '', r0.service || '', r0.action || ''], i % 2)));
     }
-    pushNote(rows, fw.length
-      ? "À compléter manuellement : alias, VPN SSL (profils utilisateurs) et cluster/HA."
-      : "À compléter manuellement : NAT, règles et alias, VPN SSL, cluster/HA (non saisis dans l'application).");
+    /* Note dynamique : ne mentionner QUE ce qui manque vraiment */
+    const L7 = ws.lld || {};
+    const fp7 = L7.fwProfiles || {};
+    const missing7 = [];
+    if (!(L7.fw || []).length) missing7.push('NAT et règles');
+    if (!(L7.aliases || []).length) missing7.push('alias');
+    if (!(L7.vpns || []).length) missing7.push('tunnels VPN S2S');
+    if (!fp7.vpnSsl && !fp7.appCtrl && !fp7.webBlocker && !fp7.httpProxy) missing7.push('profils (VPN SSL, AppControl…)');
+    if (missing7.length) pushNote(rows, `À compléter manuellement : ${missing7.join(', ')} (cluster/HA : voir fiche matériel).`);
+    const cfg7 = ((ws.lld && ws.lld.catNotes) || {}).firewall;
+    if (cfg7) pushNote(rows, `Config : ${String(cfg7).split('\n')[0]}`);
     return out(sheet, rows, heights, null, [3.43, 46, 30, 22, 22, 30, 16]);
   }
 
@@ -6100,12 +6125,19 @@ const LLD_TPL = (() => {
     rows.length = 1;
     const title = String(rows[0][0] && rows[0][0].v || '');
     const zones = (ws.lld && ws.lld.swZones) || [];
+    /* 8.3/8.4 portent le même titre « (AP) » (idem 8.2/8.5 « (LAN) ») :
+       on les distingue par l'ORDINAL de la feuille -> nième zone AP / LAN
+       déclarée dans la fiche LLD (8.2 = 1re zone LAN, 8.5 = 2e, etc.). */
+    const nth = (arr, n) => arr[n] || arr[0] || null;
+    const apZones = zones.filter(z => /\bAP\b/i.test(z.name));
+    const lanZones = zones.filter(z => /lan/i.test(z.name) && !/infra/i.test(z.name));
     let zone = null;
     if (/INFRA/i.test(title)) zone = zones.find(z => /infra/i.test(z.name));
-    else if (/\(AP\)/i.test(title)) zone = zones.find(z => /\bAP\b/i.test(z.name));
-    else if (/\(LAN\)/i.test(title)) zone = zones.find(z => /lan/i.test(z.name) && !/infra/i.test(z.name));
+    else if (/\(AP\)/i.test(title)) zone = nth(apZones, sheet.name === '8.4' ? 1 : 0);
+    else if (/\(LAN\)/i.test(title)) zone = nth(lanZones, sheet.name === '8.5' ? 1 : 0);
     const catList = /\(AP\)/i.test(title) ? ['switch', 'ap'] : ['switch'];
     const sws = byCat(ws, catList).filter(x => !zone || x.inst.zone === zone.id);
+    const notes = (ws.lld && ws.lld.catNotes) || {};
     if (sws.length) {
       equipTable(rows, sws, { titre: `Equipements Switching${zone ? ' — zone ' + zone.name : ''}`,
         cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
@@ -6121,23 +6153,27 @@ const LLD_TPL = (() => {
         portRows.slice(0, 200).forEach((p, i) => rows.push(D([p[0], p[3], p[4], p[5], p[7]], i % 2)));
       }
     }
+    // Note de configuration de la zone (saisie dans l'onglet Chapitres)
+    const note = notes.switching;
+    if (note) { rows.push([]); rows.push([{ v: `Config : ${String(note).split('\n')[0]}`, s: 129 }]); }
     return out(sheet, rows, heights, null, [3.43, 30, 34, 18, 24, 12]);
   }
 
   /* — 9 à 13 : équipements par spécialité — */
-  function chapterEquip(cats, titre, note) {
+  function chapterEquip(cats, titre, note, catKey) {
     return (sheet, ws) => {
       const { rows, heights } = fromLayout(sheet);
       const list = byCat(ws, cats);
       if (list.length) equipTable(rows, list, { titre, cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
       else pushNote(rows, note || "Aucun équipement de cette catégorie dans l'inventaire actuel.");
-      if (note) pushNote(rows, note);
+      const cfg = catKey && ((ws.lld && ws.lld.catNotes) || {})[catKey];
+      if (cfg) pushNote(rows, `Config : ${String(cfg).split('\n')[0]}`);
       return out(sheet, rows, heights, null, [3.43, 40, 36, 22, 26]);
     };
   }
 
   /* — Équipements d'une catégorie + table annexe (VMs, volumes, caméras…) — */
-  function chapterWith(cat, titre, titre2, cols2, key, note) {
+  function chapterWith(cat, titre, titre2, cols2, key, note, catKey) {
     return (sheet, ws) => {
       const { rows, heights } = fromLayout(sheet);
       const list = byCat(ws, [cat]);
@@ -6151,7 +6187,9 @@ const LLD_TPL = (() => {
         tbl.forEach((r0, i) => rows.push(D(cols2.map(([, k]) => r0[k] || ''), i % 2)));
       }
       if (!list.length && !tbl.length) pushNote(rows, "Aucun équipement de cette catégorie dans l'inventaire actuel.");
-      else if (note) pushNote(rows, note);
+      else if (note && !tbl.length) pushNote(rows, note);
+      const cfg = (catKey || cat) && ((ws.lld && ws.lld.catNotes) || {})[catKey || cat];
+      if (cfg) pushNote(rows, `Config : ${String(cfg).split('\n')[0]}`);
       return out(sheet, rows, heights, null, [3.43, 40, 36, 22, 26]);
     };
   }
@@ -6180,7 +6218,9 @@ const LLD_TPL = (() => {
       rows.push(SEC('Tableau de câblage'));
       rows.push([]);
       rows.push(H(['ID', 'Couleur', 'Domaine', 'Rack A', 'Device A', 'Port A', 'Rack B', 'Device B', 'Port B']));
-      cab.slice(1).forEach((c, i) => rows.push(D([c[0], c[1], c[2], c[3], c[4], c[5], c[8], c[9], c[10]], i % 2)));
+      // c[] : ID, Couleur, Domaine, Rack A, Device A, Port A, Étiquette A,
+      //       Rack B (7), Device B (8), Port B (9), Étiquette B (10)
+      cab.slice(1).forEach((c, i) => rows.push(D([c[0], c[1], c[2], c[3], c[4], c[5], c[7], c[8], c[9]], i % 2)));
     }
     return out(sheet, rows, heights, null, [4, 10, 10, 14, 12, 26, 10, 12, 26, 10]);
   }
@@ -6212,19 +6252,27 @@ const LLD_TPL = (() => {
     return m ? Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) + 25569 : (iso || '');
   }
 
-  /* Groupements inventaire : par catégorie et par modèle */
+  /* Groupements inventaire : par catégorie et par modèle.
+     Les modèles sont triés par domaine métier (routeur, firewall, switch…),
+     puis par quantité décroissante — pour des tableaux stables et lisibles. */
   function invGroups(ws) {
-    const byCat = new Map(), byModel = new Map();
+    const info = new Map(), byCat = new Map();
     for (const { inst } of sortedRackInstances(ws)) {
       const model = `${inst.brand || ''} ${inst.model || ''}`.trim() || inst.name;
-      byModel.set(model, (byModel.get(model) || 0) + 1);
-      const cat = catLabel(inst.cat);
-      const g = byCat.get(cat) || { n: 0, models: new Map() };
+      const g = info.get(model) || { n: 0, cat: inst.cat };
       g.n++;
-      g.models.set(model, (g.models.get(model) || 0) + 1);
-      byCat.set(cat, g);
+      info.set(model, g);
+      const lbl = catLabel(inst.cat);
+      const c = byCat.get(lbl) || { n: 0, models: new Map() };
+      c.n++;
+      c.models.set(model, (c.models.get(model) || 0) + 1);
+      byCat.set(lbl, c);
     }
-    return { byCat, byModel };
+    const rank = c => DEV_CATEGORIES.findIndex(([id]) => id === normCat(c));
+    const ordered = [...info.entries()].sort((a, b) =>
+      rank(a[1].cat) - rank(b[1].cat) || b[1].n - a[1].n || a[0].localeCompare(b[0], 'fr'));
+    const byModel = new Map(ordered.map(([m, g]) => [m, g.n]));
+    return { byCat, byModel, totalModels: info.size };
   }
 
   /* — Feuille « LLD » : page de garde — */
@@ -6355,7 +6403,7 @@ const LLD_TPL = (() => {
       rows[r - 1][1] = { v: t, s: 129 };
     });
     // 2.2 : tableau des dispositifs (r51-59) : FAI + un dispositif par modèle
-    const { byModel } = invGroups(ws);
+    const { byModel, totalModels } = invGroups(ws);
     const models = [...byModel.entries()];
     set(rows, 'D51', fai.operator
       ? `${fai.operator}${fai.down ? ' — ' + fai.down : ''}` : '');
@@ -6365,6 +6413,8 @@ const LLD_TPL = (() => {
       set(rows, `D${r}`, `x${n}`);
     });
     for (let r = 52 + Math.min(models.length, 8); r <= 59; r++) { set(rows, `B${r}`, ''); set(rows, `D${r}`, ''); }
+    if (totalModels > 8)
+      rows[60] = [{ v: `+ ${totalModels - 8} autres modèles — voir chapitre 3.1 (Equipments)`, s: 129 }];
     return out(sheet, rows, heights);
   }
 
@@ -6424,12 +6474,13 @@ const LLD_TPL = (() => {
     const shortName = s => String(s || '').split(/[ (—]/)[0].trim();
     const fais = (L.fais && L.fais.length) ? L.fais : (L.fai && L.fai.operator ? [L.fai] : []);
     // FAI (FTTH 1-3) et WAN 1-3 : adressage WAN complet
+    // (sans IP fixe : affiche le mode de connexion, ex. « DHCP » pour la 5G)
     fais.slice(0, 3).forEach((f, i) => {
-      set(rows, `D${6 + i}`, f.wanIp || '');
+      set(rows, `D${6 + i}`, f.wanIp || (f.ipMode ? f.ipMode : ''));
       set(rows, `E${6 + i}`, f.wanMask || '');
       set(rows, `F${6 + i}`, f.wanGw || '');
       set(rows, `G${6 + i}`, f.wanDns || '');
-      set(rows, `D${12 + i}`, f.wanIp || '');
+      set(rows, `D${12 + i}`, f.wanIp || (f.ipMode ? f.ipMode : ''));
       set(rows, `E${12 + i}`, f.wanMask || '');
       set(rows, `F${12 + i}`, f.wanGw || '');
       set(rows, `G${12 + i}`, f.wanDns || '');
@@ -6481,29 +6532,46 @@ const LLD_TPL = (() => {
       [/cctv|cam/i, /cctv|cam|video|vidéo/i, /cctv|cam|video|vidéo|surveillance/i],
       [/\bspo\b|pointage/i, /spo|pointage|badge/i, /spo|pointage|badge/i],
       [/voip|toip/i, /voip|toip|téléph|teleph/i, /voip|toip|téléph|teleph/i],
-      [/idrac/i, /idrac|ipmi|bmc|oob/i, /idrac|ipmi|bmc|oob/i]
+      [/idrac/i, /idrac/i, /ipmi|bmc|oob/i]
     ];
-    const vlanFor = label => {
+    /* Masque déduit d'un CIDR (« 10.10.10.0/24 » -> « 255.255.255.0 ») */
+    const maskOfCidr = s => {
+      const m = /\/(\d+)\s*$/.exec(String(s || ''));
+      if (!m) return '';
+      const n = +m[1];
+      if (n < 0 || n > 32) return '';
+      const bits = n === 0 ? 0 : (0xFFFFFFFF << (32 - n)) >>> 0;
+      return [24, 16, 8, 0].map(sh => (bits >>> sh) & 255).join('.');
+    };
+    /* Le bloc r38-49 décrit le 1er site (firewall 1), r50-63 le second.
+       On filtre le registre VLAN par la colonne « Site » si elle est renseignée. */
+    const isSiteB = v => /agence|rabat|site\s?b/i.test(v.site || '');
+    const vlanFor = (label, side) => {
       const hit = KW.find(([a]) => a.test(label));
-      if (!hit) return '';
+      if (!hit) return null;
       const [, primary, full, excl] = hit;
       // exclusion (ex. « Users Wireless » ne doit pas retomber sur vUsers)
-      const ok = x => !(excl && excl.test(x.name || ''));
+      const ok = x => !(excl && excl.test(x.name || ''))
+        && (side === 'B' ? isSiteB(x) : !isSiteB(x));
       // 1) nom correspondant au terme principal, 2) nom (tous termes),
       // 3) usage (tous termes)
       const v = vlansAll.find(x => ok(x) && primary.test(x.name || '')) ||
                 vlansAll.find(x => ok(x) && full.test(x.name || '')) ||
                 vlansAll.find(x => ok(x) && full.test(x.purpose || ''));
-      return v && v.vid ? `VLAN ${v.vid}` : '';
+      return v && v.vid ? v : null;
     };
-    for (let r = 38; r <= 49; r++) {
+    // C = nomenclature du VLAN, D = IP (passerelle), E = masque (du subnet)
+    const putVlanRow = (r, side) => {
       const lbl = rows[r - 1][1] && rows[r - 1][1].v;
-      set(rows, `C${r}`, lbl ? vlanFor(String(lbl)) : '');
-    }
-    for (let r = 50; r <= 63; r++) {
-      const lbl = rows[r - 1][1] && rows[r - 1][1].v;
-      set(rows, `C${r}`, lbl && !/VM\d/i.test(String(lbl)) ? vlanFor(String(lbl)) : '');
-    }
+      const v = lbl && !/VM\d/i.test(String(lbl)) ? vlanFor(String(lbl), side) : null;
+      const sC = rows[r - 1][2] ? rows[r - 1][2].s : 1;
+      set(rows, `C${r}`, v ? `VLAN ${v.vid}` : '', sC);
+      const st = c => (rows[r - 1][c] ? rows[r - 1][c].s : sC);
+      set(rows, `D${r}`, v ? (v.gw || '') : '', st(3));
+      set(rows, `E${r}`, v ? (maskOfCidr(v.subnet) || '') : '', st(4));
+    };
+    for (let r = 38; r <= 49; r++) putVlanRow(r, 'A');
+    for (let r = 50; r <= 63; r++) putVlanRow(r, 'B');
     // Master/Slave mgmt (r64-65) et interfaces cluster (r66-69)
     set(rows, 'C64', ic.mgmtA || '');
     set(rows, 'C65', ic.mgmtB || '');
@@ -6603,7 +6671,13 @@ const LLD_TPL = (() => {
         put(173 + i, 3, nm.example || '', st); put(173 + i, 4, nm.rule || '', st);
       });
     }
-    return out(sheet, rows, heights);
+    /* Lignes « Equipment Firewall 1/2 » (r19/20) : le template les fusionne
+       (cluster) — on défusionne pour écrire chaque équipement séparément.
+       B156:D156 : ligne de séparation du registre VLAN, défusionnée car le
+       registre de l'app y écrit une entrée (viDRAC). */
+    const merges4 = (sheet.merges || [])
+      .filter(m => !/^[C-H]19:[C-H]20$/.test(m) && !/^B156:D156$/.test(m));
+    return out(sheet, rows, heights, merges4);
   }
 
   /* — Feuille « 5 » : FAI (infos + réglages avancés) + câblage — */
@@ -6613,7 +6687,7 @@ const LLD_TPL = (() => {
     const fais = (L.fais && L.fais.length) ? L.fais
       : (L.fai && (L.fai.operator || L.fai.offer || L.fai.down) ? [L.fai] : []);
     const lblFai = f => f.operator ? `${f.operator}${f.offer ? ' — ' + f.offer : ''}` : '';
-    const COLS5 = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'P', 'Q', 'R', 'T'];
+    const COLS5 = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'];
     fais.slice(0, 4).forEach((f, i) => {
       const r = 35 + i;
       set(rows, `C${r}`, lblFai(f));
@@ -6625,9 +6699,14 @@ const LLD_TPL = (() => {
       set(rows, `I${r}`, f.ipv6 || '');
       set(rows, `J${r}`, f.dhcp || '');
       set(rows, `K${r}`, f.pf || '');
+      set(rows, `L${r}`, f.pfPortWan || '');
+      set(rows, `M${r}`, f.pfPortLan || '');
+      set(rows, `N${r}`, f.pfClient || '');
+      set(rows, `O${r}`, f.pfProto || '');
       set(rows, `P${r}`, f.dmz || '');
       set(rows, `Q${r}`, f.firewall || '');
-      set(rows, `R${r}`, f.wlan || '');
+      set(rows, `R${r}`, f.wlanStat || '');
+      set(rows, `S${r}`, f.wlan || '');
       set(rows, `T${r}`, String(f.notes || '').split('\n')[0]);
     });
     for (let r = 35 + Math.min(fais.length, 4); r <= 38; r++)
@@ -6643,7 +6722,10 @@ const LLD_TPL = (() => {
       set(rows, `D${46 + i * 2}`, '');
       set(rows, `D${47 + i * 2}`, '');
     }
-    return out(sheet, rows, heights);
+    /* Le template fusionne L36:O36 (sous-colonnes « Port Forwarding » de la
+       ligne FAI 2) : on défusionne pour écrire chaque champ séparément. */
+    const merges5 = (sheet.merges || []).filter(m => !/^L3[6-8]:O3[6-8]$/.test(m));
+    return out(sheet, rows, heights, merges5);
   }
 
   /* — Feuille « 6 » : interconnexion site à site (complète) — */
@@ -6730,18 +6812,25 @@ const LLD_TPL = (() => {
     const nv = (L.vlans || []).length;
     set(rows, 'D52', nv ? `x${nv} VLANs routés` : '');
     if (ic.localSubnets) set(rows, 'B53', `LAN — ${ic.localSubnets}`);
-    // 6.2 câblage : liaisons WAN (E62-64 / E67-69) + LAN 1 (E66 / E71)
-    fais.slice(0, 3).forEach((f, i) => {
-      set(rows, `E${62 + i}`, f.wanLabel || '');
-      set(rows, `E${67 + i}`, f.wanLabel || '');
-    });
-    for (let i = Math.min(fais.length, 3); i < 3; i++) {
-      set(rows, `E${62 + i}`, '');
-      set(rows, `E${67 + i}`, '');
-    }
+    // 6.2 câblage : liaisons WAN (E62-64 / E67-69) + LAN 1 (E66 / E71).
+    // Chaque extrémité reçoit le libellé de SON FAI (apparié par IP WAN),
+    // puis le libellé du secours (5G) qui lui est rattaché.
+    const labA = (faiOf(ic.epA, 0).wanLabel || '');
+    const labB = (faiOf(ic.epB, 1).wanLabel || '');
+    const extraFor = (ownA, ownB, re) => fais.map(f => f.wanLabel || '')
+      .find(l => l && l !== ownA && l !== ownB && re.test(l)) || '';
+    set(rows, 'E62', labA);
+    set(rows, 'E63', extraFor(labA, labB, /rtr-?01|siège|siege/i));
+    set(rows, 'E64', '');
+    set(rows, 'E67', labB);
+    set(rows, 'E68', extraFor(labA, labB, /rtr-?02|agence/i));
+    set(rows, 'E69', '');
     set(rows, 'E66', ic.lanA || '');
     set(rows, 'E71', ic.lanB || '');
-    return out(sheet, rows, heights);
+    // VIP (N30/31) et masque admin (P30/31) : le template fusionne N30:N31 et
+    // P30:P31 alors que chaque extrémité a ses propres valeurs -> on défusionne.
+    const merges6 = (sheet.merges || []).filter(m => !/^(N30:N31|P30:P31)$/.test(m));
+    return out(sheet, rows, heights, merges6);
   }
 
   const FILLS = { 'LLD': lld, 'Governance': governance, '1': ch1, '2': ch2,
@@ -6751,15 +6840,15 @@ const LLD_TPL = (() => {
                   '8.3': switchZone, '8.4': switchZone, '8.5': switchZone,
                   '9':  chapterWith('server', '9.1. Serveurs', '9.2. Machines virtuelles',
                         [['VM', 'name'], ['Rôle', 'role'], ['Hôte', 'host'], ['IP / VLAN', 'ip']], 'vms',
-                        "À compléter : rôles et affectation des machines virtuelles."),
+                        "À compléter : rôles et affectation des machines virtuelles.", 'server'),
                   '10': chapterWith('storage', '10.1. Stockage', '10.2. Volumes / LUN',
                         [['Volume', 'name'], ['Capacité', 'size'], ['Type', 'type'], ['Serveur', 'srv']], 'vols',
-                        "À compléter : volumes/LUN et plan de sauvegarde."),
-                  '11': chapterEquip(['ids'], "11.1. Détection d'intrusion"),
+                        "À compléter : volumes/LUN et plan de sauvegarde.", 'storage'),
+                  '11': chapterEquip(['ids'], "11.1. Détection d'intrusion", null, 'ids'),
                   '12': chapterWith('cctv', '12.1. Caméras et enregistreur (NVR)', '12.2. Caméras',
                         [['Caméra', 'name'], ['Emplacement', 'loc'], ['Modèle', 'model'], ['IP', 'ip']], 'cams',
-                        "À compléter : emplacements et plans d'implantation des caméras."),
-                  '13': chapterEquip(['pointage'], '13.1. Pointeuses'),
+                        "À compléter : emplacements et plans d'implantation des caméras.", 'cctv'),
+                  '13': chapterEquip(['pointage'], '13.1. Pointeuses', null, 'pointage'),
                   '14': ch14, '15': ch15, '15.1': ch151 };
 
   function buildAll(ws, layout, stylesXml, themeXml) {

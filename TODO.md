@@ -386,3 +386,32 @@ interconnexion, domaines de câblage, flux) et exportable en Excel/CSV.
 - **ch.11/12/13** : zones de détection/caméras/pointage (emplacements, plans).
 - **ch.14** : diagramme de flux (image) — à coller dans le fichier exporté.
 - **ch.2/3/5/6** : voir la liste 1-8 ci-dessus.
+
+---
+
+## Passe de complétude classeur ↔ application (v98, 2026-09-21)
+
+**Objectif** : toute case du classeur LLD de référence est saisissable dans
+l'application, et l'export la reproduit au bon endroit ; les cases vides dues
+à des devices manquants sont comblées dans la démo.
+
+**Fait** :
+
+- **Nouveaux champs de saisie** (📘 Réseau → blocs FAI) : PF — Port WAN,
+  Port LAN, Client interne, Protocole ; WLAN statut (feuille 5, colonnes L-O et S).
+- **Correctifs d'export** : indices extrémité B feuille 15 ; défusions 6 (N30:N31,
+  P30:P31), 4 (C19:H20, B156:D156) ; VLANs site B + mot-clé iDRAC + IP/masque ;
+  ordre des modèles (2/3) + « + N autres » ; libellés WAN par FAI (6.2) ;
+  zones 8.x distinctes par ordinal ; notes « À compléter » seulement si table vide ;
+  notes Config exportées ; site VLAN conservé à l'enregistrement ; DHCP si IP WAN vide.
+- **Démo enrichie (demoVer 5)** : RACK-A 24U (22 dev), RACK-B 18U (14 dev) —
+  IDS-01/02, UPS-01/02, NVR-01, SPO-01, PRT-01→04, CLIM-01 ; VLAN 111 + bloc
+  agence 123-134 ; alias 7-9 ; 4 VM ; FAI 2/3 complétés ; 38 câbles ; 16
+  préfixes de nomenclature ; révision 1.2.
+- **Vérification** : `tools/audit_export.py` → 247 vérifications, 0 case vide
+  inattendue ; export final `Datacenter_Demo-LLD-export-2026-09-21.xlsx` ;
+  rapport détaillé `RAPPORT-VERIFICATION-EXCEL.md`.
+
+**Reste (fonctionnel, non bloquant pour la complétude)** :
+
+- **ch.14** : diagramme de flux (image) — à coller dans le fichier exporté.
