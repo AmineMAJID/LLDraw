@@ -532,7 +532,38 @@
           <label>Extrémité A — LAN 1 connecté à
             <input id="lld-ic-lana" type="text" placeholder="Ex : SW-01 port 25" maxlength="60">
           </label>
+          <label>Cluster firewall — Master (A)
+            <input id="lld-ic-clustera" type="text" placeholder="Ex : Cluster 1" maxlength="40">
+          </label>
+          <label>Cluster firewall — Slave (B)
+            <input id="lld-ic-clusterb" type="text" placeholder="Ex : Cluster 2" maxlength="40">
+          </label>
         </div>
+
+        <div class="d-inv-title" style="margin-top:14px">Profils firewall (ch. 4)</div>
+        <div class="d-grid">
+          <label>VPN SSL — utilisateurs
+            <input id="lld-fwp-vpnssl" type="text" placeholder="Ex : USER_SSL" maxlength="60">
+          </label>
+          <label>Application Control
+            <input id="lld-fwp-appctrl" type="text" placeholder="Ex : AppControl.V1" maxlength="60">
+          </label>
+          <label>WebBlocker
+            <input id="lld-fwp-webblocker" type="text" placeholder="Ex : WebBlocker.V1" maxlength="60">
+          </label>
+          <label>HTTP Proxy
+            <input id="lld-fwp-httpproxy" type="text" placeholder="Ex : HTTP-Client-v1" maxlength="60">
+          </label>
+        </div>
+
+        <div class="d-inv-title" style="margin-top:14px">Tunnels VPN site à site (ch. 4)</div>
+        <div class="lld-table" id="lld-vpns"></div>
+        <button id="lld-add-vpn" class="btn btn-ghost btn-sm">＋ Ajouter un tunnel VPN</button>
+
+        <div class="d-inv-title" style="margin-top:14px">Alias firewall (ch. 4)</div>
+        <div class="lld-table" id="lld-aliases"></div>
+        <button id="lld-add-alias" class="btn btn-ghost btn-sm">＋ Ajouter un alias</button>
+
         <label>Notes de configuration (interconnexion)
           <textarea id="lld-ic-notes" rows="3" maxlength="2000"
             placeholder="Ex : tunnel IPsec redondé, DPD activé, SA en IKEv2…"></textarea>
@@ -561,6 +592,10 @@
         <div class="d-inv-title">Zones de Switching (ch. 8)</div>
         <div class="lld-table" id="lld-zones"></div>
         <button id="lld-add-zone" class="btn btn-ghost btn-sm">＋ Ajouter une zone</button>
+
+        <div class="d-inv-title" style="margin-top:14px">Équipements &amp; licences hors baie (ch. 3)</div>
+        <div class="lld-table" id="lld-equip"></div>
+        <button id="lld-add-equip" class="btn btn-ghost btn-sm">＋ Ajouter un élément</button>
 
         <div class="d-inv-title" style="margin-top:14px">Règles &amp; NAT Firewall (ch. 7)</div>
         <div class="lld-table" id="lld-fw"></div>
@@ -701,7 +736,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=87"></script>
+  <script src="app.js?v=93"></script>
   <script type="importmap">
   {
     "imports": {

@@ -326,9 +326,10 @@ interconnexion, domaines de câblage, flux) et exportable en Excel/CSV.
    dans l'export (C7/E7/C8 de la feuille « 2 »).
 2. **ch.2 — 2.2 Existant** : ✅ FAIT — tableau rempli dispositif par modèle
    (B52-59 : modèle + quantité), FAI en ligne 51.
-3. **ch.3 — 3.1 Equipments** : distinction besoin/existant/nouveau
-   (« x1 (besoin) ») et colonnes Remarques/Statut — MANUEL (concept d'achat
-   non suivi par l'app ; colonnes laissées vides).
+3. **ch.3 — 3.1 Equipments** : ✅ FAIT — distinction besoin/existant
+   (« x1 (besoin) ») et colonnes Remarques/Statut via la table
+   « Équipements & licences hors baie » de la fiche LLD (r65-76 du ch.3) ;
+   les devices d'inventaire restent listés par modèle (B41-64).
 4. **ch.4 — Nomenclature détaillée** : l'arbre du template reste manuel ;
    ✅ le registre de l'app est projeté en bloc annexe sous le tableau (r171+).
 5. **ch.5 — FAI** : ✅ FAIT — FAI multiples avec réglages avancés par FAI :
@@ -346,8 +347,13 @@ interconnexion, domaines de câblage, flux) et exportable en Excel/CSV.
 9. **ch.7-13** : ✅ FAIT — 7.3 Règles & NAT (table « fw »), 9.2 Machines
    virtuelles (table « vms »), 10.2 Volumes/LUN (table « vols »), 12.2
    Caméras (table « cams »), VLANs par zone de switching (ch. 8). Reste
-   manuel : VPN SSL/alias/cluster firewall (7.3 note), configs poussées par
-   switch (8.x), emplacements IDS/SPO (11/13).
+   ✅ VPN S2S (table « vpns » → VPN Site to Site r15-18 du ch.4), alias
+   firewall (table « aliases » → r24-32), profils firewall (VPN SSL /
+   AppCtrl / WebBlocker / HTTP Proxy → r34-37), cluster Master/Slave
+   (champs clusterA/clusterB → r66-69), VLANs firewall mappés par mots-clés
+   (r38-63), mgmt/serveurs/SAN/imprimantes/clime (r64-137). Reste manuel :
+   configs poussées par switch (8.x), emplacements IDS/SPO (11/13),
+   health-check et Admin Security (ch.6).
 10. **ch.15 Cablage/Rack** : ✅ FAIT (câblage complet + élévations par baie).
 
 ### Chapitres 7 → 15.1 — remplis par l'export depuis l'app (fait) :

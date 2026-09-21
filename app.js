@@ -130,7 +130,7 @@ function normLldInfo(w) {
   const normFai = f => {
     const o = {};
     for (const k of ['operator', 'offer', 'linkType', 'down', 'up', 'publicBlock', 'cpe', 'cpeIp',
-                     'ipMode', 'wanIp', 'wanLabel', 'lanIp', 'lanMask', 'lanGw', 'lanDns',
+                     'ipMode', 'wanIp', 'wanMask', 'wanGw', 'wanDns', 'wanLabel', 'lanIp', 'lanMask', 'lanGw', 'lanDns',
                      'ipv6', 'dhcp', 'pf', 'dmz', 'firewall', 'wlan'])
       o[k] = String(f[k] ?? '').slice(0, 120);
     o.notes = String(f.notes ?? '').slice(0, 2000);
@@ -144,8 +144,8 @@ function normLldInfo(w) {
   L.fai = L.fais[0] || normFai({});
   if (!L.interco || typeof L.interco !== 'object') L.interco = {};
   for (const k of ['tech', 'epA', 'epB', 'localSubnets', 'remoteSubnets', 'routing', 'encryption',
-                   'snA', 'fwA', 'haA', 'roleA', 'vipA', 'mgmtA', 'lanA',
-                   'snB', 'fwB', 'haB', 'roleB', 'vipB', 'mgmtB', 'lanB']) {
+                   'snA', 'fwA', 'haA', 'roleA', 'vipA', 'mgmtA', 'lanA', 'clusterA',
+                   'snB', 'fwB', 'haB', 'roleB', 'vipB', 'mgmtB', 'lanB', 'clusterB']) {
     if (typeof L.interco[k] !== 'string') L.interco[k] = '';
     L.interco[k] = L.interco[k].slice(0, 120);
   }
@@ -158,6 +158,14 @@ function normLldInfo(w) {
       })
     : [];
   L.fw = normTable(L.fw, [['type', 12], ['name', 40], ['src', 60], ['dst', 60], ['service', 60], ['action', 20]]);
+  L.vpns = normTable(L.vpns, [['name', 40], ['peer', 60]]);
+  L.aliases = normTable(L.aliases, [['name', 40], ['value', 80]]);
+  L.equip = normTable(L.equip, [['model', 70], ['qty', 20], ['remark', 80], ['status', 20]]);
+  if (!L.fwProfiles || typeof L.fwProfiles !== 'object') L.fwProfiles = {};
+  for (const k of ['vpnSsl', 'appCtrl', 'webBlocker', 'httpProxy']) {
+    if (typeof L.fwProfiles[k] !== 'string') L.fwProfiles[k] = '';
+    L.fwProfiles[k] = L.fwProfiles[k].slice(0, 60);
+  }
   L.vms = normTable(L.vms, [['name', 40], ['role', 60], ['host', 40], ['ip', 40]]);
   L.vols = normTable(L.vols, [['name', 40], ['size', 30], ['type', 30], ['srv', 40]]);
   L.cams = normTable(L.cams, [['name', 40], ['loc', 60], ['model', 40], ['ip', 40]]);
@@ -3910,6 +3918,11 @@ const LLD_SIGNATORY_COLS = [
 // Colonne « Site » : libre pour l'instant, sera reliée aux sites déclarés au lot 2
 const LLD_VLAN_COLS = [['vid', 'VLAN', 44], ['name', 'Nom', 96], ['site', 'Site', 80], ['subnet', 'Subnet', 120], ['gw', 'Passerelle', 106], ['purpose', 'Usage', 'flex']];
 const LLD_NOMEN_COLS = [['type', "Type d'objet", 150], ['prefix', 'Préfixe', 78], ['example', 'Exemple', 140], ['rule', 'Règle de nommage', 'flex']];
+// Profils firewall (ch. 4 du template) : [clé, sélecteur HTML]
+const LLD_FWP_FIELDS = [
+  ['vpnSsl', '#lld-fwp-vpnssl'], ['appCtrl', '#lld-fwp-appctrl'],
+  ['webBlocker', '#lld-fwp-webblocker'], ['httpProxy', '#lld-fwp-httpproxy']
+];
 // Champs interconnexion (ch. 6) : [clé, sélecteur HTML]
 const LLD_IC_FIELDS = [
   ['tech', '#lld-ic-tech'], ['epA', '#lld-ic-epa'], ['epB', '#lld-ic-epb'],
@@ -3918,12 +3931,17 @@ const LLD_IC_FIELDS = [
   ['snA', '#lld-ic-sna'], ['fwA', '#lld-ic-fwa'], ['haA', '#lld-ic-haa'], ['roleA', '#lld-ic-rolea'],
   ['vipA', '#lld-ic-vipa'], ['mgmtA', '#lld-ic-mgmta'], ['lanA', '#lld-ic-lana'],
   ['snB', '#lld-ic-snb'], ['fwB', '#lld-ic-fwb'], ['haB', '#lld-ic-hab'], ['roleB', '#lld-ic-roleb'],
-  ['vipB', '#lld-ic-vipb'], ['mgmtB', '#lld-ic-mgmtb'], ['lanB', '#lld-ic-lanb']
+  ['vipB', '#lld-ic-vipb'], ['mgmtB', '#lld-ic-mgmtb'], ['lanB', '#lld-ic-lanb'],
+  ['clusterA', '#lld-ic-clustera'], ['clusterB', '#lld-ic-clusterb']
 ];
 // Tables par chapitre : règles/NAT firewall (7), VMs (9), volumes (10), caméras (12)
 const LLD_FW_COLS = [['type', 'Type', 74], ['name', 'Nom / Règle', 'flex'], ['src', 'Source', 130],
                      ['dst', 'Destination', 130], ['service', 'Service / Ports', 120], ['action', 'Action', 66]];
 const LLD_VM_COLS = [['name', 'VM', 120], ['role', 'Rôle', 'flex'], ['host', 'Hôte', 110], ['ip', 'IP / VLAN', 100]];
+const LLD_VPN_COLS = [['name', 'Tunnel VPN S2S', 'flex'], ['peer', 'Pair / subnet distant', 200]];
+const LLD_ALIAS_COLS = [['name', 'Alias', 140], ['value', 'Définition (hosts, subnet…)', 'flex']];
+const LLD_EQUIP_COLS = [['model', 'Élément (licence, lien, câble…)', 'flex'], ['qty', 'Quantité', 110],
+                        ['remark', 'Remarque', 150], ['status', 'Statut', 110]];
 const LLD_VOL_COLS = [['name', 'Volume / LUN', 'flex'], ['size', 'Capacité', 90], ['type', 'Type', 90], ['srv', 'Serveur', 120]];
 const LLD_CAM_COLS = [['name', 'Caméra', 110], ['loc', 'Emplacement', 'flex'], ['model', 'Modèle', 120], ['ip', 'IP', 100]];
 // Notes de configuration par chapitre (clé = domaine du chapitre)
@@ -4068,6 +4086,15 @@ function lldAddFaiBlock(container, fai = {}) {
       </label>
       <label>IP WAN
         <input type="text" data-k="wanIp" placeholder="Ex : 41.92.10.2" maxlength="45">
+      </label>
+      <label>Masque WAN
+        <input type="text" data-k="wanMask" placeholder="Ex : 255.255.255.248" maxlength="45">
+      </label>
+      <label>Passerelle WAN
+        <input type="text" data-k="wanGw" placeholder="Ex : 41.92.10.1" maxlength="45">
+      </label>
+      <label>DNS WAN
+        <input type="text" data-k="wanDns" placeholder="Ex : 212.217.0.1" maxlength="60">
       </label>
       <label>IPv6
         <input type="text" data-k="ipv6" placeholder="Ex : 2a01:…/64" maxlength="60">
@@ -4236,12 +4263,15 @@ function openLldModal() {
   faisEl.innerHTML = '';
   (L.fais && L.fais.length ? L.fais : [{}]).forEach(f => lldAddFaiBlock(faisEl, f));
   [['#lld-fw', L.fw, LLD_FW_COLS], ['#lld-vms', L.vms, LLD_VM_COLS],
-   ['#lld-vols', L.vols, LLD_VOL_COLS], ['#lld-cams', L.cams, LLD_CAM_COLS]]
+   ['#lld-vols', L.vols, LLD_VOL_COLS], ['#lld-cams', L.cams, LLD_CAM_COLS],
+   ['#lld-vpns', L.vpns, LLD_VPN_COLS], ['#lld-aliases', L.aliases, LLD_ALIAS_COLS],
+   ['#lld-equip', L.equip, LLD_EQUIP_COLS]]
     .forEach(([sel, tbl, cols]) => {
       const el = $(sel);
       el.innerHTML = '';
       (tbl || []).forEach(r => lldAddRow(el, cols, r));
     });
+  LLD_FWP_FIELDS.forEach(([k, sel]) => { $(sel).value = (L.fwProfiles || {})[k] || ''; });
   LLD_IC_FIELDS.forEach(([k, sel]) => { $(sel).value = L.interco[k] || ''; });
   const zonesEl = $('#lld-zones');
   zonesEl.innerHTML = '';
@@ -4283,6 +4313,9 @@ $('#lld-add-nomen').addEventListener('click', () => {
 });
 $('#lld-add-fw').addEventListener('click', () => lldAddRow($('#lld-fw'), LLD_FW_COLS, { type: 'Règle' }));
 $('#lld-add-vm').addEventListener('click', () => lldAddRow($('#lld-vms'), LLD_VM_COLS, {}));
+$('#lld-add-vpn').addEventListener('click', () => lldAddRow($('#lld-vpns'), LLD_VPN_COLS, {}));
+$('#lld-add-alias').addEventListener('click', () => lldAddRow($('#lld-aliases'), LLD_ALIAS_COLS, {}));
+$('#lld-add-equip').addEventListener('click', () => lldAddRow($('#lld-equip'), LLD_EQUIP_COLS, {}));
 $('#lld-add-vol').addEventListener('click', () => lldAddRow($('#lld-vols'), LLD_VOL_COLS, {}));
 $('#lld-add-cam').addEventListener('click', () => lldAddRow($('#lld-cams'), LLD_CAM_COLS, {}));
 $('#lld-add-fai').addEventListener('click', () => {
@@ -4379,6 +4412,11 @@ $('#lld-save').addEventListener('click', () => {
   L.vms = lldRowsFrom($('#lld-vms')).filter(r => r.name.trim());
   L.vols = lldRowsFrom($('#lld-vols')).filter(r => r.name.trim());
   L.cams = lldRowsFrom($('#lld-cams')).filter(r => r.name.trim());
+  L.vpns = lldRowsFrom($('#lld-vpns')).filter(r => r.name.trim());
+  L.aliases = lldRowsFrom($('#lld-aliases')).filter(r => r.name.trim());
+  L.equip = lldRowsFrom($('#lld-equip')).filter(r => r.model.trim());
+  L.fwProfiles = {};
+  LLD_FWP_FIELDS.forEach(([k, sel]) => { L.fwProfiles[k] = $(sel).value.slice(0, 60); });
   L.fais = lldFaisFrom($('#lld-fais'))
     .filter(f => f.operator.trim() || f.offer.trim() || f.down.trim() ||
                  f.publicBlock.trim() || f.notes.trim());
@@ -6296,7 +6334,9 @@ const LLD_TPL = (() => {
     set(rows, 'C7', site.type || '');
     set(rows, 'E7', site.country || '');
     set(rows, 'C8', site.users || '');
-    set(rows, 'C9', fai.down || '');
+    const allDown = ((L.fais && L.fais.length) ? L.fais : (fai.operator ? [fai] : []))
+      .map(x => x.down).filter(Boolean).join(' + ');
+    set(rows, 'C9', allDown || fai.down || '');
     set(rows, 'C10', String(fai.notes || '').split('\n')[0]);
     // 2.2 : texte « infrastructure existante » de l'app (zone vide r16+)
     proseLines(L.existant, 30).forEach((t, i) => {
@@ -6323,17 +6363,43 @@ const LLD_TPL = (() => {
     proseLines(ws.lld && ws.lld.architecture, 33).forEach((t, i) => {
       rows[1 + i][0] = { v: t, s: 129 };
     });
-    // 3.1 : équipements (r41-76) depuis l'inventaire, groupés par modèle
+    // 3.1 : équipements (r41-76) — inventaire groupé par modèle, puis
+    // éléments hors baie (licences, liens, câbles…) saisis dans la fiche LLD
     const { byModel } = invGroups(ws);
     const groups = [...byModel.entries()];
+    const equip = (ws.lld && ws.lld.equip) || [];
+    const matchEquip = model => {
+      const m = equip.find(e => e.model && model &&
+        model.toLowerCase().includes(e.model.toLowerCase().split(' ')[0]) &&
+        e.model.split(' ')[0].length > 3);
+      return m;
+    };
+    const put = (r, col, v, s) => { rows[r - 1][col] = { v, s }; };
     groups.slice(0, 36).forEach(([model, n], i) => {
-      const r = 41 + i;
-      set(rows, `B${r}`, model, i % 2 ? 197 : 190);
-      set(rows, `D${r}`, `x${n}`, i % 2 ? 198 : 195);
+      const r = 41 + i, alt = i % 2;
+      put(r, 1, model, alt ? 197 : 190);
+      put(r, 3, `x${n}`, alt ? 198 : 195);
+      const e = matchEquip(model);
+      if (e) {
+        if (e.qty) put(r, 3, e.qty, alt ? 198 : 195);
+        put(r, 5, e.remark || '', alt ? 190 : 116);   // colonne F (Remarques)
+        put(r, 6, e.status || '', alt ? 195 : 117);   // colonne G (Statut)
+      }
     });
-    for (let r = 41 + Math.min(groups.length, 36); r <= 76; r++) {
+    const rest = equip.filter(e => e.model && !groups.some(([m]) => matchEquip(m) === e));
+    let nr = 41 + Math.min(groups.length, 36);
+    rest.slice(0, 76 - nr + 1).forEach((e, i) => {
+      const alt = (nr - 41) % 2;
+      put(nr, 1, e.model, alt ? 197 : 190);
+      put(nr, 3, e.qty || '', alt ? 198 : 195);
+      put(nr, 5, e.remark || '', alt ? 190 : 116);
+      put(nr, 6, e.status || '', alt ? 195 : 117);
+      nr++;
+    });
+    for (let r = nr; r <= 76; r++) {
       set(rows, `B${r}`, '', rows[r - 1][1] ? rows[r - 1][1].s : 190);
       set(rows, `D${r}`, '', rows[r - 1][3] ? rows[r - 1][3].s : 195);
+      if (rows[r - 1][5] !== undefined) { set(rows, `F${r}`, '', rows[r - 1][5].s); set(rows, `G${r}`, '', rows[r - 1][6].s); }
     }
     return out(sheet, rows, heights);
   }
@@ -6346,13 +6412,27 @@ const LLD_TPL = (() => {
     const ipFrom = s => { const m = /((?:\d{1,3}\.){3}\d{1,3}(?:\/\d+)?)/.exec(String(s || '')); return m ? m[1] : ''; };
     const shortName = s => String(s || '').split(/[ (—]/)[0].trim();
     const fais = (L.fais && L.fais.length) ? L.fais : (L.fai && L.fai.operator ? [L.fai] : []);
-    // FAI (FTTH 1-3) et WAN 1-3 : IP WAN
+    // FAI (FTTH 1-3) et WAN 1-3 : adressage WAN complet
     fais.slice(0, 3).forEach((f, i) => {
       set(rows, `D${6 + i}`, f.wanIp || '');
+      set(rows, `E${6 + i}`, f.wanMask || '');
+      set(rows, `F${6 + i}`, f.wanGw || '');
+      set(rows, `G${6 + i}`, f.wanDns || '');
       set(rows, `D${12 + i}`, f.wanIp || '');
+      set(rows, `E${12 + i}`, f.wanMask || '');
+      set(rows, `F${12 + i}`, f.wanGw || '');
+      set(rows, `G${12 + i}`, f.wanDns || '');
     });
+    // VPN S2S 1-4 (r15-18) : tunnels saisis dans la fiche LLD
+    (L.vpns || []).slice(0, 4).forEach((v, i) => {
+      set(rows, `C${15 + i}`, v.name || '');
+      set(rows, `D${15 + i}`, v.peer || '');
+    });
+    for (let r = 15 + Math.min((L.vpns || []).length, 4); r <= 18; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
     // Interconnexion S2S : extrémités, VIP
     const ic = L.interco || {};
+    const srvs = byCat(ws, ['server']);
+    const stos = byCat(ws, ['storage']);
     if (ic.epA) { set(rows, 'C9', shortName(ic.epA)); set(rows, 'D9', ipFrom(ic.epA)); }
     if (ic.epB) { set(rows, 'C10', shortName(ic.epB)); set(rows, 'D10', ipFrom(ic.epB)); }
     if (ic.vipA) set(rows, 'D11', ic.vipA);
@@ -6364,13 +6444,102 @@ const LLD_TPL = (() => {
     });
     const nat = (L.fw || []).find(r0 => /nat/i.test(r0.type || ''));
     if (nat) { set(rows, 'C21', nat.name || ''); set(rows, 'D21', nat.dst || ''); }
+    // Alias firewall (r24-32) : table alias de la fiche LLD
+    (L.aliases || []).slice(0, 9).forEach((a, i) => {
+      set(rows, `C${24 + i}`, a.name || '');
+      set(rows, `D${24 + i}`, a.value || '');
+    });
+    for (let r = 24 + Math.min((L.aliases || []).length, 9); r <= 32; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    // Profils firewall (r34-37)
+    const fp = L.fwProfiles || {};
+    set(rows, 'C34', fp.vpnSsl || '');
+    set(rows, 'C35', fp.appCtrl || '');
+    set(rows, 'C36', fp.webBlocker || '');
+    set(rows, 'C37', fp.httpProxy || '');
+    // VLANs firewall (r38-49 et r50-63) : appariement par mots-clés du registre VLAN
+    const vlansAll = L.vlans || [];
+    const KW = [
+      [/dmz/i, /dmz/i, /dmz/i],
+      [/storage/i, /storage/i, /storage|stg|backup|sauvegarde|nas|san/i],
+      [/ups|onduleur/i, /ups/i, /ups|onduleur|energie|énergie/i],
+      [/manegement|management|mgmt/i, /mgmt|management|gestion/i, /mgmt|management|gestion|admin/i],
+      [/users wired|wired/i, /user|utilisateur|bureau/i, /user|utilisateur|bureau|corp/i, /wifi|wireless|guest|invite|invité/i],
+      [/wireless|wifi|wlan/i, /guest|invite|invité|wifi|wlan|wireless/i, /wifi|wlan|wireless|invite|invité|sans[- ]fil/i, /wired|user|utilisateur/i],
+      [/print/i, /print|imprim/i, /print|imprim/i],
+      [/\bids\b|intrusion/i, /\bids\b|\bips\b|intrusion/i, /ids|ips|intrusion/i],
+      [/cctv|cam/i, /cctv|cam|video|vidéo/i, /cctv|cam|video|vidéo|surveillance/i],
+      [/\bspo\b|pointage/i, /spo|pointage|badge/i, /spo|pointage|badge/i],
+      [/voip|toip/i, /voip|toip|téléph|teleph/i, /voip|toip|téléph|teleph/i],
+      [/idrac/i, /idrac|ipmi|bmc|oob/i, /idrac|ipmi|bmc|oob/i]
+    ];
+    const vlanFor = label => {
+      const hit = KW.find(([a]) => a.test(label));
+      if (!hit) return '';
+      const [, primary, full, excl] = hit;
+      // exclusion (ex. « Users Wireless » ne doit pas retomber sur vUsers)
+      const ok = x => !(excl && excl.test(x.name || ''));
+      // 1) nom correspondant au terme principal, 2) nom (tous termes),
+      // 3) usage (tous termes)
+      const v = vlansAll.find(x => ok(x) && primary.test(x.name || '')) ||
+                vlansAll.find(x => ok(x) && full.test(x.name || '')) ||
+                vlansAll.find(x => ok(x) && full.test(x.purpose || ''));
+      return v && v.vid ? `VLAN ${v.vid}` : '';
+    };
+    for (let r = 38; r <= 49; r++) {
+      const lbl = rows[r - 1][1] && rows[r - 1][1].v;
+      set(rows, `C${r}`, lbl ? vlanFor(String(lbl)) : '');
+    }
+    for (let r = 50; r <= 63; r++) {
+      const lbl = rows[r - 1][1] && rows[r - 1][1].v;
+      set(rows, `C${r}`, lbl && !/VM\d/i.test(String(lbl)) ? vlanFor(String(lbl)) : '');
+    }
+    // Master/Slave mgmt (r64-65) et interfaces cluster (r66-69)
+    set(rows, 'C64', ic.mgmtA || '');
+    set(rows, 'C65', ic.mgmtB || '');
+    set(rows, 'C66', ic.clusterA || '');
+    set(rows, 'C67', '');
+    set(rows, 'C68', ic.clusterB || '');
+    set(rows, 'C69', '');
+    // VLANs par switch (r76-86 switch 1, r88-99 switch 2) : listes des zones
+    const zoneLists = (L.swZones || []).filter(z => z.vlans).map(z => String(z.vlans || ''))
+      .map(s => s.split(',').flatMap(x => {
+        x = x.trim(); const m = /^(\d+)\s*-\s*(\d+)$/.exec(x);
+        return m ? Array.from({ length: Math.min(+m[2], +m[1] + 30) - +m[1] + 1 }, (_, k) => +m[1] + k) : (x ? [x] : []);
+      }).filter(Boolean));
+    const fillVlanRows = (list, r0, r1) => {
+      for (let r = r0; r <= r1; r++) set(rows, `C${r}`, '');
+      list.slice(0, r1 - r0 + 1).forEach((v, i) => set(rows, `C${r0 + i}`, `VLAN ${v}`));
+    };
+    fillVlanRows(zoneLists[0] || [], 76, 86);
+    fillVlanRows(zoneLists[1] || [], 88, 99);
+    // Ports du 1er serveur (r101-107) et du SAN (r109-112)
+    const ports = list0 => (list0[0] && list0[0].inst.ports || []);
+    ports(srvs).slice(0, 7).forEach((p, i) => {
+      set(rows, `C${101 + i}`, p.label || p.name || '');
+      set(rows, `D${101 + i}`, p.ip || '');
+    });
+    for (let r = 101 + Math.min(ports(srvs).length, 7); r <= 107; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    ports(stos).slice(0, 4).forEach((p, i) => {
+      set(rows, `C${109 + i}`, p.label || p.name || '');
+      set(rows, `D${109 + i}`, p.ip || '');
+    });
+    for (let r = 109 + Math.min(ports(stos).length, 4); r <= 112; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    // Imprimantes (r127-130) et clime (r137) : devices par nom
+    const byNameRe = re => sortedRackInstances(ws).filter(x => re.test(x.inst.name || ''));
+    byNameRe(/^PR[NT]/i).slice(0, 4).forEach((x, i) => {
+      set(rows, `C${127 + i}`, x.inst.name || '');
+      set(rows, `D${127 + i}`, x.inst.ipMgmt || '');
+    });
+    for (let r = 127 + Math.min(byNameRe(/^PR[NT]/i).length, 4); r <= 130; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    byNameRe(/CLIM|FROID/i).slice(0, 1).forEach(x => {
+      set(rows, 'C137', x.inst.name || '');
+      set(rows, 'D137', x.inst.ipMgmt || '');
+    });
     // Switch 1-6 : IP de mgmt
     const sws = byCat(ws, ['switch']);
     sws.slice(0, 6).forEach((x, i) => set(rows, `D${70 + i}`, x.inst.ipMgmt || ''));
     // Serveur physique 1 / SAN
-    const srvs = byCat(ws, ['server']);
     if (srvs[0]) { set(rows, 'C100', srvs[0].inst.name || ''); set(rows, 'D100', srvs[0].inst.ipMgmt || ''); }
-    const stos = byCat(ws, ['storage']);
     if (stos[0]) { set(rows, 'C108', stos[0].inst.name || ''); set(rows, 'D108', stos[0].inst.ipMgmt || ''); }
     // VM NX (BI/BC/AD/Web ×2) : appariement par mots-clés sur nom + rôle
     const vms = L.vms || [];
@@ -6502,12 +6671,16 @@ const LLD_TPL = (() => {
       set(rows, `D${r}`, f.ipMode || '');
       set(rows, `E${r}`, 'NAT');
       set(rows, `F${r}`, f.wanIp || '');
+      set(rows, `G${r}`, f.wanMask || '');
+      set(rows, `H${r}`, f.wanGw || '');
+      set(rows, `I${r}`, f.wanDns || '');
       set(rows, `K${r}`, f.up || '');
       set(rows, `L${r}`, f.down || '');
       set(rows, `M${r}`, f.down || '');
+      set(rows, `X${r}`, f.operator || '');
     });
     for (let r = 45 + Math.min(fais.length, 3); r <= 47; r++)
-      ['B', 'C', 'D', 'E', 'F', 'K', 'L', 'M'].forEach(c2 => set(rows, `${c2}${r}`, ''));
+      ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'X'].forEach(c2 => set(rows, `${c2}${r}`, ''));
     // LAN (r52-53)
     if (ic.routing) set(rows, 'C52', ic.routing);
     const nv = (L.vlans || []).length;

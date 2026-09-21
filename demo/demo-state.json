@@ -1436,34 +1436,44 @@
        "photo": "",
        "ports": [
         {
-         "id": "p-inst-dell-01-iDRAC",
+         "id": "p-srv-idrac",
          "name": "iDRAC",
-         "label": "iDRAC9 (mgmt)",
-         "xPct": 73.3,
-         "yPct": 81.5,
+         "label": "iDRAC 1",
+         "xPct": 20,
+         "yPct": 60,
          "size": 0.8,
-         "ip": "10.10.99.31",
+         "ip": "10.10.99.32",
          "vlan": "VLAN 99"
         },
         {
-         "id": "p-inst-dell-01-eth0",
-         "name": "eth0",
-         "label": "eth0 (VLAN 20)",
-         "xPct": 80.0,
-         "yPct": 81.5,
+         "id": "p-srv-lan1",
+         "name": "LAN1",
+         "label": "WSUS + VBR",
+         "xPct": 40,
+         "yPct": 60,
          "size": 0.8,
          "ip": "10.10.20.11",
          "vlan": "VLAN 20"
         },
         {
-         "id": "p-inst-dell-01-eth1",
-         "name": "eth1",
-         "label": "eth1 (VLAN 21)",
-         "xPct": 86.7,
-         "yPct": 81.5,
+         "id": "p-srv-lan2",
+         "name": "LAN2",
+         "label": "BC-PRI / WEB-PRI",
+         "xPct": 60,
+         "yPct": 60,
          "size": 0.8,
-         "ip": "10.10.21.11",
-         "vlan": "VLAN 21"
+         "ip": "10.10.20.12",
+         "vlan": "VLAN 20"
+        },
+        {
+         "id": "p-srv-mgmt",
+         "name": "MGMT",
+         "label": "Mgmt 1-2",
+         "xPct": 80,
+         "yPct": 60,
+         "size": 0.8,
+         "ip": "10.10.10.31",
+         "vlan": "VLAN 10"
         }
        ],
        "brand": "Dell",
@@ -1488,44 +1498,34 @@
        "photo": "",
        "ports": [
         {
-         "id": "p-inst-nas-01-LAN1",
-         "name": "LAN1",
-         "label": "LAN1 (mgmt)",
-         "xPct": 66.7,
-         "yPct": 84.4,
+         "id": "p-nas-mgmt",
+         "name": "MGMT",
+         "label": "Mgmt",
+         "xPct": 25,
+         "yPct": 62,
          "size": 0.8,
          "ip": "10.10.99.41",
          "vlan": "VLAN 99"
         },
         {
-         "id": "p-inst-nas-01-LAN2",
-         "name": "LAN2",
-         "label": "LAN2 (stockage)",
-         "xPct": 73.3,
-         "yPct": 84.4,
+         "id": "p-nas-iscsi1",
+         "name": "ISCSI1",
+         "label": "ISCSI 1",
+         "xPct": 55,
+         "yPct": 62,
          "size": 0.8,
          "ip": "10.10.30.12",
          "vlan": "VLAN 30"
         },
         {
-         "id": "p-inst-nas-01-LAN3",
-         "name": "LAN3",
-         "label": "LAN3 (spare)",
-         "xPct": 80.0,
-         "yPct": 84.4,
+         "id": "p-nas-iscsi2",
+         "name": "ISCSI2",
+         "label": "ISCSI 2",
+         "xPct": 75,
+         "yPct": 62,
          "size": 0.8,
-         "ip": "",
-         "vlan": ""
-        },
-        {
-         "id": "p-inst-nas-01-LAN4",
-         "name": "LAN4",
-         "label": "LAN4 (spare)",
-         "xPct": 86.7,
-         "yPct": 84.4,
-         "size": 0.8,
-         "ip": "",
-         "vlan": ""
+         "ip": "10.10.30.13",
+         "vlan": "VLAN 30"
         }
        ],
        "brand": "Synology",
@@ -2106,7 +2106,7 @@
      "name": "RACK-B — Agence Rabat",
      "x": 620,
      "y": 120,
-     "sizeU": 16,
+     "sizeU": 18,
      "siteId": "site-b",
      "maxWatts": 3000,
      "maxKg": 200,
@@ -3153,6 +3153,134 @@
          "vlan": "VLAN 101"
         }
        ]
+      },
+      {
+       "id": "inst-ups-01",
+       "deviceId": "dev-ups-01",
+       "name": "UPS-01",
+       "slot": 13,
+       "sizeU": 1,
+       "cat": "ups",
+       "zone": "",
+       "photo": "",
+       "brand": "APC",
+       "model": "Smart-UPS SRT 3000VA (SRT3000XLI)",
+       "partRef": "",
+       "serial": "APC-SRT-9931",
+       "ipMgmt": "10.11.99.81",
+       "vlan": "",
+       "watts": 0,
+       "weightKg": 28,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-ups-01-1",
+         "name": "1",
+         "label": "VLAN 31",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 31"
+        }
+       ]
+      },
+      {
+       "id": "inst-prt-01",
+       "deviceId": "dev-prt-01",
+       "name": "PRT-01",
+       "slot": 15,
+       "sizeU": 1,
+       "cat": "other",
+       "zone": "",
+       "photo": "",
+       "brand": "HP",
+       "model": "LaserJet Enterprise M527 (accès RDC)",
+       "partRef": "",
+       "serial": "",
+       "ipMgmt": "10.11.70.11",
+       "vlan": "VLAN 70",
+       "watts": 20,
+       "weightKg": 2,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-prt-01-1",
+         "name": "1",
+         "label": "VLAN 70",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 70"
+        }
+       ]
+      },
+      {
+       "id": "inst-clim-01",
+       "deviceId": "dev-clim-01",
+       "name": "CLIM-01",
+       "slot": 16,
+       "sizeU": 1,
+       "cat": "other",
+       "zone": "",
+       "photo": "",
+       "brand": "Daikin",
+       "model": "FTX-KV — split précision 1er étage",
+       "partRef": "",
+       "serial": "DK-FTX-7712",
+       "ipMgmt": "",
+       "vlan": "",
+       "watts": 20,
+       "weightKg": 2,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-clim-01-1",
+         "name": "1",
+         "label": "",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": ""
+        }
+       ]
+      },
+      {
+       "id": "inst-prt-02",
+       "deviceId": "dev-prt-02",
+       "name": "PRT-02",
+       "slot": 17,
+       "sizeU": 1,
+       "cat": "other",
+       "zone": "",
+       "photo": "",
+       "brand": "HP",
+       "model": "LaserJet M428 (agence)",
+       "partRef": "",
+       "serial": "HP-M428-2210",
+       "ipMgmt": "10.11.70.12",
+       "vlan": "VLAN 70",
+       "watts": 15,
+       "weightKg": 10,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-prt-02-1",
+         "name": "1",
+         "label": "VLAN 70",
+         "xPct": 50,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 70"
+        }
+       ]
       }
      ]
     }
@@ -3893,10 +4021,22 @@
     "architecture": "Le siège (RACK-A) concentre la production : le cluster Nutanix NX-01 à NX-03 porte les machines virtuelles (18 VM : AD/DNS, fichiers, ERP, Veeam, Zabbix), le Dell R740 héberge le reverse-proxy et la supervision, le NAS-01 sert de cible de sauvegarde. La baie RACK-B à Rabat héberge le second pare-feu, le routeur SD-WAN et le NAS de réplication.\n\nChaque site dispose d'un accès FTTO dédié ; les deux sites sont reliés par un tunnel SD-WAN SpeedFusion (Peplink) avec secours 4G. Le WiFi Aruba est déployé en mode contrôleur virtuel instant, un SSID par population (corporate VLAN 40, invités isolés). La supervision Zabbix collecte les métriques des équipements via le VLAN 99, y compris la température et l'hygrométrie des baies (sondes AKCP).",
     "revs": [
      {
+      "rev": "0.1",
+      "date": "2026-08-20",
+      "author": "Amine MJID",
+      "note": "Version initiale — trame du dossier"
+     },
+     {
       "rev": "1.0",
       "date": "2026-09-08",
       "author": "Amine MJID",
-      "note": "Création — inventaire initial du datacenter de démonstration."
+      "note": "Création — inventaire initial du datacenter de démonstration"
+     },
+     {
+      "rev": "1.1",
+      "date": "2026-09-15",
+      "author": "Amine MJID",
+      "note": "+ Ajout switchs d'accès et plan de ports\n+ FAI de secours 5G\n+ Table caméras CCTV"
      }
     ],
     "nomen": [
@@ -3997,6 +4137,70 @@
       "subnet": "10.10.99.0/24",
       "gw": "10.10.99.1",
       "purpose": "iDRAC, AP, capteurs, IPs de management"
+     },
+     {
+      "vid": "11",
+      "name": "vDMZ",
+      "site": "",
+      "subnet": "10.10.11.0/24",
+      "gw": "10.10.11.1",
+      "purpose": "Zone démilitarisée (reverse-proxy, publication)"
+     },
+     {
+      "vid": "31",
+      "name": "vUPS",
+      "site": "",
+      "subnet": "10.10.31.0/24",
+      "gw": "10.10.31.1",
+      "purpose": "Onduleurs et PDU (supervision énergie)"
+     },
+     {
+      "vid": "60",
+      "name": "vGuests",
+      "site": "",
+      "subnet": "10.10.60.0/24",
+      "gw": "10.10.60.1",
+      "purpose": "Invités WiFi isolés"
+     },
+     {
+      "vid": "70",
+      "name": "vPrinters",
+      "site": "",
+      "subnet": "10.10.70.0/24",
+      "gw": "10.10.70.1",
+      "purpose": "Imprimantes réseau"
+     },
+     {
+      "vid": "81",
+      "name": "vIDS",
+      "site": "",
+      "subnet": "10.10.81.0/24",
+      "gw": "10.10.81.1",
+      "purpose": "Détection d'intrusion"
+     },
+     {
+      "vid": "91",
+      "name": "vCCTV",
+      "site": "",
+      "subnet": "10.10.91.0/24",
+      "gw": "10.10.91.1",
+      "purpose": "Caméras et NVR"
+     },
+     {
+      "vid": "101",
+      "name": "vSPO",
+      "site": "",
+      "subnet": "10.10.101.0/24",
+      "gw": "10.10.101.1",
+      "purpose": "Pointeuses"
+     },
+     {
+      "vid": "121",
+      "name": "viDRAC",
+      "site": "",
+      "subnet": "10.10.121.0/24",
+      "gw": "10.10.121.1",
+      "purpose": "Cartes de management hors-bande"
      }
     ],
     "fai": {
@@ -4032,7 +4236,9 @@
      "roleB": "Slave",
      "vipB": "105.157.20.1",
      "mgmtB": "10.11.99.12",
-     "lanB": "Switch HA — SW-02 port 25"
+     "lanB": "Switch HA — SW-02 port 25",
+     "clusterA": "Cluster 1",
+     "clusterB": "Cluster 2"
     },
     "catNotes": {
      "firewall": "Deux Firebox M390 en architecture déportée (une par site). Politique par défaut : tout le trafic sortant autorisé en NAT, entrant bloqué sauf publication HTTPS (443) vers le reverse-proxy du VLAN 20. HA non activé sur la démo — remplacement à froid sous 4 h (matériel de rechange au siège). Administration via Fireware Web UI sur le VLAN 99.",
@@ -4089,7 +4295,10 @@
       "pf": "TCP 443 → 10.10.20.11 (reverse-proxy)",
       "dmz": "10.10.20.11",
       "firewall": "Entrée : 443 uniquement",
-      "wlan": "corp-secure (802.1X)"
+      "wlan": "corp-secure (802.1X)",
+      "wanMask": "255.255.255.248",
+      "wanGw": "41.92.10.1",
+      "wanDns": "212.217.0.1"
      },
      {
       "operator": "Inwi",
@@ -4107,7 +4316,29 @@
       "lanIp": "10.11.40.1",
       "lanMask": "255.255.255.0",
       "dhcp": "Oui",
-      "firewall": "Entrée : VPN uniquement"
+      "firewall": "Entrée : VPN uniquement",
+      "wanMask": "255.255.255.248",
+      "wanGw": "105.157.20.1",
+      "wanDns": "41.128.0.1"
+     },
+     {
+      "operator": "Orange",
+      "offer": "5G Business (secours)",
+      "linkType": "4G / 5G (secours)",
+      "down": "300 Mbps",
+      "up": "50 Mbps",
+      "publicBlock": "NAT opérateur",
+      "cpe": "Orange 5G Box — LAN 1 RTR-01 WAN 2",
+      "cpeIp": "",
+      "notes": "Secours : bascule automatique SD-WAN si perte FTTO.",
+      "ipMode": "DHCP",
+      "wanIp": "",
+      "wanMask": "",
+      "wanGw": "",
+      "wanDns": "",
+      "wanLabel": "Port WAN 2 RTR-01 (5G)",
+      "dhcp": "Oui",
+      "firewall": "Sortie uniquement"
      }
     ],
     "fw": [
@@ -4203,6 +4434,132 @@
       "model": "Hikvision DS-2CD1043 (bulle)",
       "ip": "10.11.91.13 — VLAN 91"
      }
+    ],
+    "vpns": [
+     {
+      "name": "TUN-AGENCE",
+      "peer": "RTR-02 — 105.157.20.2 (10.11.0.0/16)"
+     },
+     {
+      "name": "TUN-EXTRANET",
+      "peer": "Prestataire IT — 203.0.113.10 (VLAN 60 only)"
+     }
+    ],
+    "aliases": [
+     {
+      "name": "LAN1",
+      "value": "10.10.0.0/16 (siège)"
+     },
+     {
+      "name": "EXTERNAL1",
+      "value": "41.92.10.0/29"
+     },
+     {
+      "name": "SSL1",
+      "value": "pool VPN SSL — 10.10.60.0/24"
+     },
+     {
+      "name": "LAN2",
+      "value": "10.11.0.0/16 (agence)"
+     },
+     {
+      "name": "EXTERNAL2",
+      "value": "105.157.20.0/29"
+     },
+     {
+      "name": "SSL2",
+      "value": "pool VPN SSL agence"
+     }
+    ],
+    "fwProfiles": {
+     "vpnSsl": "USER_SSL",
+     "appCtrl": "AppControl.V1",
+     "webBlocker": "WebBlocker.V1",
+     "httpProxy": "HTTP-Client-v1"
+    },
+    "equip": [
+     {
+      "model": "FAI 5G secours (300 Mb/s)",
+      "qty": "x1 (besoin)",
+      "remark": "Liaison de secours SD-WAN",
+      "status": ""
+     },
+     {
+      "model": "Lic Veeam 10 instances",
+      "qty": "x1 (besoin)",
+      "remark": "Protection VMs + NAS",
+      "status": ""
+     },
+     {
+      "model": "Lic Windows Server 2022 Std — 16 core",
+      "qty": "x2 (besoin)",
+      "remark": "SRV-DC1 / SRV-DC2",
+      "status": ""
+     },
+     {
+      "model": "Lic SQL Server 2022 Std",
+      "qty": "x1 (besoin)",
+      "remark": "Base applicative métier",
+      "status": ""
+     },
+     {
+      "model": "Lic Office 365 Business Premium",
+      "qty": "x30 (besoin)",
+      "remark": "Utilisateurs + Azure AD P1",
+      "status": ""
+     },
+     {
+      "model": "Lic F-Secure SRV EDR",
+      "qty": "x2 (existant)",
+      "remark": "",
+      "status": ""
+     },
+     {
+      "model": "Lic F-Secure utilisateur",
+      "qty": "x120 (besoin)",
+      "remark": "Postes + mobiles",
+      "status": ""
+     },
+     {
+      "model": "Cable DAC 10G-DAC1 8121-1300",
+      "qty": "x2 (besoin)",
+      "remark": "Uplinks NX ↔ SW-INFRA",
+      "status": ""
+     },
+     {
+      "model": "SFP transceiver 1G-SX J4858D",
+      "qty": "x4 (besoin)",
+      "remark": "Fibre inter-étage",
+      "status": ""
+     }
+    ],
+    "approvers": [
+     {
+      "name": "Karim BENANI",
+      "position": "DSI",
+      "organization": "Démo Industries SA",
+      "approvedVersion": "1.0"
+     },
+     {
+      "name": "S. TAZI",
+      "position": "Responsable Infrastructure",
+      "organization": "Démo Industries SA",
+      "approvedVersion": ""
+     }
+    ],
+    "reviewers": [
+     {
+      "name": "Amine MJID",
+      "position": "Ingénieur systèmes & réseaux",
+      "organization": "LLDraw Consulting",
+      "approvedVersion": "1.0"
+     },
+     {
+      "name": "M. CHRAIBI",
+      "position": "Architecte réseau",
+      "organization": "Partenaire intégrateur",
+      "approvedVersion": ""
+     }
     ]
    },
    "view": {
@@ -4215,5 +4572,5 @@
   }
  ],
  "activeWorkspaceId": "demo-dc",
- "demoVer": 2
+ "demoVer": 3
 }
