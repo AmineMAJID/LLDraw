@@ -521,6 +521,7 @@ function normalizeState(s) {
     w.racks.forEach(r => { if (r.siteId && !siteIds.has(r.siteId)) r.siteId = ''; });
     if (typeof w.updatedAt !== 'number') w.updatedAt = 0;
     w.bundled = !!w.bundled;      // workspace issu de la démo embarquée
+    w.demoVer = Number(w.demoVer) || 0;   // version de la démo embarquée
     // Vue topologique (diagramme logique) : structure + nettoyage
     if (!w.topology || !Array.isArray(w.topology.nodes) || !Array.isArray(w.topology.links))
       w.topology = { nodes: [], links: [] };
@@ -632,6 +633,34 @@ async function bootState() {
     }
     setSaveStatus('local');
   }
+  // Une démo embarquée plus récente que la copie locale ? On l'actualise.
+  refreshDemoIfStale().then(ok => {
+    if (!ok) return;
+    renderPalette();
+    renderBoard();
+    applyWorkspaceView();
+    renderHomeListSafe();
+    showHome();
+  });
+}
+
+// La démo embarquée a évolué (demoVer > version du workspace démo local) :
+// on remplace silencieusement le workspace démo par la nouvelle version et
+// on sauvegarde — sinon un navigateur (ou data/state.json) garde indéfiniment
+// une ancienne démo. Ne touche JAMAIS aux workspaces de l'utilisateur.
+async function refreshDemoIfStale() {
+  try {
+    const demo = await loadBundledDemoState();
+    const dws = demo.workspaces[0];
+    if (!dws) return false;
+    const i = state.workspaces.findIndex(w => w.id === dws.id);
+    if (i === -1) return false;                            // démo absente : RAS
+    if (state.workspaces[i].demoVer === dws.demoVer) return false;   // à jour
+    state.workspaces[i] = dws;
+    if (state.activeWorkspaceId === dws.id) state.activeWorkspaceId = dws.id;
+    saveState();
+    return true;
+  } catch (e) { return false; }
 }
 
 // État « démo seule » versionné dans le dépôt : utilisé quand l'application
@@ -647,6 +676,7 @@ async function loadBundledDemoState() {
     const demo = normalizeState(await res.json());
     demo.workspaces.forEach(w => {
       w.bundled = true;
+      w.demoVer = Number(demo.demoVer) || 1;   // version du fichier embarqué
       // Horodatage manquant ou aberrant (ancienne valeur 20260908 lue comme
       // des millisecondes) : on prend la date du jour pour l'historique.
       if (!w.updatedAt || w.updatedAt < 946684800000) w.updatedAt = Date.now();
@@ -693,7 +723,21 @@ async function loadDemoWorkspace() {
   }
   const wsId = demo.workspaces[0].id;
   const already = state.workspaces.find(w => w.id === wsId);
-  if (already) { openWorkspace(wsId); return; }   // pas de doublon
+  if (already && already.demoVer === demo.workspaces[0].demoVer) {
+    openWorkspace(wsId); return;   // à jour : simple ouverture
+  }
+  if (already) {
+    // version démo plus récente embarquée : on remplace le workspace démo
+    pushHistory();
+    state.workspaces[state.workspaces.indexOf(already)] = demo.workspaces[0];
+    state.activeWorkspaceId = wsId;
+    saveState();
+    renderPalette();
+    renderSiteFilter();
+    openWorkspace(wsId);
+    lldAlert('La démo a été remplacée par la dernière version embarquée.', { title: '🎬 Charger la démo' });
+    return;
+  }
 
   pushHistory();
   state = mergeDemoInto(state, demo);
