@@ -113,6 +113,7 @@ function normLldInfo(w) {
   L.vlans = Array.isArray(L.vlans) ? L.vlans.filter(v => v && typeof v === 'object').map(v => ({
     vid: String(v.vid ?? '').slice(0, 6),
     name: String(v.name ?? '').slice(0, 40),
+    site: String(v.site ?? '').slice(0, 60),
     subnet: String(v.subnet ?? '').slice(0, 50),
     gw: String(v.gw ?? '').slice(0, 50),
     purpose: String(v.purpose ?? '').slice(0, 60)
@@ -125,11 +126,55 @@ function normLldInfo(w) {
   }
   if (typeof L.fai.notes !== 'string') L.fai.notes = '';
   L.fai.notes = L.fai.notes.slice(0, 2000);
+  // FAI multiples (ch. 5) : L.fais est la liste source ; L.fai (= 1er FAI)
+  // reste synchronisé pour le PDF et les traitements historiques.
+  const normFai = f => {
+    const o = {};
+    for (const k of ['operator', 'offer', 'linkType', 'down', 'up', 'publicBlock', 'cpe', 'cpeIp',
+                     'ipMode', 'wanIp', 'wanMask', 'wanGw', 'wanDns', 'wanLabel', 'lanIp', 'lanMask', 'lanGw', 'lanDns',
+                     'ipv6', 'dhcp', 'pf', 'pfPortWan', 'pfPortLan', 'pfClient', 'pfProto',
+                     'dmz', 'firewall', 'wlan', 'wlanStat'])
+      o[k] = String(f[k] ?? '').slice(0, 120);
+    o.notes = String(f.notes ?? '').slice(0, 2000);
+    return o;
+  };
+  L.fais = Array.isArray(L.fais) ? L.fais.filter(f => f && typeof f === 'object').map(normFai) : [];
+  if (!L.fais.length) {
+    const f0 = normFai(L.fai || {});
+    if (f0.operator || f0.offer || f0.down || f0.notes) L.fais = [f0];   // migration ancien état
+  }
+  L.fai = L.fais[0] || normFai({});
   if (!L.interco || typeof L.interco !== 'object') L.interco = {};
-  for (const k of ['tech', 'epA', 'epB', 'localSubnets', 'remoteSubnets', 'routing', 'encryption']) {
+  for (const k of ['tech', 'epA', 'epB', 'localSubnets', 'remoteSubnets', 'routing', 'encryption',
+                   'snA', 'fwA', 'haA', 'roleA', 'vipA', 'mgmtA', 'mgmtMaskA', 'lanA', 'clusterA',
+                   'snB', 'fwB', 'haB', 'roleB', 'vipB', 'mgmtB', 'mgmtMaskB', 'lanB', 'clusterB']) {
     if (typeof L.interco[k] !== 'string') L.interco[k] = '';
     L.interco[k] = L.interco[k].slice(0, 120);
   }
+  // Règles/NAT firewall (ch. 7), VMs (ch. 9), volumes/LUN (ch. 10), caméras (ch. 12)
+  const normTable = (arr, spec) => Array.isArray(arr)
+    ? arr.filter(r => r && typeof r === 'object').map(r => {
+        const o = {};
+        for (const [k, n] of spec) o[k] = String(r[k] ?? '').slice(0, n);
+        return o;
+      })
+    : [];
+  L.fw = normTable(L.fw, [['type', 12], ['name', 40], ['src', 60], ['dst', 60], ['service', 60], ['action', 20]]);
+  L.vpns = normTable(L.vpns, [['name', 40], ['peer', 60]]);
+  L.aliases = normTable(L.aliases, [['name', 40], ['value', 80]]);
+  L.equip = normTable(L.equip, [['model', 70], ['qty', 20], ['remark', 80], ['status', 20]]);
+  L.adminSec = normTable(L.adminSec, [
+    ['user', 60], ['auth', 40], ['proto', 20], ['host', 60], ['port', 20],
+    ['cli', 20], ['sec', 40], ['webA', 60], ['webB', 60], ['note', 120]
+  ]);
+  if (!L.fwProfiles || typeof L.fwProfiles !== 'object') L.fwProfiles = {};
+  for (const k of ['vpnSsl', 'appCtrl', 'webBlocker', 'httpProxy']) {
+    if (typeof L.fwProfiles[k] !== 'string') L.fwProfiles[k] = '';
+    L.fwProfiles[k] = L.fwProfiles[k].slice(0, 60);
+  }
+  L.vms = normTable(L.vms, [['name', 40], ['role', 60], ['host', 40], ['ip', 40]]);
+  L.vols = normTable(L.vols, [['name', 40], ['size', 30], ['type', 30], ['srv', 40]]);
+  L.cams = normTable(L.cams, [['name', 40], ['loc', 60], ['model', 40], ['ip', 40]]);
   if (typeof L.interco.notes !== 'string') L.interco.notes = '';
   L.interco.notes = L.interco.notes.slice(0, 2000);
   // Notes de configuration par chapitre (ch. 7 à 13)
@@ -141,7 +186,8 @@ function normLldInfo(w) {
   // Zones de Switching (sous-chapitres 8.1, 8.2…) — par défaut : structure cible
   L.swZones = Array.isArray(L.swZones) ? L.swZones.filter(z => z && typeof z === 'object').map(z => ({
     id: String(z.id || uid()),
-    name: String(z.name ?? '').slice(0, 40).trim() || 'Zone'
+    name: String(z.name ?? '').slice(0, 40).trim() || 'Zone',
+    vlans: String(z.vlans ?? '').slice(0, 100)
   })) : [
     { id: uid(), name: 'INFRA' },
     { id: uid(), name: 'LAN Site B' },
@@ -383,6 +429,9 @@ function normSites(w) {
   w.sites = (arr ?? defaultSites()).filter(s => s && typeof s === 'object').map(s => ({
     id: String(s.id || uid()),
     name: String(s.name ?? '').slice(0, 40).trim() || 'Site',
+    type: String(s.type ?? '').slice(0, 40),
+    country: String(s.country ?? '').slice(0, 40),
+    users: String(s.users ?? '').slice(0, 20),
     address: String(s.address ?? '').slice(0, 80),
     contact: String(s.contact ?? '').slice(0, 80),
     desc: String(s.desc ?? '').slice(0, 200)
@@ -486,6 +535,7 @@ function normalizeState(s) {
     w.racks.forEach(r => { if (r.siteId && !siteIds.has(r.siteId)) r.siteId = ''; });
     if (typeof w.updatedAt !== 'number') w.updatedAt = 0;
     w.bundled = !!w.bundled;      // workspace issu de la démo embarquée
+    w.demoVer = Number(w.demoVer) || 0;   // version de la démo embarquée
     // Vue topologique (diagramme logique) : structure + nettoyage
     if (!w.topology || !Array.isArray(w.topology.nodes) || !Array.isArray(w.topology.links))
       w.topology = { nodes: [], links: [] };
@@ -597,6 +647,34 @@ async function bootState() {
     }
     setSaveStatus('local');
   }
+  // Une démo embarquée plus récente que la copie locale ? On l'actualise.
+  refreshDemoIfStale().then(ok => {
+    if (!ok) return;
+    renderPalette();
+    renderBoard();
+    applyWorkspaceView();
+    renderHomeListSafe();
+    showHome();
+  });
+}
+
+// La démo embarquée a évolué (demoVer > version du workspace démo local) :
+// on remplace silencieusement le workspace démo par la nouvelle version et
+// on sauvegarde — sinon un navigateur (ou data/state.json) garde indéfiniment
+// une ancienne démo. Ne touche JAMAIS aux workspaces de l'utilisateur.
+async function refreshDemoIfStale() {
+  try {
+    const demo = await loadBundledDemoState();
+    const dws = demo.workspaces[0];
+    if (!dws) return false;
+    const i = state.workspaces.findIndex(w => w.id === dws.id);
+    if (i === -1) return false;                            // démo absente : RAS
+    if (state.workspaces[i].demoVer === dws.demoVer) return false;   // à jour
+    state.workspaces[i] = dws;
+    if (state.activeWorkspaceId === dws.id) state.activeWorkspaceId = dws.id;
+    saveState();
+    return true;
+  } catch (e) { return false; }
 }
 
 // État « démo seule » versionné dans le dépôt : utilisé quand l'application
@@ -612,6 +690,7 @@ async function loadBundledDemoState() {
     const demo = normalizeState(await res.json());
     demo.workspaces.forEach(w => {
       w.bundled = true;
+      w.demoVer = Number(demo.demoVer) || 1;   // version du fichier embarqué
       // Horodatage manquant ou aberrant (ancienne valeur 20260908 lue comme
       // des millisecondes) : on prend la date du jour pour l'historique.
       if (!w.updatedAt || w.updatedAt < 946684800000) w.updatedAt = Date.now();
@@ -658,7 +737,21 @@ async function loadDemoWorkspace() {
   }
   const wsId = demo.workspaces[0].id;
   const already = state.workspaces.find(w => w.id === wsId);
-  if (already) { openWorkspace(wsId); return; }   // pas de doublon
+  if (already && already.demoVer === demo.workspaces[0].demoVer) {
+    openWorkspace(wsId); return;   // à jour : simple ouverture
+  }
+  if (already) {
+    // version démo plus récente embarquée : on remplace le workspace démo
+    pushHistory();
+    state.workspaces[state.workspaces.indexOf(already)] = demo.workspaces[0];
+    state.activeWorkspaceId = wsId;
+    saveState();
+    renderPalette();
+    renderSiteFilter();
+    openWorkspace(wsId);
+    lldAlert('La démo a été remplacée par la dernière version embarquée.', { title: '🎬 Charger la démo' });
+    return;
+  }
 
   pushHistory();
   state = mergeDemoInto(state, demo);
@@ -3831,17 +3924,37 @@ const LLD_SIGNATORY_COLS = [
 // Colonne « Site » : libre pour l'instant, sera reliée aux sites déclarés au lot 2
 const LLD_VLAN_COLS = [['vid', 'VLAN', 44], ['name', 'Nom', 96], ['site', 'Site', 80], ['subnet', 'Subnet', 120], ['gw', 'Passerelle', 106], ['purpose', 'Usage', 'flex']];
 const LLD_NOMEN_COLS = [['type', "Type d'objet", 150], ['prefix', 'Préfixe', 78], ['example', 'Exemple', 140], ['rule', 'Règle de nommage', 'flex']];
-// Champs FAI (ch. 5) et interconnexion (ch. 6) : [clé, sélecteur HTML]
-const LLD_FAI_FIELDS = [
-  ['operator', '#lld-fai-operator'], ['offer', '#lld-fai-offer'], ['linkType', '#lld-fai-type'],
-  ['down', '#lld-fai-down'], ['up', '#lld-fai-up'], ['publicBlock', '#lld-fai-block'],
-  ['cpe', '#lld-fai-cpe'], ['cpeIp', '#lld-fai-cpeip'], ['notes', '#lld-fai-notes']
+// Profils firewall (ch. 4 du template) : [clé, sélecteur HTML]
+const LLD_FWP_FIELDS = [
+  ['vpnSsl', '#lld-fwp-vpnssl'], ['appCtrl', '#lld-fwp-appctrl'],
+  ['webBlocker', '#lld-fwp-webblocker'], ['httpProxy', '#lld-fwp-httpproxy']
 ];
+// Champs interconnexion (ch. 6) : [clé, sélecteur HTML]
 const LLD_IC_FIELDS = [
   ['tech', '#lld-ic-tech'], ['epA', '#lld-ic-epa'], ['epB', '#lld-ic-epb'],
   ['localSubnets', '#lld-ic-local'], ['remoteSubnets', '#lld-ic-remote'],
-  ['routing', '#lld-ic-routing'], ['encryption', '#lld-ic-enc'], ['notes', '#lld-ic-notes']
+  ['routing', '#lld-ic-routing'], ['encryption', '#lld-ic-enc'], ['notes', '#lld-ic-notes'],
+  ['snA', '#lld-ic-sna'], ['fwA', '#lld-ic-fwa'], ['haA', '#lld-ic-haa'], ['roleA', '#lld-ic-rolea'],
+  ['vipA', '#lld-ic-vipa'], ['mgmtA', '#lld-ic-mgmta'], ['mgmtMaskA', '#lld-ic-mgmtmaska'], ['lanA', '#lld-ic-lana'],
+  ['snB', '#lld-ic-snb'], ['fwB', '#lld-ic-fwb'], ['haB', '#lld-ic-hab'], ['roleB', '#lld-ic-roleb'],
+  ['vipB', '#lld-ic-vipb'], ['mgmtB', '#lld-ic-mgmtb'], ['mgmtMaskB', '#lld-ic-mgmtmaskb'], ['lanB', '#lld-ic-lanb'],
+  ['clusterA', '#lld-ic-clustera'], ['clusterB', '#lld-ic-clusterb']
 ];
+// Tables par chapitre : règles/NAT firewall (7), VMs (9), volumes (10), caméras (12)
+const LLD_FW_COLS = [['type', 'Type', 74], ['name', 'Nom / Règle', 'flex'], ['src', 'Source', 130],
+                     ['dst', 'Destination', 130], ['service', 'Service / Ports', 120], ['action', 'Action', 66]];
+const LLD_VM_COLS = [['name', 'VM', 120], ['role', 'Rôle', 'flex'], ['host', 'Hôte', 110], ['ip', 'IP / VLAN', 100]];
+const LLD_VPN_COLS = [['name', 'Tunnel VPN S2S', 'flex'], ['peer', 'Pair / subnet distant', 200]];
+const LLD_ALIAS_COLS = [['name', 'Alias', 140], ['value', 'Définition (hosts, subnet…)', 'flex']];
+const LLD_EQUIP_COLS = [['model', 'Élément (licence, lien, câble…)', 'flex'], ['qty', 'Quantité', 110],
+                        ['remark', 'Remarque', 150], ['status', 'Statut', 110]];
+const LLD_ADMIN_COLS = [['user', 'Admin user/pwd', 150], ['auth', 'Authentification', 130],
+                        ['proto', 'Protocole', 90], ['host', 'Host', 110], ['port', 'Port', 70],
+                        ['cli', 'CLI SSH', 90], ['sec', 'Sécurité', 110],
+                        ['webA', 'Web Admin Access (LAN)', 150], ['webB', 'Web Admin Access (WAN)', 150],
+                        ['note', 'Commentaire', 'flex']];
+const LLD_VOL_COLS = [['name', 'Volume / LUN', 'flex'], ['size', 'Capacité', 90], ['type', 'Type', 90], ['srv', 'Serveur', 120]];
+const LLD_CAM_COLS = [['name', 'Caméra', 110], ['loc', 'Emplacement', 'flex'], ['model', 'Modèle', 120], ['ip', 'IP', 100]];
 // Notes de configuration par chapitre (clé = domaine du chapitre)
 const LLD_NOTE_FIELDS = [
   ['firewall', '#lld-note-firewall'], ['switching', '#lld-note-switching'],
@@ -3905,6 +4018,9 @@ function lldAddSiteRow(container, site = {}) {
       <button type="button" class="lld-row-del" title="Supprimer ce site">✕</button>
     </div>
     <div class="lld-row">
+      <input type="text" data-k="type" placeholder="Type (ex : Siège)" maxlength="40" style="width:112px">
+      <input type="text" data-k="country" placeholder="Pays" maxlength="40" style="width:92px">
+      <input type="text" data-k="users" placeholder="Utilisateurs" maxlength="20" style="width:92px">
       <input type="text" data-k="desc" placeholder="Description / notes" maxlength="200" class="lld-flex">
     </div>`;
   card.querySelectorAll('input').forEach(inp => { inp.value = site[inp.dataset.k] || ''; });
@@ -3920,6 +4036,147 @@ function lldSitesFrom(container) {
   });
 }
 
+// ---- Blocs « FAI » (ch. 5) : liste dynamique de fournisseurs d'accès ----
+function lldRenumberFais(container) {
+  container.querySelectorAll('.lld-fai-num').forEach((el, i) => { el.textContent = `FAI ${i + 1}`; });
+}
+function lldAddFaiBlock(container, fai = {}) {
+  const card = document.createElement('div');
+  card.className = 'lld-site lld-fai';
+  card.innerHTML = `
+    <div class="lld-fai-head">
+      <strong class="lld-fai-num"></strong>
+      <button type="button" class="lld-row-del" title="Supprimer ce FAI">✕</button>
+    </div>
+    <div class="d-grid lld-fai-grid">
+      <label>Opérateur
+        <input type="text" data-k="operator" placeholder="Ex : Maroc Telecom" maxlength="60">
+      </label>
+      <label>Offre
+        <input type="text" data-k="offer" placeholder="Ex : FTTO Pro 100M" maxlength="60">
+      </label>
+      <label>Type de lien
+        <select data-k="linkType">
+          <option value="">—</option>
+          <option>FTTH</option>
+          <option>FTTO</option>
+          <option>Fibre dédiée</option>
+          <option>EoC (Ethernet over Coax)</option>
+          <option>ADSL / VDSL</option>
+          <option>Liaison spécialisée</option>
+          <option>4G / 5G (secours)</option>
+          <option>Autre</option>
+        </select>
+      </label>
+      <label>Débit descendant
+        <input type="text" data-k="down" placeholder="Ex : 100 Mbps" maxlength="40">
+      </label>
+      <label>Débit montant
+        <input type="text" data-k="up" placeholder="Ex : 100 Mbps" maxlength="40">
+      </label>
+      <label>Bloc IP publiques
+        <input type="text" data-k="publicBlock" placeholder="Ex : 41.92.10.0/29" maxlength="60">
+      </label>
+      <label>CPE — modèle
+        <input type="text" data-k="cpe" placeholder="Ex : Huawei EG8148" maxlength="60">
+      </label>
+      <label>CPE — IP
+        <input type="text" data-k="cpeIp" placeholder="Ex : 41.92.10.1" maxlength="45">
+      </label>
+    </div>
+    <div class="d-grid lld-fai-grid">
+      <label>Liaison physique (boîtier → port WAN)
+        <input type="text" data-k="wanLabel" placeholder="Ex : Port eth1 (ONT) → WAN 1" maxlength="120">
+      </label>
+      <label>Mode IP WAN
+        <select data-k="ipMode">
+          <option value="">—</option>
+          <option>DHCP</option>
+          <option>Static IP</option>
+        </select>
+      </label>
+      <label>IP WAN
+        <input type="text" data-k="wanIp" placeholder="Ex : 41.92.10.2" maxlength="45">
+      </label>
+      <label>Masque WAN
+        <input type="text" data-k="wanMask" placeholder="Ex : 255.255.255.248" maxlength="45">
+      </label>
+      <label>Passerelle WAN
+        <input type="text" data-k="wanGw" placeholder="Ex : 41.92.10.1" maxlength="45">
+      </label>
+      <label>DNS WAN
+        <input type="text" data-k="wanDns" placeholder="Ex : 212.217.0.1" maxlength="60">
+      </label>
+      <label>IPv6
+        <input type="text" data-k="ipv6" placeholder="Ex : 2a01:…/64" maxlength="60">
+      </label>
+      <label>LAN — IP
+        <input type="text" data-k="lanIp" placeholder="Ex : 10.10.40.1" maxlength="45">
+      </label>
+      <label>LAN — Mask
+        <input type="text" data-k="lanMask" placeholder="Ex : 255.255.255.0" maxlength="45">
+      </label>
+      <label>LAN — GW
+        <input type="text" data-k="lanGw" placeholder="Ex : 10.10.40.254" maxlength="45">
+      </label>
+      <label>LAN — DNS
+        <input type="text" data-k="lanDns" placeholder="Ex : 10.10.99.53" maxlength="45">
+      </label>
+      <label>DHCP
+        <select data-k="dhcp">
+          <option value="">—</option>
+          <option>Oui</option>
+          <option>Non</option>
+        </select>
+      </label>
+      <label>Port Forwarding (règle)
+        <input type="text" data-k="pf" placeholder="Ex : TCP 443 → 10.10.20.11" maxlength="120">
+      </label>
+      <label>PF — Port WAN
+        <input type="text" data-k="pfPortWan" placeholder="Ex : TCP 443" maxlength="60">
+      </label>
+      <label>PF — Port LAN
+        <input type="text" data-k="pfPortLan" placeholder="Ex : 443" maxlength="60">
+      </label>
+      <label>PF — Client interne
+        <input type="text" data-k="pfClient" placeholder="Ex : 10.10.20.11" maxlength="60">
+      </label>
+      <label>PF — Protocole
+        <input type="text" data-k="pfProto" placeholder="Ex : TCP" maxlength="20">
+      </label>
+      <label>DMZ
+        <input type="text" data-k="dmz" placeholder="Ex : 10.10.20.11 (reverse-proxy)" maxlength="120">
+      </label>
+      <label>Firewall
+        <input type="text" data-k="firewall" placeholder="Ex : entrée 443 uniquement" maxlength="120">
+      </label>
+      <label>WLAN (statut)
+        <input type="text" data-k="wlanStat" placeholder="Ex : Activé — 802.1X" maxlength="60">
+      </label>
+      <label>WLAN (SSID)
+        <input type="text" data-k="wlan" placeholder="Ex : corp-secure / invité" maxlength="120">
+      </label>
+    </div>
+    <label class="lld-fai-notes">Notes de configuration
+      <textarea data-k="notes" rows="2" maxlength="2000"
+        placeholder="Ex : CPE en mode bridge, IP publique sur l'interface WAN du pare-feu…"></textarea>
+    </label>`;
+  card.querySelectorAll('[data-k]').forEach(inp => { inp.value = fai[inp.dataset.k] || ''; });
+  card.querySelector('.lld-row-del').addEventListener('click', () => {
+    card.remove();
+    lldRenumberFais(container);
+  });
+  container.appendChild(card);
+  lldRenumberFais(container);
+}
+function lldFaisFrom(container) {
+  return [...container.querySelectorAll('.lld-fai')].map(card => {
+    const o = {};
+    card.querySelectorAll('[data-k]').forEach(inp => { o[inp.dataset.k] = inp.value; });
+    return o;
+  });
+}
+
 // ---- Lignes « zone de switching » (nom + réordonnancement) ----
 function lldAddZoneRow(container, zone = {}) {
   const row = document.createElement('div');
@@ -3929,9 +4186,11 @@ function lldAddZoneRow(container, zone = {}) {
     <button type="button" class="lld-zone-up" title="Monter cette zone">↑</button>
     <button type="button" class="lld-zone-down" title="Descendre cette zone">↓</button>
     <input type="text" data-k="name" placeholder="Nom de la zone (ex : LAN Site A)" maxlength="40" class="lld-flex">
+    <input type="text" data-k="vlans" placeholder="VLANs (ex : 10,20,30-40)" maxlength="100" style="width:170px">
     <button type="button" class="lld-row-del" title="Supprimer cette zone">✕</button>`;
-  const nameInp = row.querySelector('input');
+  const nameInp = row.querySelector('input[data-k="name"]');
   nameInp.value = zone.name || '';
+  row.querySelector('input[data-k="vlans"]').value = zone.vlans || '';
   row.querySelector('.lld-zone-up').addEventListener('click', () => {
     const prev = row.previousElementSibling;
     if (prev && prev.classList.contains('lld-zone-row')) container.insertBefore(row, prev);
@@ -3947,7 +4206,8 @@ function lldAddZoneRow(container, zone = {}) {
 function lldZonesFrom(container) {
   return [...container.querySelectorAll('.lld-zone-row')].map(r => ({
     id: r.dataset.id || '',
-    name: r.querySelector('input').value
+    name: r.querySelector('input[data-k="name"]').value,
+    vlans: (r.querySelector('input[data-k="vlans"]') || {}).value || ''
   }));
 }
 
@@ -4025,7 +4285,19 @@ function openLldModal() {
   const vlans = $('#lld-vlans');
   vlans.innerHTML = '';
   L.vlans.forEach(v => lldAddRow(vlans, LLD_VLAN_COLS, v));
-  LLD_FAI_FIELDS.forEach(([k, sel]) => { $(sel).value = L.fai[k] || ''; });
+  const faisEl = $('#lld-fais');
+  faisEl.innerHTML = '';
+  (L.fais && L.fais.length ? L.fais : [{}]).forEach(f => lldAddFaiBlock(faisEl, f));
+  [['#lld-fw', L.fw, LLD_FW_COLS], ['#lld-vms', L.vms, LLD_VM_COLS],
+   ['#lld-vols', L.vols, LLD_VOL_COLS], ['#lld-cams', L.cams, LLD_CAM_COLS],
+   ['#lld-vpns', L.vpns, LLD_VPN_COLS], ['#lld-aliases', L.aliases, LLD_ALIAS_COLS],
+   ['#lld-equip', L.equip, LLD_EQUIP_COLS], ['#lld-adminsec', L.adminSec, LLD_ADMIN_COLS]]
+    .forEach(([sel, tbl, cols]) => {
+      const el = $(sel);
+      el.innerHTML = '';
+      (tbl || []).forEach(r => lldAddRow(el, cols, r));
+    });
+  LLD_FWP_FIELDS.forEach(([k, sel]) => { $(sel).value = (L.fwProfiles || {})[k] || ''; });
   LLD_IC_FIELDS.forEach(([k, sel]) => { $(sel).value = L.interco[k] || ''; });
   const zonesEl = $('#lld-zones');
   zonesEl.innerHTML = '';
@@ -4064,6 +4336,19 @@ $('#lld-add-vlan').addEventListener('click', () => lldAddRow($('#lld-vlans'), LL
 $('#lld-add-nomen').addEventListener('click', () => {
   lldAddRow($('#lld-nomen'), LLD_NOMEN_COLS, {});
   [...$('#lld-nomen').querySelectorAll('.lld-row')].pop().querySelector('input').focus();
+});
+$('#lld-add-fw').addEventListener('click', () => lldAddRow($('#lld-fw'), LLD_FW_COLS, { type: 'Règle' }));
+$('#lld-add-vm').addEventListener('click', () => lldAddRow($('#lld-vms'), LLD_VM_COLS, {}));
+$('#lld-add-vpn').addEventListener('click', () => lldAddRow($('#lld-vpns'), LLD_VPN_COLS, {}));
+$('#lld-add-alias').addEventListener('click', () => lldAddRow($('#lld-aliases'), LLD_ALIAS_COLS, {}));
+$('#lld-add-equip').addEventListener('click', () => lldAddRow($('#lld-equip'), LLD_EQUIP_COLS, {}));
+$('#lld-add-admin').addEventListener('click', () => lldAddRow($('#lld-adminsec'), LLD_ADMIN_COLS, {}));
+$('#lld-add-vol').addEventListener('click', () => lldAddRow($('#lld-vols'), LLD_VOL_COLS, {}));
+$('#lld-add-cam').addEventListener('click', () => lldAddRow($('#lld-cams'), LLD_CAM_COLS, {}));
+$('#lld-add-fai').addEventListener('click', () => {
+  const el = $('#lld-fais');
+  lldAddFaiBlock(el, {});
+  [...el.querySelectorAll('.lld-fai')].pop().querySelector('input').focus();
 });
 $('#lld-add-site').addEventListener('click', () => {
   lldAddSiteRow($('#lld-sites'), {});
@@ -4150,7 +4435,21 @@ $('#lld-save').addEventListener('click', () => {
   L.revs = lldRowsFrom($('#lld-revs')).filter(r => r.rev.trim() || r.note.trim());
   L.nomen = lldRowsFrom($('#lld-nomen')).filter(r => r.type.trim() || r.prefix.trim());
   L.vlans = lldRowsFrom($('#lld-vlans')).filter(v => v.vid.trim() || v.name.trim());
-  LLD_FAI_FIELDS.forEach(([k, sel]) => { L.fai[k] = $(sel).value.slice(0, 2000); });
+  L.fw = lldRowsFrom($('#lld-fw')).filter(r => r.name.trim());
+  L.vms = lldRowsFrom($('#lld-vms')).filter(r => r.name.trim());
+  L.vols = lldRowsFrom($('#lld-vols')).filter(r => r.name.trim());
+  L.cams = lldRowsFrom($('#lld-cams')).filter(r => r.name.trim());
+  L.vpns = lldRowsFrom($('#lld-vpns')).filter(r => r.name.trim());
+  L.aliases = lldRowsFrom($('#lld-aliases')).filter(r => r.name.trim());
+  L.equip = lldRowsFrom($('#lld-equip')).filter(r => r.model.trim());
+  L.adminSec = lldRowsFrom($('#lld-adminsec')).filter(r => r.user.trim());
+  L.fwProfiles = {};
+  LLD_FWP_FIELDS.forEach(([k, sel]) => { L.fwProfiles[k] = $(sel).value.slice(0, 60); });
+  L.fais = lldFaisFrom($('#lld-fais'))
+    .filter(f => f.operator.trim() || f.offer.trim() || f.down.trim() ||
+                 f.publicBlock.trim() || f.notes.trim());
+  L.fai = L.fais[0] || { operator: '', offer: '', linkType: '', down: '', up: '',
+                         publicBlock: '', cpe: '', cpeIp: '', notes: '' };
   LLD_IC_FIELDS.forEach(([k, sel]) => { L.interco[k] = $(sel).value.slice(0, 2000); });
   LLD_NOTE_FIELDS.forEach(([k, sel]) => { L.catNotes[k] = $(sel).value.slice(0, 2000); });
 
@@ -4158,7 +4457,8 @@ $('#lld-save').addEventListener('click', () => {
   const prevZoneIds = new Set(L.swZones.map(z => z.id));
   L.swZones = lldZonesFrom($('#lld-zones'))
     .filter(z => z.name.trim())
-    .map(z => ({ id: z.id && prevZoneIds.has(z.id) ? z.id : uid(), name: z.name.trim().slice(0, 40) }));
+    .map(z => ({ id: z.id && prevZoneIds.has(z.id) ? z.id : uid(),
+                 name: z.name.trim().slice(0, 40), vlans: z.vlans.trim().slice(0, 100) }));
   const zoneIds = new Set(L.swZones.map(z => z.id));
   let dezoned = 0;
   ws.racks.forEach(r => r.instances.forEach(i => {
@@ -4189,6 +4489,9 @@ $('#lld-save').addEventListener('click', () => {
     .map(s => ({
       id: s.id && prevIds.has(s.id) ? s.id : uid(),
       name: s.name.trim().slice(0, 40),
+      type: s.type.trim().slice(0, 40),
+      country: s.country.trim().slice(0, 40),
+      users: s.users.trim().slice(0, 20),
       address: s.address.trim().slice(0, 80),
       contact: s.contact.trim().slice(0, 80),
       desc: s.desc.trim().slice(0, 200)
@@ -5402,51 +5705,64 @@ const XLSX = (() => {
     return s;
   }
 
-  function sheetXml(rows) {
-    const nCols = Math.max(8, ...rows.map(r => r.length));
-    const widths = [];
-    for (let c = 0; c < nCols; c++) {
-      let m = 8;
-      for (const r of rows) {
-        const v = r[c];
-        if (v !== undefined && v !== null) m = Math.max(m, String(v).length);
+  function sheetXml(rows, opts = {}) {
+    const freeze = opts.freeze !== false;
+    const autoHeader = opts.autoHeader !== false;
+    let cols;
+    if (opts.cols) {
+      // largeurs imposées par la feuille (réplique du template)
+      cols = '<cols>' + opts.cols.map((w, i) =>
+        (w && typeof w === 'object')
+          ? `<col min="${w.min}" max="${w.max}" width="${w.width}" customWidth="1"/>`
+          : `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>';
+    } else {
+      const nCols = Math.max(8, ...rows.map(r => r.length));
+      const widths = [];
+      for (let c = 0; c < nCols; c++) {
+        let m = 8;
+        for (const r of rows) {
+          const v = r[c];
+          const t = (v && typeof v === 'object') ? v.v : v;
+          if (t !== undefined && t !== null) m = Math.max(m, String(t).length);
+        }
+        widths.push(Math.min(42, m + 2));
       }
-      widths.push(Math.min(42, m + 2));
+      cols = '<cols>' + widths.map((w, i) =>
+        `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>';
     }
-    const cols = '<cols>' + widths.map((w, i) =>
-      `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>';
     let body = '';
     rows.forEach((row, ri) => {
+      const ht = opts.heights && opts.heights[ri + 1];
       const cells = row.map((v, ci) => {
-        if (v === undefined || v === null || v === '') return '';
+        let val = v, st = null;
+        if (v && typeof v === 'object') { val = v.v; st = v.s; }
+        if (val === undefined || val === null || val === '') {
+          // cellule vide MAIS stylée (barreaux bleus, bordures) : on l'émet
+          if (st === null || st === 0) return '';
+          return `<c r="${colName(ci)}${ri + 1}" s="${st}"/>`;
+        }
         const ref = colName(ci) + (ri + 1);
-        if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`;
-        return `<c r="${ref}" t="inlineStr"${ri === 0 ? ' s="1"' : ''}>` +
-               `<is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+        if (st === null) st = (ri === 0 && autoHeader) ? 1 : 0;
+        const sAttr = st ? ` s="${st}"` : '';
+        if (typeof val === 'number' && Number.isFinite(val)) return `<c r="${ref}"${sAttr}><v>${val}</v></c>`;
+        return `<c r="${ref}" t="inlineStr"${sAttr}>` +
+               `<is><t xml:space="preserve">${xmlEsc(val)}</t></is></c>`;
       }).join('');
-      body += `<row r="${ri + 1}">${cells}</row>`;
+      body += `<row r="${ri + 1}"${ht ? ` ht="${ht}" customHeight="1"` : ''}>${cells}</row>`;
     });
+    const merges = (opts.merges && opts.merges.length)
+      ? `<mergeCells count="${opts.merges.length}">` +
+        opts.merges.map(ref => `<mergeCell ref="${ref}"/>`).join('') + '</mergeCells>'
+      : '';
+    const views = freeze
+      ? '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+      : '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
+    const fmtPr = opts.dcw ? `<sheetFormatPr defaultColWidth="${opts.dcw}" defaultRowHeight="15"/>` : '';
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-      '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
-      cols + '<sheetData>' + body + '</sheetData></worksheet>';
+      views + fmtPr + cols + '<sheetData>' + body + '</sheetData>' + merges + '</worksheet>';
   }
-
   const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
-  const STYLES_XML = XML_DECL +
-    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-    '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>' +
-    '<font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font></fonts>' +
-    '<fills count="3"><fill><patternFill patternType="none"/></fill>' +
-    '<fill><patternFill patternType="gray125"/></fill>' +
-    '<fill><patternFill patternType="solid"><fgColor rgb="FF1F4E79"/><bgColor indexed="64"/></patternFill></fill></fills>' +
-    '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
-    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-    '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
-    '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>' +
-    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
-    '</styleSheet>';
-
   // ZIP minimal (méthode « store », sans compression)
   function zip(files) {
     const chunks = [];
@@ -5500,7 +5816,140 @@ const XLSX = (() => {
     return out;
   }
 
-  function build(sheets) {
+  function build(sheets, extra = {}) {
+    /* extra = { stylesXml, themeXml } : styles et thème repris VERBATIM d'un
+       template Excel — les indices s= des cellules référencent alors directement
+       ses cellXfs (fidélité parfaite). Sans extra, moteur de styles interne. */
+    if (extra.stylesXml) {
+      const files2 = [
+        { name: '[Content_Types].xml', data: XML_DECL +
+          '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+          '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+          '<Default Extension="xml" ContentType="application/xml"/>' +
+          '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+          '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+          '<Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>' +
+          sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') +
+          '</Types>' },
+        { name: '_rels/.rels', data: XML_DECL +
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+          '</Relationships>' },
+        { name: 'xl/workbook.xml', data: XML_DECL +
+          '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+          'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+          '<sheets>' + sheets.map((s, i) =>
+            `<sheet name="${xmlEsc(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') +
+          '</sheets></workbook>' },
+        { name: 'xl/_rels/workbook.xml.rels', data: XML_DECL +
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          sheets.map((s, i) =>
+            `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') +
+          `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
+          `<Relationship Id="rId${sheets.length + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>` +
+          '</Relationships>' },
+        { name: 'xl/styles.xml', data: extra.stylesXml },
+        { name: 'xl/theme/theme1.xml', data: extra.themeXml },
+        ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.rows, s.opts || {}) }))
+      ];
+      return new Blob([zip(files2)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
+    /* Moteur de styles : les 9 styles historiques (0..8) gardent leur index pour
+       les 9 feuilles existantes ; les feuilles LLD/Governance passent des
+       descripteurs { b, sz, name, color, fill, border:{l,r,t,b}, h, v, wrap,
+       numFmt } enregistrés à la demande (dédupe fonts/fills/borders/cellXfs),
+       en répliquant la mise en forme du template Excel fourni. */
+    const fonts = [
+      '<font><sz val="11"/><name val="Calibri"/></font>',
+      '<font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font>',
+      '<font><b/><color rgb="FF1F2733"/><sz val="18"/><name val="Calibri"/></font>',
+      '<font><b/><color rgb="FFFFFFFF"/><sz val="12"/><name val="Calibri"/></font>',
+      '<font><b/><color rgb="FF1F2733"/><sz val="11"/><name val="Calibri"/></font>',
+      '<font><color rgb="FF1F2733"/><sz val="12"/><name val="Calibri"/></font>',
+      '<font><b/><color rgb="FF1F2733"/><sz val="16"/><name val="Calibri"/></font>'
+    ];
+    const fills = [
+      '<fill><patternFill patternType="none"/></fill>',
+      '<fill><patternFill patternType="gray125"/></fill>',
+      '<fill><patternFill patternType="solid"><fgColor rgb="FF1F4E79"/><bgColor indexed="64"/></patternFill></fill>',
+      '<fill><patternFill patternType="solid"><fgColor rgb="FFD9D9D9"/><bgColor indexed="64"/></patternFill></fill>'
+    ];
+    const borders = [
+      '<border><left/><right/><top/><bottom/><diagonal/></border>',
+      '<border><left style="thin"><color rgb="FF8EA0B8"/></left>' +
+      '<right style="thin"><color rgb="FF8EA0B8"/></right>' +
+      '<top style="thin"><color rgb="FF8EA0B8"/></top>' +
+      '<bottom style="thin"><color rgb="FF8EA0B8"/></bottom><diagonal/></border>'
+    ];
+    const xfs = [
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>',
+      '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>',
+      '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>',
+      '<xf numFmtId="0" fontId="3" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>',
+      '<xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>',
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1">' +
+      '<alignment vertical="top" wrapText="1"/></xf>',
+      '<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/>',
+      '<xf numFmtId="0" fontId="5" fillId="0" borderId="0" xfId="0" applyFont="1"/>',
+      '<xf numFmtId="0" fontId="6" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+    ];
+    const fontIdx = new Map(), fillIdx = new Map(), borderIdx = new Map(), xfIdx = new Map();
+    function regStyle(d) {
+      const k = JSON.stringify(d);
+      if (xfIdx.has(k)) return xfIdx.get(k);
+      const fk = JSON.stringify([d.name || 'Calibri', d.sz || 11, !!d.b, !!d.i, d.color || '']);
+      if (!fontIdx.has(fk)) {
+        fontIdx.set(fk, fonts.length);
+        fonts.push('<font>' + (d.b ? '<b/>' : '') + (d.i ? '<i/>' : '') +
+          (d.color ? `<color rgb="${d.color}"/>` : '') +
+          `<sz val="${d.sz || 11}"/><name val="${d.name || 'Calibri'}"/></font>`);
+      }
+      let fillId = 0;
+      if (d.fill) {
+        if (!fillIdx.has(d.fill)) {
+          fillIdx.set(d.fill, fills.length);
+          fills.push(`<fill><patternFill patternType="solid"><fgColor rgb="${d.fill}"/><bgColor indexed="64"/></patternFill></fill>`);
+        }
+        fillId = fillIdx.get(d.fill);
+      }
+      const bd = d.border || {};
+      const bk = JSON.stringify([bd.l || '', bd.r || '', bd.t || '', bd.b || '']);
+      let borderId = 0;
+      if (bk !== '["","","",""]') {
+        if (!borderIdx.has(bk)) {
+          borderIdx.set(bk, borders.length);
+          const side = (st, tag) => st ? `<${tag} style="${st}"><color rgb="FF000000"/></${tag}>` : `<${tag}/>`;
+          borders.push('<border>' + side(bd.l, 'left') + side(bd.r, 'right') +
+            side(bd.t, 'top') + side(bd.b, 'bottom') + '<diagonal/></border>');
+        }
+        borderId = borderIdx.get(bk);
+      }
+      const al = (d.h || d.v || d.wrap)
+        ? '<alignment' + (d.h ? ` horizontal="${d.h}"` : '') + (d.v ? ` vertical="${d.v}"` : '') +
+          (d.wrap ? ' wrapText="1"' : '') + '/>'
+        : '';
+      xfs.push(`<xf numFmtId="${d.numFmt || 0}" fontId="${fontIdx.get(fk)}" fillId="${fillId}" borderId="${borderId}" xfId="0"` +
+        (d.numFmt ? ' applyNumberFormat="1"' : '') + ' applyFont="1"' +
+        (fillId ? ' applyFill="1"' : '') + (borderId ? ' applyBorder="1"' : '') +
+        (al ? ' applyAlignment="1">' + al + '</xf>' : '/>'));
+      const idx = xfs.length - 1;
+      xfIdx.set(k, idx);
+      return idx;
+    }
+    // normalisation : les descripteurs de style deviennent des indices numériques
+    for (const s of sheets) for (const row of s.rows) for (let i = 0; i < row.length; i++) {
+      const c = row[i];
+      if (c && typeof c === 'object' && c.s && typeof c.s === 'object') c.s = regStyle(c.s);
+    }
+    const stylesXml = XML_DECL +
+      '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      `<fonts count="${fonts.length}">` + fonts.join('') + '</fonts>' +
+      `<fills count="${fills.length}">` + fills.join('') + '</fills>' +
+      `<borders count="${borders.length}">` + borders.join('') + '</borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      `<cellXfs count="${xfs.length}">` + xfs.join('') + '</cellXfs>' +
+      '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+      '</styleSheet>';
     const files = [
       { name: '[Content_Types].xml', data: XML_DECL +
         '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
@@ -5526,8 +5975,8 @@ const XLSX = (() => {
           `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') +
         `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
         '</Relationships>' },
-      { name: 'xl/styles.xml', data: STYLES_XML },
-      ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.rows) }))
+      { name: 'xl/styles.xml', data: stylesXml },
+      ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.rows, s.opts || {}) }))
     ];
     const u8 = zip(files);
     return new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -5536,22 +5985,899 @@ const XLSX = (() => {
   return { build };
 })();
 
-$('#export-xlsx').addEventListener('click', () => {
+/* ============================================================
+   EXPORT XLSX « template » : réplique exacte du classeur LLD
+   ------------------------------------------------------------
+   Le classeur exporté reproduit le template Excel fourni
+   (24 feuilles : LLD, Governance, Contenu, chapitres 1→15.1)
+   feuille par feuille, cellule par cellule : les largeurs de
+   colonnes, hauteurs, fusions et STYLES (indices s=) proviennent
+   d'assets/lld/layout.json, extrait du template, et xl/styles.xml
+   + xl/theme1.xml sont recopiés verbatim. Seules les valeurs
+   project-specific sont remplacées par les données du workspace.
+   ============================================================ */
+const LLD_TPL = (() => {
+
+  function colIdx(letters) {
+    let n = 0;
+    for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64);
+    return n - 1;
+  }
+
+  /* Reconstruit les lignes d'une feuille depuis le layout (runs RLE).
+     Les plages de cellules vides stylées sont plafonnées à la colonne 120. */
+  function fromLayout(sheet) {
+    const rows = [], heights = {};
+    for (let r = 1; r <= sheet.maxrow; r++) rows.push([]);
+    for (const [rn, rd] of Object.entries(sheet.rows)) {
+      const r = +rn;
+      if (rd.ht) heights[r] = rd.ht;
+      // format run (extrait du template) : [colDébut, style, valeur, colFin]
+      for (const [c0, s, v, c1] of rd.cells) {
+        const stop = v == null ? Math.min(c1, 119) : c1;   // bandes : cap col 120
+        for (let c = c0; c <= stop; c++) rows[r - 1][c] = { v: v == null ? '' : v, s };
+      }
+    }
+    return { rows, heights };
+  }
+
+  function set(rows, ref, value, forceStyle) {
+    const m = /^([A-Z]+)(\d+)$/.exec(ref);
+    const r = rows[+m[2] - 1];
+    const c = colIdx(m[1]);
+    const prev = r[c];
+    r[c] = { v: value, s: forceStyle !== undefined ? forceStyle : (prev ? prev.s : 0) };
+  }
+
+  function out(sheet, rows, heights, replacesMerges, colsOv) {
+    // replacesMerges : fusions recalculées (Governance) -> REMPLACENT celles du
+    // template ; sinon on reprend les fusions d'origine. Dédupe + refuse les
+    // références à une seule cellule (Excel les jugerait corrompues).
+    const raw = replacesMerges || sheet.merges || [];
+    const seen = new Set(), merges = [];
+    for (const ref of raw) {
+      if (!/^[A-Z]+\d+:[A-Z]+\d+$/.test(ref) || ref.split(':')[0] === ref.split(':')[1]) continue;
+      if (seen.has(ref)) continue;
+      seen.add(ref);
+      merges.push(ref);
+    }
+    return {
+      name: sheet.name,
+      rows,
+      opts: {
+        freeze: false, autoHeader: false,
+        cols: colsOv || sheet.cols, dcw: sheet.dcw,
+        heights, merges
+      }
+    };
+  }
+
+  /* — Aides communes pour les chapitres 7 → 15 (styles du template) — */
+  const H = cells => cells.map((v, i) => ({ v, s: i === 0 ? 141 : (i === cells.length - 1 ? 143 : 2) }));
+  const D = (cells, alt) => cells.map(v => ({ v, s: alt ? 197 : 8 }));
+  const NOTE = t => [{ v: t, s: 129 }];
+  const SEC = (t, col) => [{ v: t, s: col === undefined ? 47 : col }];
+  const isEmptyCat = (ws, cats) => !byCat(ws, cats).length;
+
+  function byCat(ws, cats) {
+    return sortedRackInstances(ws).filter(x => cats.includes(normCat(x.inst.cat)));
+  }
+  /* Table équipements : Nom / Modèle / IP mgmt / Position */
+  function equipTable(rows, list, headers) {
+    rows.push([]); rows.push([]);
+    rows.push(SEC(headers ? headers.titre : 'Equipements'));
+    rows.push([]);
+    rows.push(H(headers ? headers.cols : ['Nom', 'Modèle', 'IP mgmt', 'Position']));
+    list.forEach(({ rack, inst }, i) => {
+      rows.push(D([
+        inst.name || '',
+        `${inst.brand || ''} ${inst.model || ''}`.trim() || '',
+        inst.ipMgmt || '',
+        `${rack.name} — ${slotLabel(inst)}`
+      ], i % 2));
+    });
+  }
+  function pushNote(rows, t) { rows.push([]); rows.push(NOTE(t)); }
+
+  /* — 7. Firewall : équipements + interfaces VLAN — */
+  function ch7(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const fws = byCat(ws, ['firewall', 'router']);
+    if (fws.length) equipTable(rows, fws, { titre: '7.1. Equipements Firewall / Routeurs',
+      cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
+    const vlans = (ws.lld && ws.lld.vlans) || [];
+    if (vlans.length) {
+      rows.push([]); rows.push([]);
+      rows.push(SEC('7.2. Interfaces VLAN'));
+      rows.push([]);
+      rows.push(H(['VLAN', 'Nom', 'Sous-réseau', 'Passerelle']));
+      vlans.forEach((v, i) => rows.push(D([
+        v.vid ? `VLAN ${v.vid}` : '', v.name || '', v.subnet || '', v.gw || ''], i % 2)));
+    }
+    const fw = (ws.lld && ws.lld.fw) || [];
+    if (fw.length) {
+      rows.push([]); rows.push([]);
+      rows.push(SEC('7.3. Règles et NAT'));
+      rows.push([]);
+      rows.push(H(['Type', 'Nom', 'Source', 'Destination', 'Service / Ports', 'Action']));
+      fw.forEach((r0, i) => rows.push(D([
+        r0.type || '', r0.name || '', r0.src || '', r0.dst || '', r0.service || '', r0.action || ''], i % 2)));
+    }
+    /* Note dynamique : ne mentionner QUE ce qui manque vraiment */
+    const L7 = ws.lld || {};
+    const fp7 = L7.fwProfiles || {};
+    const missing7 = [];
+    if (!(L7.fw || []).length) missing7.push('NAT et règles');
+    if (!(L7.aliases || []).length) missing7.push('alias');
+    if (!(L7.vpns || []).length) missing7.push('tunnels VPN S2S');
+    if (!fp7.vpnSsl && !fp7.appCtrl && !fp7.webBlocker && !fp7.httpProxy) missing7.push('profils (VPN SSL, AppControl…)');
+    if (missing7.length) pushNote(rows, `À compléter manuellement : ${missing7.join(', ')} (cluster/HA : voir fiche matériel).`);
+    const cfg7 = ((ws.lld && ws.lld.catNotes) || {}).firewall;
+    if (cfg7) pushNote(rows, `Config : ${String(cfg7).split('\n')[0]}`);
+    return out(sheet, rows, heights, null, [3.43, 46, 30, 22, 22, 30, 16]);
+  }
+
+  /* — 8.x Switching : équipements de la zone correspondant au titre — */
+  function switchZone(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    // la feuille du template ne porte que le titre (la ligne « Config: Voir
+    // CMDB », placeholder à 30 lignes du titre, est remplacée par le contenu)
+    rows.length = 1;
+    const title = String(rows[0][0] && rows[0][0].v || '');
+    const zones = (ws.lld && ws.lld.swZones) || [];
+    /* 8.3/8.4 portent le même titre « (AP) » (idem 8.2/8.5 « (LAN) ») :
+       on les distingue par l'ORDINAL de la feuille -> nième zone AP / LAN
+       déclarée dans la fiche LLD (8.2 = 1re zone LAN, 8.5 = 2e, etc.). */
+    const nth = (arr, n) => arr[n] || arr[0] || null;
+    const apZones = zones.filter(z => /\bAP\b/i.test(z.name));
+    const lanZones = zones.filter(z => /lan/i.test(z.name) && !/infra/i.test(z.name));
+    let zone = null;
+    if (/INFRA/i.test(title)) zone = zones.find(z => /infra/i.test(z.name));
+    else if (/\(AP\)/i.test(title)) zone = nth(apZones, sheet.name === '8.4' ? 1 : 0);
+    else if (/\(LAN\)/i.test(title)) zone = nth(lanZones, sheet.name === '8.5' ? 1 : 0);
+    const catList = /\(AP\)/i.test(title) ? ['switch', 'ap'] : ['switch'];
+    const sws = byCat(ws, catList).filter(x => !zone || x.inst.zone === zone.id);
+    const notes = (ws.lld && ws.lld.catNotes) || {};
+    if (sws.length) {
+      equipTable(rows, sws, { titre: `Equipements Switching${zone ? ' — zone ' + zone.name : ''}`,
+        cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
+      if (zone && zone.vlans) rows.push([{ v: `VLANs de la zone : ${zone.vlans}`, s: 129 }]);
+      const zoneNames = new Set(sws.map(x => x.inst.name));
+      const portRows = portsRowsByCat(ws, catList).slice(1)
+        .filter(p => zoneNames.has(p[3]));
+      if (portRows.length) {
+        rows.push([]); rows.push([]);
+        rows.push(SEC('Plan de ports'));
+        rows.push([]);
+        rows.push(H(['Rack', 'Device', 'Port', 'Étiquette', 'VLAN']));
+        portRows.slice(0, 200).forEach((p, i) => rows.push(D([p[0], p[3], p[4], p[5], p[7]], i % 2)));
+      }
+    }
+    // Note de configuration de la zone (saisie dans l'onglet Chapitres)
+    const note = notes.switching;
+    if (note) { rows.push([]); rows.push([{ v: `Config : ${String(note).split('\n')[0]}`, s: 129 }]); }
+    return out(sheet, rows, heights, null, [3.43, 30, 34, 18, 24, 12]);
+  }
+
+  /* — 9 à 13 : équipements par spécialité — */
+  function chapterEquip(cats, titre, note, catKey) {
+    return (sheet, ws) => {
+      const { rows, heights } = fromLayout(sheet);
+      const list = byCat(ws, cats);
+      if (list.length) equipTable(rows, list, { titre, cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
+      else pushNote(rows, note || "Aucun équipement de cette catégorie dans l'inventaire actuel.");
+      const cfg = catKey && ((ws.lld && ws.lld.catNotes) || {})[catKey];
+      if (cfg) pushNote(rows, `Config : ${String(cfg).split('\n')[0]}`);
+      return out(sheet, rows, heights, null, [3.43, 40, 36, 22, 26]);
+    };
+  }
+
+  /* — Équipements d'une catégorie + table annexe (VMs, volumes, caméras…) — */
+  function chapterWith(cat, titre, titre2, cols2, key, note, catKey) {
+    return (sheet, ws) => {
+      const { rows, heights } = fromLayout(sheet);
+      const list = byCat(ws, [cat]);
+      if (list.length) equipTable(rows, list, { titre, cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
+      const tbl = (ws.lld && ws.lld[key]) || [];
+      if (tbl.length) {
+        rows.push([]); rows.push([]);
+        rows.push(SEC(titre2));
+        rows.push([]);
+        rows.push(H(cols2.map(([lbl]) => lbl)));
+        tbl.forEach((r0, i) => rows.push(D(cols2.map(([, k]) => r0[k] || ''), i % 2)));
+      }
+      if (!list.length && !tbl.length) pushNote(rows, "Aucun équipement de cette catégorie dans l'inventaire actuel.");
+      else if (note && !tbl.length) pushNote(rows, note);
+      const cfg = (catKey || cat) && ((ws.lld && ws.lld.catNotes) || {})[catKey || cat];
+      if (cfg) pushNote(rows, `Config : ${String(cfg).split('\n')[0]}`);
+      return out(sheet, rows, heights, null, [3.43, 40, 36, 22, 26]);
+    };
+  }
+
+  /* — 14. Flux réseau — */
+  function ch14(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const flows = flowsRows(ws).slice(1);
+    if (flows.length) {
+      rows.push([]); rows.push([]);
+      rows.push(SEC('Flux applicatifs'));
+      rows.push([]);
+      rows.push(H(['Flux', 'Source', 'Destination', 'Protocole / ports', 'Sens', 'Usage']));
+      flows.forEach((f, i) => rows.push(D([f[0], f[1], f[2], f[3], f[4], f[5]], i % 2)));
+    }
+    pushNote(rows, "Le diagramme de flux reste à insérer (capture d'écran) — non généré par l'application.");
+    return out(sheet, rows, heights, null, [4, 26, 26, 26, 22, 16, 44]);
+  }
+
+  /* — 15. Cablage global — */
+  function ch15(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const cab = cablingRows(ws);
+    if (cab.length > 1) {
+      rows.push([]); rows.push([]);
+      rows.push(SEC('Tableau de câblage'));
+      rows.push([]);
+      rows.push(H(['ID', 'Couleur', 'Domaine', 'Rack A', 'Device A', 'Port A', 'Rack B', 'Device B', 'Port B']));
+      // c[] : ID, Couleur, Domaine, Rack A, Device A, Port A, Étiquette A,
+      //       Rack B (7), Device B (8), Port B (9), Étiquette B (10)
+      cab.slice(1).forEach((c, i) => rows.push(D([c[0], c[1], c[2], c[3], c[4], c[5], c[7], c[8], c[9]], i % 2)));
+    }
+    return out(sheet, rows, heights, null, [4, 10, 10, 14, 12, 26, 10, 12, 26, 10]);
+  }
+
+  /* — 15.1. Elevations par baie — */
+  function ch151(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    rows.push([]); rows.push([]);
+    rows.push(SEC('Elevations des baies', 50));
+    for (const rack of sortedRacks(ws)) {
+      rows.push([]);
+      rows.push(SEC(`${rack.name} — ${siteName(ws, rack)} (${rack.sizeU}U)`, 47));
+      rows.push([]);
+      rows.push(H(['Position', 'Nom', 'Catégorie', 'Marque / Modèle', 'Taille', 'IP mgmt']));
+      const insts = rack.instances.slice().sort((a, b) => (a.pos ?? 1e9) - (b.pos ?? 1e9));
+      insts.forEach((inst, i) => rows.push(D([
+        slotLabel(inst), inst.name || '', catLabel(inst.cat),
+        `${inst.brand || ''} ${inst.model || ''}`.trim() || '',
+        inst.sizeU + 'U', inst.ipMgmt || ''], i % 2)));
+    }
+    return out(sheet, rows, heights, null, [4, 12, 34, 20, 34, 10, 20]);
+  }
+
+  const proseLines = (t, max) => String(t || '').split('\n').map(x => x.trim())
+    .filter(Boolean).slice(0, max || 40);
+
+  function dateSerial(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+    return m ? Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) + 25569 : (iso || '');
+  }
+
+  /* Groupements inventaire : par catégorie et par modèle.
+     Les modèles sont triés par domaine métier (routeur, firewall, switch…),
+     puis par quantité décroissante — pour des tableaux stables et lisibles. */
+  function invGroups(ws) {
+    const info = new Map(), byCat = new Map();
+    for (const { inst } of sortedRackInstances(ws)) {
+      const model = `${inst.brand || ''} ${inst.model || ''}`.trim() || inst.name;
+      const g = info.get(model) || { n: 0, cat: inst.cat };
+      g.n++;
+      info.set(model, g);
+      const lbl = catLabel(inst.cat);
+      const c = byCat.get(lbl) || { n: 0, models: new Map() };
+      c.n++;
+      c.models.set(model, (c.models.get(model) || 0) + 1);
+      byCat.set(lbl, c);
+    }
+    const rank = c => DEV_CATEGORIES.findIndex(([id]) => id === normCat(c));
+    const ordered = [...info.entries()].sort((a, b) =>
+      rank(a[1].cat) - rank(b[1].cat) || b[1].n - a[1].n || a[0].localeCompare(b[0], 'fr'));
+    const byModel = new Map(ordered.map(([m, g]) => [m, g.n]));
+    return { byCat, byModel, totalModels: info.size };
+  }
+
+  /* — Feuille « LLD » : page de garde — */
+  function lld(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const L = ws.lld || {};
+    const sites = ws.sites || [];
+    const project = L.client
+      ? `Mise en place d'une infrastructure IT pour ${L.client}`
+      : (sites.map(s => s.name).join(' / ') || ws.name);
+    set(rows, 'E1', project);
+    set(rows, 'E3', L.author || '', 104);
+    // ligne « Version » (absente du template, ajoutée avec ses styles)
+    rows[3] = new Array(17).fill('');
+    rows[3][0] = { v: 'Version', s: 14 };
+    for (let c = 4; c < 17; c++) rows[3][c] = { v: c === 4 ? (L.version || '') : '', s: 104 };
+    heights[4] = 28.5;
+    return out(sheet, rows, heights);
+  }
+
+  /* — Feuille « Governance » : reconstruite (contenu variable),
+       styles strictement ceux du template — */
+  function governance(sheet, ws) {
+    const L = ws.lld || {};
+    const revs = L.revs || [], approvers = L.approvers || [], reviewers = L.reviewers || [];
+    const rows = [], merges = [], heights = {};
+    const R = (cells, ht) => { rows.push(cells); if (ht) heights[rows.length] = ht; };
+    const banner = (styles, title, n) => {
+      const r0 = rows.length + 1;
+      R(styles.map((s, i) => ({ v: i === 0 ? title : '', s })), 14.45);
+      merges.push(`A${r0}:${'ABCDE'[n - 1]}${r0}`);
+    };
+    const headers5 = () => R([141, 2, 2, 142, 143].map((s, i) =>
+      ({ v: ['Version', 'Auteur', 'Commentaires et mises à jour', 'Date', 'Statut'][i], s })), 14.45);
+
+    R([{ v: 'Governance', s: 51 }], 25.9);
+    R([]);
+
+    // 1) Statut de révision du document
+    banner([177, 178, 178, 178, 179], 'Statut de révision du document', 5);
+    headers5();
+    const approvedVers = new Set(approvers.map(a => a.approvedVersion).filter(Boolean));
+    revs.forEach((rv, i) => {
+      const last = i === revs.length - 1;
+      const note = String(rv.note || '');
+      R([
+        { v: rv.rev || '', s: last ? 146 : 144 },
+        { v: rv.author || '', s: last ? 102 : 8 },
+        { v: note, s: 150 },
+        { v: dateSerial(rv.date), s: last ? 147 : 145 },
+        { v: (rv.rev && approvedVers.has(rv.rev)) ? 'Approuvé'
+              : (approvers.length ? 'Pas encore approuvé' : ''), s: last ? 158 : 133 }
+      ], Math.max(1, note.split('\n').length) * 15);
+    });
+    R([148, 135, 135, 149, 136].map(s => ({ v: '', s })), 15.75);
+    R([]); R([]);
+
+    // 2) Approbateurs : un bloc de 3 lignes par version cible (hors 0.x)
+    banner([174, 175, 175, 175, 176], 'Approbateurs', 5);
+    R([141, 2, 2, 142, 143].map((s, i) =>
+      ({ v: ['Nom', 'Position', 'Organisation', 'Version approuvée', 'Signature'][i], s })), 14.45);
+    let vers = revs.map(x => x.rev).filter(v => v && !/^0\./.test(v));
+    if (!vers.length && L.version) vers = [L.version];
+    if (!vers.length) vers = [''];
+    vers.forEach(ver => {
+      const sign = approvers.filter(a => a.approvedVersion === ver);
+      const r0 = rows.length + 1;
+      merges.push(`D${r0}:D${r0 + 2}`);
+      for (let k = 0; k < 3; k++) {
+        const a = sign[k] || {};
+        const last = k === 2;
+        R([
+          { v: a.name || '', s: last ? 148 : 144 },
+          { v: a.position || '', s: last ? 135 : 8 },
+          { v: a.organization || '', s: last ? 135 : 8 },
+          { v: k === 0 ? ver : '', s: last ? 182 : 180 },
+          { v: '', s: last ? 136 : 133 }
+        ], 14.45);
+      }
+    });
+    R([{ v: '', s: 151 }]);
+    R([]);
+
+    // 3) Réviseurs : une ligne par version
+    banner([174, 175, 175, 176], 'Réviseurs', 4);
+    R([3, 2, 2, 4].map((s, i) =>
+      ({ v: ['Nom', 'Position', 'Organisation', 'Version approuvée'][i], s })), 14.45);
+    const rvVers = revs.length ? revs.map(x => x.rev || '')
+      : (reviewers.length ? reviewers.map(x => x.approvedVersion || '') : ['']);
+    rvVers.forEach(ver => {
+      const rv = reviewers.find(x => x.approvedVersion === ver) || {};
+      R([{ v: rv.name || '', s: 102 }, { v: rv.position || '', s: 8 },
+         { v: rv.organization || '', s: 8 }, { v: ver, s: 9 }], 14.45);
+    });
+    R([{ v: '', s: 10 }, { v: '', s: 11 }, { v: '', s: 11 }, { v: '', s: 12 }], 14.45);
+    return out(sheet, rows, heights, merges);
+  }
+
+  /* — Feuille « 1 » : objectif du document (texte de l'app) — */
+  function ch1(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    proseLines(ws.lld && ws.lld.objectif, 40).forEach((t, i) => {
+      const r = 9 + i;
+      while (rows.length < r) rows.push([]);
+      rows[r - 1][0] = { v: t, s: 129 };
+    });
+    return out(sheet, rows, heights);
+  }
+
+  /* — Feuille « 2 » : aperçu du site + infrastructure existante — */
+  function ch2(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const L = ws.lld || {};
+    const site = (ws.sites || [])[0] || {};
+    const fai = L.fai || {};
+    set(rows, 'C6', site.name || '');
+    set(rows, 'E6', site.address || '');
+    set(rows, 'C7', site.type || '');
+    set(rows, 'E7', site.country || '');
+    set(rows, 'C8', site.users || '');
+    const allDown = ((L.fais && L.fais.length) ? L.fais : (fai.operator ? [fai] : []))
+      .map(x => x.down).filter(Boolean).join(' + ');
+    set(rows, 'C9', allDown || fai.down || '');
+    set(rows, 'C10', String(fai.notes || '').split('\n')[0]);
+    // 2.2 : texte « infrastructure existante » de l'app (zone vide r16+)
+    proseLines(L.existant, 30).forEach((t, i) => {
+      const r = 16 + i;
+      rows[r - 1][1] = { v: t, s: 129 };
+    });
+    // 2.2 : tableau des dispositifs (r51-59) : FAI + un dispositif par modèle
+    const { byModel, totalModels } = invGroups(ws);
+    const models = [...byModel.entries()];
+    set(rows, 'D51', fai.operator
+      ? `${fai.operator}${fai.down ? ' — ' + fai.down : ''}` : '');
+    models.slice(0, 8).forEach(([model, n], i) => {
+      const r = 52 + i;
+      set(rows, `B${r}`, model);
+      set(rows, `D${r}`, `x${n}`);
+    });
+    for (let r = 52 + Math.min(models.length, 8); r <= 59; r++) { set(rows, `B${r}`, ''); set(rows, `D${r}`, ''); }
+    if (totalModels > 8)
+      rows[60] = [{ v: `+ ${totalModels - 8} autres modèles — voir chapitre 3.1 (Equipments)`, s: 129 }];
+    return out(sheet, rows, heights);
+  }
+
+  /* — Feuille « 3 » : architecture cible + équipements — */
+  function ch3(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    proseLines(ws.lld && ws.lld.architecture, 33).forEach((t, i) => {
+      rows[1 + i][0] = { v: t, s: 129 };
+    });
+    // 3.1 : équipements (r41-76) — inventaire groupé par modèle, puis
+    // éléments hors baie (licences, liens, câbles…) saisis dans la fiche LLD
+    const { byModel } = invGroups(ws);
+    const groups = [...byModel.entries()];
+    const equip = (ws.lld && ws.lld.equip) || [];
+    const matchEquip = model => {
+      const m = equip.find(e => e.model && model &&
+        model.toLowerCase().includes(e.model.toLowerCase().split(' ')[0]) &&
+        e.model.split(' ')[0].length > 3);
+      return m;
+    };
+    const put = (r, col, v, s) => { rows[r - 1][col] = { v, s }; };
+    groups.slice(0, 36).forEach(([model, n], i) => {
+      const r = 41 + i, alt = i % 2;
+      put(r, 1, model, alt ? 197 : 190);
+      put(r, 3, `x${n}`, alt ? 198 : 195);
+      const e = matchEquip(model);
+      if (e) {
+        if (e.qty) put(r, 3, e.qty, alt ? 198 : 195);
+        put(r, 5, e.remark || '', alt ? 190 : 116);   // colonne F (Remarques)
+        put(r, 6, e.status || '', alt ? 195 : 117);   // colonne G (Statut)
+      }
+    });
+    const rest = equip.filter(e => e.model && !groups.some(([m]) => matchEquip(m) === e));
+    let nr = 41 + Math.min(groups.length, 36);
+    rest.slice(0, 76 - nr + 1).forEach((e, i) => {
+      const alt = (nr - 41) % 2;
+      put(nr, 1, e.model, alt ? 197 : 190);
+      put(nr, 3, e.qty || '', alt ? 198 : 195);
+      put(nr, 5, e.remark || '', alt ? 190 : 116);
+      put(nr, 6, e.status || '', alt ? 195 : 117);
+      nr++;
+    });
+    for (let r = nr; r <= 76; r++) {
+      set(rows, `B${r}`, '', rows[r - 1][1] ? rows[r - 1][1].s : 190);
+      set(rows, `D${r}`, '', rows[r - 1][3] ? rows[r - 1][3].s : 195);
+      if (rows[r - 1][5] !== undefined) { set(rows, `F${r}`, '', rows[r - 1][5].s); set(rows, `G${r}`, '', rows[r - 1][6].s); }
+    }
+    return out(sheet, rows, heights);
+  }
+
+  /* — Feuille « 4 » : matrice d'adressage globale + registre VLAN + nomenclature — */
+  function ch4(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const L = ws.lld || {};
+    /* — Matrice du haut : remplie depuis l'app (identités + IP) — */
+    const ipFrom = s => { const m = /((?:\d{1,3}\.){3}\d{1,3}(?:\/\d+)?)/.exec(String(s || '')); return m ? m[1] : ''; };
+    const shortName = s => String(s || '').split(/[ (—]/)[0].trim();
+    const fais = (L.fais && L.fais.length) ? L.fais : (L.fai && L.fai.operator ? [L.fai] : []);
+    // FAI (FTTH 1-3) et WAN 1-3 : adressage WAN complet
+    // (sans IP fixe : affiche le mode de connexion, ex. « DHCP » pour la 5G)
+    fais.slice(0, 3).forEach((f, i) => {
+      set(rows, `D${6 + i}`, f.wanIp || (f.ipMode ? f.ipMode : ''));
+      set(rows, `E${6 + i}`, f.wanMask || '');
+      set(rows, `F${6 + i}`, f.wanGw || '');
+      set(rows, `G${6 + i}`, f.wanDns || '');
+      set(rows, `D${12 + i}`, f.wanIp || (f.ipMode ? f.ipMode : ''));
+      set(rows, `E${12 + i}`, f.wanMask || '');
+      set(rows, `F${12 + i}`, f.wanGw || '');
+      set(rows, `G${12 + i}`, f.wanDns || '');
+    });
+    // VPN S2S 1-4 (r15-18) : tunnels saisis dans la fiche LLD
+    (L.vpns || []).slice(0, 4).forEach((v, i) => {
+      set(rows, `C${15 + i}`, v.name || '');
+      set(rows, `D${15 + i}`, v.peer || '');
+    });
+    for (let r = 15 + Math.min((L.vpns || []).length, 4); r <= 18; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    // Interconnexion S2S : extrémités, VIP
+    const ic = L.interco || {};
+    const srvs = byCat(ws, ['server']);
+    const stos = byCat(ws, ['storage']);
+    if (ic.epA) { set(rows, 'C9', shortName(ic.epA)); set(rows, 'D9', ipFrom(ic.epA)); }
+    if (ic.epB) { set(rows, 'C10', shortName(ic.epB)); set(rows, 'D10', ipFrom(ic.epB)); }
+    if (ic.vipA) set(rows, 'D11', ic.vipA);
+    // Firewall : équipements + première règle NAT
+    const fws = byCat(ws, ['firewall']);
+    fws.slice(0, 2).forEach((x, i) => {
+      set(rows, `C${19 + i}`, x.inst.name || '');
+      set(rows, `D${19 + i}`, x.inst.ipMgmt || '');
+    });
+    const nat = (L.fw || []).find(r0 => /nat/i.test(r0.type || ''));
+    if (nat) { set(rows, 'C21', nat.name || ''); set(rows, 'D21', nat.dst || ''); }
+    // Alias firewall (r24-32) : table alias de la fiche LLD
+    (L.aliases || []).slice(0, 9).forEach((a, i) => {
+      set(rows, `C${24 + i}`, a.name || '');
+      set(rows, `D${24 + i}`, a.value || '');
+    });
+    for (let r = 24 + Math.min((L.aliases || []).length, 9); r <= 32; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    // Profils firewall (r34-37)
+    const fp = L.fwProfiles || {};
+    set(rows, 'C34', fp.vpnSsl || '');
+    set(rows, 'C35', fp.appCtrl || '');
+    set(rows, 'C36', fp.webBlocker || '');
+    set(rows, 'C37', fp.httpProxy || '');
+    // VLANs firewall (r38-49 et r50-63) : appariement par mots-clés du registre VLAN
+    const vlansAll = L.vlans || [];
+    const KW = [
+      [/dmz/i, /dmz/i, /dmz/i],
+      [/storage/i, /storage/i, /storage|stg|backup|sauvegarde|nas|san/i],
+      [/ups|onduleur/i, /ups/i, /ups|onduleur|energie|énergie/i],
+      [/manegement|management|mgmt/i, /mgmt|management|gestion/i, /mgmt|management|gestion|admin/i],
+      [/users wired|wired/i, /user|utilisateur|bureau/i, /user|utilisateur|bureau|corp/i, /wifi|wireless|guest|invite|invité/i],
+      [/wireless|wifi|wlan/i, /guest|invite|invité|wifi|wlan|wireless/i, /wifi|wlan|wireless|invite|invité|sans[- ]fil/i, /wired|user|utilisateur/i],
+      [/print/i, /print|imprim/i, /print|imprim/i],
+      [/\bids\b|intrusion/i, /\bids\b|\bips\b|intrusion/i, /ids|ips|intrusion/i],
+      [/cctv|cam/i, /cctv|cam|video|vidéo/i, /cctv|cam|video|vidéo|surveillance/i],
+      [/\bspo\b|pointage/i, /spo|pointage|badge/i, /spo|pointage|badge/i],
+      [/voip|toip/i, /voip|toip|téléph|teleph/i, /voip|toip|téléph|teleph/i],
+      [/idrac/i, /idrac/i, /ipmi|bmc|oob/i]
+    ];
+    /* Masque déduit d'un CIDR (« 10.10.10.0/24 » -> « 255.255.255.0 ») */
+    const maskOfCidr = s => {
+      const m = /\/(\d+)\s*$/.exec(String(s || ''));
+      if (!m) return '';
+      const n = +m[1];
+      if (n < 0 || n > 32) return '';
+      const bits = n === 0 ? 0 : (0xFFFFFFFF << (32 - n)) >>> 0;
+      return [24, 16, 8, 0].map(sh => (bits >>> sh) & 255).join('.');
+    };
+    /* Le bloc r38-49 décrit le 1er site (firewall 1), r50-63 le second.
+       On filtre le registre VLAN par la colonne « Site » si elle est renseignée. */
+    const isSiteB = v => /agence|rabat|site\s?b/i.test(v.site || '');
+    const vlanFor = (label, side) => {
+      const hit = KW.find(([a]) => a.test(label));
+      if (!hit) return null;
+      const [, primary, full, excl] = hit;
+      // exclusion (ex. « Users Wireless » ne doit pas retomber sur vUsers)
+      const ok = x => !(excl && excl.test(x.name || ''))
+        && (side === 'B' ? isSiteB(x) : !isSiteB(x));
+      // 1) nom correspondant au terme principal, 2) nom (tous termes),
+      // 3) usage (tous termes)
+      const v = vlansAll.find(x => ok(x) && primary.test(x.name || '')) ||
+                vlansAll.find(x => ok(x) && full.test(x.name || '')) ||
+                vlansAll.find(x => ok(x) && full.test(x.purpose || ''));
+      return v && v.vid ? v : null;
+    };
+    // C = nomenclature du VLAN, D = IP (passerelle), E = masque (du subnet)
+    const putVlanRow = (r, side) => {
+      const lbl = rows[r - 1][1] && rows[r - 1][1].v;
+      const v = lbl && !/VM\d/i.test(String(lbl)) ? vlanFor(String(lbl), side) : null;
+      const sC = rows[r - 1][2] ? rows[r - 1][2].s : 1;
+      set(rows, `C${r}`, v ? `VLAN ${v.vid}` : '', sC);
+      const st = c => (rows[r - 1][c] ? rows[r - 1][c].s : sC);
+      set(rows, `D${r}`, v ? (v.gw || '') : '', st(3));
+      set(rows, `E${r}`, v ? (maskOfCidr(v.subnet) || '') : '', st(4));
+    };
+    for (let r = 38; r <= 49; r++) putVlanRow(r, 'A');
+    for (let r = 50; r <= 63; r++) putVlanRow(r, 'B');
+    // Master/Slave mgmt (r64-65) et interfaces cluster (r66-69)
+    set(rows, 'C64', ic.mgmtA || '');
+    set(rows, 'C65', ic.mgmtB || '');
+    set(rows, 'C66', ic.clusterA || '');
+    set(rows, 'C67', '');
+    set(rows, 'C68', ic.clusterB || '');
+    set(rows, 'C69', '');
+    // VLANs par switch (r76-86 switch 1, r88-99 switch 2) : listes des zones
+    const zoneLists = (L.swZones || []).filter(z => z.vlans).map(z => String(z.vlans || ''))
+      .map(s => s.split(',').flatMap(x => {
+        x = x.trim(); const m = /^(\d+)\s*-\s*(\d+)$/.exec(x);
+        return m ? Array.from({ length: Math.min(+m[2], +m[1] + 30) - +m[1] + 1 }, (_, k) => +m[1] + k) : (x ? [x] : []);
+      }).filter(Boolean));
+    const fillVlanRows = (list, r0, r1) => {
+      for (let r = r0; r <= r1; r++) set(rows, `C${r}`, '');
+      list.slice(0, r1 - r0 + 1).forEach((v, i) => set(rows, `C${r0 + i}`, `VLAN ${v}`));
+    };
+    fillVlanRows(zoneLists[0] || [], 76, 86);
+    fillVlanRows(zoneLists[1] || [], 88, 99);
+    // Ports du 1er serveur (r101-107) et du SAN (r109-112)
+    const ports = list0 => (list0[0] && list0[0].inst.ports || []);
+    ports(srvs).slice(0, 7).forEach((p, i) => {
+      set(rows, `C${101 + i}`, p.label || p.name || '');
+      set(rows, `D${101 + i}`, p.ip || '');
+    });
+    for (let r = 101 + Math.min(ports(srvs).length, 7); r <= 107; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    ports(stos).slice(0, 4).forEach((p, i) => {
+      set(rows, `C${109 + i}`, p.label || p.name || '');
+      set(rows, `D${109 + i}`, p.ip || '');
+    });
+    for (let r = 109 + Math.min(ports(stos).length, 4); r <= 112; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    // Imprimantes (r127-130) et clime (r137) : devices par nom
+    const byNameRe = re => sortedRackInstances(ws).filter(x => re.test(x.inst.name || ''));
+    byNameRe(/^PR[NT]/i).slice(0, 4).forEach((x, i) => {
+      set(rows, `C${127 + i}`, x.inst.name || '');
+      set(rows, `D${127 + i}`, x.inst.ipMgmt || '');
+    });
+    for (let r = 127 + Math.min(byNameRe(/^PR[NT]/i).length, 4); r <= 130; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    byNameRe(/CLIM|FROID/i).slice(0, 1).forEach(x => {
+      set(rows, 'C137', x.inst.name || '');
+      set(rows, 'D137', x.inst.ipMgmt || '');
+    });
+    // Switch 1-6 : IP de mgmt
+    const sws = byCat(ws, ['switch']);
+    sws.slice(0, 6).forEach((x, i) => set(rows, `D${70 + i}`, x.inst.ipMgmt || ''));
+    // Serveur physique 1 / SAN
+    if (srvs[0]) { set(rows, 'C100', srvs[0].inst.name || ''); set(rows, 'D100', srvs[0].inst.ipMgmt || ''); }
+    if (stos[0]) { set(rows, 'C108', stos[0].inst.name || ''); set(rows, 'D108', stos[0].inst.ipMgmt || ''); }
+    // VM NX (BI/BC/AD/Web ×2) : appariement par mots-clés sur nom + rôle
+    const vms = L.vms || [];
+    const pick = (re, idx) => vms.filter(v => re.test(`${v.name} ${v.role}`))[idx];
+    [['113', /\bBI\b|BI[-_ ]/i, 0], ['114', /\bBC\b|BC[-_ ]|VEEAM|backup|sauvegarde/i, 0],
+     ['115', /\bAD\b|AD[-_ ]|DC[-_ ]|Active.?Directory/i, 0], ['116', /WEB|proxy/i, 0],
+     ['117', /\bBI\b|BI[-_ ]/i, 1], ['118', /\bBC\b|BC[-_ ]|VEEAM|backup|sauvegarde/i, 1],
+     ['119', /\bAD\b|AD[-_ ]|DC[-_ ]|Active.?Directory/i, 1], ['120', /WEB|proxy/i, 1]]
+      .forEach(([r, re, idx]) => {
+        const v = pick(re, idx);
+        if (v) { set(rows, `C${r}`, v.name || ''); set(rows, `D${r}`, v.ip || ''); }
+      });
+    // Points d'accès, onduleurs, IDS, NVR, pointeuses
+    const fillRows = (list, r0, n) => list.slice(0, n).forEach((x, i) => {
+      set(rows, `C${r0 + i}`, x.inst.name || '');
+      set(rows, `D${r0 + i}`, x.inst.ipMgmt || '');
+    });
+    fillRows(byCat(ws, ['ap']), 121, 6);
+    fillRows(byCat(ws, ['ups']), 131, 2);
+    fillRows(byCat(ws, ['ids']), 133, 2);
+    fillRows(byCat(ws, ['cctv']), 135, 1);
+    fillRows(byCat(ws, ['pointage']), 136, 1);
+
+    const vlans = L.vlans || [];
+    vlans.slice(0, 27).forEach((v, i) => {
+      const r = 143 + i;
+      set(rows, `B${r}`, v.vid ? `VLAN ${v.vid} — ${v.name || ''}` : (v.name || ''), 6);
+      set(rows, `C${r}`, v.subnet || '', 1);
+      // colonne GW : garde le style du template si la cellule existe déjà
+      set(rows, `D${r}`, v.gw || '', rows[r - 1][3] ? rows[r - 1][3].s : 1);
+    });
+    for (let r = 143 + Math.min(vlans.length, 27); r <= 169; r++) {
+      set(rows, `B${r}`, '', 6);
+      set(rows, `C${r}`, '', 1);
+      if (rows[r - 1][3]) set(rows, `D${r}`, '', 1);
+    }
+    // Nomenclature : le registre saisi dans l'app est ajouté sous le tableau
+    const nomen = L.nomen || [];
+    if (nomen.length) {
+      const put = (r, col, v, s) => {
+        while (rows.length < r) rows.push([]);
+        rows[r - 1][col] = { v, s };
+      };
+      put(171, 1, "Nomenclature — registre de l'application", 50);
+      put(172, 1, "Type d'objet", 141); put(172, 2, 'Préfixe', 2);
+      put(172, 3, 'Exemple', 2); put(172, 4, 'Règle de nommage', 143);
+      nomen.slice(0, 25).forEach((nm, i) => {
+        const st = i % 2 ? 197 : 8;
+        put(173 + i, 1, nm.type || '', st); put(173 + i, 2, nm.prefix || '', st);
+        put(173 + i, 3, nm.example || '', st); put(173 + i, 4, nm.rule || '', st);
+      });
+    }
+    /* Lignes « Equipment Firewall 1/2 » (r19/20) : le template les fusionne
+       (cluster) — on défusionne pour écrire chaque équipement séparément.
+       B156:D156 : ligne de séparation du registre VLAN, défusionnée car le
+       registre de l'app y écrit une entrée (viDRAC). */
+    const merges4 = (sheet.merges || [])
+      .filter(m => !/^[C-H]19:[C-H]20$/.test(m) && !/^B156:D156$/.test(m));
+    return out(sheet, rows, heights, merges4);
+  }
+
+  /* — Feuille « 5 » : FAI (infos + réglages avancés) + câblage — */
+  function ch5(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const L = ws.lld || {};
+    const fais = (L.fais && L.fais.length) ? L.fais
+      : (L.fai && (L.fai.operator || L.fai.offer || L.fai.down) ? [L.fai] : []);
+    const lblFai = f => f.operator ? `${f.operator}${f.offer ? ' — ' + f.offer : ''}` : '';
+    const COLS5 = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'];
+    fais.slice(0, 4).forEach((f, i) => {
+      const r = 35 + i;
+      set(rows, `C${r}`, lblFai(f));
+      set(rows, `D${r}`, f.down || '');
+      set(rows, `E${r}`, f.lanIp || '');
+      set(rows, `F${r}`, f.lanMask || '');
+      set(rows, `G${r}`, f.lanGw || '');
+      set(rows, `H${r}`, f.lanDns || '');
+      set(rows, `I${r}`, f.ipv6 || '');
+      set(rows, `J${r}`, f.dhcp || '');
+      set(rows, `K${r}`, f.pf || '');
+      set(rows, `L${r}`, f.pfPortWan || '');
+      set(rows, `M${r}`, f.pfPortLan || '');
+      set(rows, `N${r}`, f.pfClient || '');
+      set(rows, `O${r}`, f.pfProto || '');
+      set(rows, `P${r}`, f.dmz || '');
+      set(rows, `Q${r}`, f.firewall || '');
+      set(rows, `R${r}`, f.wlanStat || '');
+      set(rows, `S${r}`, f.wlan || '');
+      set(rows, `T${r}`, String(f.notes || '').split('\n')[0]);
+    });
+    for (let r = 35 + Math.min(fais.length, 4); r <= 38; r++)
+      COLS5.forEach(c2 => set(rows, `${c2}${r}`, ''));
+    // 5.2 câblage : boîtier (CPE) + liaison physique saisie sur le FAI
+    fais.slice(0, 4).forEach((f, i) => {
+      set(rows, `C${46 + i * 2}`, f.cpe ? f.cpe : lblFai(f));
+      set(rows, `D${46 + i * 2}`, f.wanLabel || '');
+      set(rows, `D${47 + i * 2}`, '');
+    });
+    for (let i = Math.min(fais.length, 4); i < 4; i++) {
+      set(rows, `C${46 + i * 2}`, '');
+      set(rows, `D${46 + i * 2}`, '');
+      set(rows, `D${47 + i * 2}`, '');
+    }
+    /* Le template fusionne L36:O36 (sous-colonnes « Port Forwarding » de la
+       ligne FAI 2) : on défusionne pour écrire chaque champ séparément. */
+    const merges5 = (sheet.merges || []).filter(m => !/^L3[6-8]:O3[6-8]$/.test(m));
+    return out(sheet, rows, heights, merges5);
+  }
+
+  /* — Feuille « 6 » : interconnexion site à site (complète) — */
+  function ch6(sheet, ws) {
+    const { rows, heights } = fromLayout(sheet);
+    const L = ws.lld || {};
+    const ic = L.interco || {};
+    const fais = (L.fais && L.fais.length) ? L.fais
+      : (L.fai && (L.fai.operator || L.fai.down) ? [L.fai] : []);
+    const short = s => String(s || '').split(' — ')[0];
+    const ipOf = s => { const m = /(\d{1,3}(?:\.\d{1,3}){3})/.exec(String(s || '')); return m ? m[1] : ''; };
+    // FAI rattaché à chaque extrémité : IP WAN trouvée dans le libellé, sinon par ordre
+    const faiOf = (ep, idx) => {
+      const ip = ipOf(ep);
+      return fais.find(f => ip && f.wanIp === ip) || fais[idx] || {};
+    };
+    // 6.1 — extrémités (r30/31) : identité, SN, firmware, adressage WAN du FAI,
+    // HA (J→P), VIP partagée (N30/31), commentaire
+    const endpoints = [
+      ['30', ic.epA, ic.snA, ic.fwA, ic.haA, ic.roleA, ic.mgmtA, ic.mgmtMaskA, faiOf(ic.epA, 0), 'C62'],
+      ['31', ic.epB, ic.snB, ic.fwB, ic.haB, ic.roleB, ic.mgmtB, ic.mgmtMaskB, faiOf(ic.epB, 1), 'C67']
+    ];
+    endpoints.forEach(([r, ep, sn, fw, ha, role, mgmt, mgmtMask, f, cabRef]) => {
+      if (ep) {
+        set(rows, `B${r}`, ep);
+        if (cabRef) set(rows, cabRef, short(ep));
+      }
+      // Nomenclature : modèle du device d'inventaire correspondant à l'extrémité
+      const nm = short(ep).split(/[\s(]/)[0].toLowerCase();
+      const inst = sortedRackInstances(ws).find(x => (x.inst.name || '').toLowerCase() === nm);
+      set(rows, `C${r}`, inst ? [inst.inst.brand, inst.inst.model].filter(Boolean).join(' ') : '');
+      set(rows, `D${r}`, sn || '');
+      set(rows, `E${r}`, fw || '');
+      set(rows, `F${r}`, f.wanIp || ipOf(ep) || '');
+      set(rows, `G${r}`, f.wanMask || '');
+      set(rows, `H${r}`, f.wanGw || '');
+      set(rows, `I${r}`, f.wanDns || '');
+      set(rows, `J${r}`, ha ? 'Oui' : '');
+      set(rows, `K${r}`, ha || '');
+      set(rows, `L${r}`, role || '');
+      set(rows, `M${r}`, /master/i.test(role || '') ? 'Oui' : '');
+      set(rows, `O${r}`, mgmt || '');
+      set(rows, `P${r}`, mgmtMask || '');
+      if (f.operator) set(rows, `Q${r}`, `FAI : ${f.operator}${f.offer ? ' — ' + f.offer : ''}`);
+    });
+    if (ic.vipA) set(rows, 'N30', ic.vipA);
+    if (ic.vipB) set(rows, 'N31', ic.vipB);
+    // System — Admin Security (r37-38) : comptes d'administration saisis dans la fiche LLD
+    (L.adminSec || []).slice(0, 2).forEach((a, i) => {
+      const r = 37 + i;
+      set(rows, `B${r}`, a.user || '');
+      set(rows, `C${r}`, a.auth || '');
+      set(rows, `D${r}`, a.proto || '');
+      set(rows, `E${r}`, a.host || '');
+      set(rows, `F${r}`, a.port || '');
+      set(rows, `G${r}`, a.cli || '');
+      set(rows, `H${r}`, a.sec || '');
+      set(rows, `I${r}`, a.webA || '');
+      set(rows, `K${r}`, a.webB || '');
+      set(rows, `M${r}`, a.note || '');
+    });
+    for (let r = 37 + Math.min((L.adminSec || []).length, 2); r <= 38; r++)
+      ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'M'].forEach(c2 => set(rows, `${c2}${r}`, ''));
+    // WAN Connection Settings (r45-47) : alimenté par les FAI
+    fais.slice(0, 3).forEach((f, i) => {
+      const r = 45 + i;
+      set(rows, `B${r}`, f.operator ? `WAN ${i + 1} — ${f.operator}` : `WAN ${i + 1}`);
+      set(rows, `C${r}`, 'Oui');
+      set(rows, `D${r}`, f.ipMode || '');
+      set(rows, `E${r}`, 'NAT');
+      set(rows, `F${r}`, f.wanIp || '');
+      set(rows, `G${r}`, f.wanMask || '');
+      set(rows, `H${r}`, f.wanGw || '');
+      set(rows, `I${r}`, f.wanDns || '');
+      set(rows, `K${r}`, f.up || '');
+      set(rows, `L${r}`, f.down || '');
+      set(rows, `M${r}`, f.down || '');
+      set(rows, `X${r}`, f.operator || '');
+    });
+    for (let r = 45 + Math.min(fais.length, 3); r <= 47; r++)
+      ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'X'].forEach(c2 => set(rows, `${c2}${r}`, ''));
+    // LAN (r52-53)
+    if (ic.routing) set(rows, 'C52', ic.routing);
+    const nv = (L.vlans || []).length;
+    set(rows, 'D52', nv ? `x${nv} VLANs routés` : '');
+    if (ic.localSubnets) set(rows, 'B53', `LAN — ${ic.localSubnets}`);
+    // 6.2 câblage : liaisons WAN (E62-64 / E67-69) + LAN 1 (E66 / E71).
+    // Chaque extrémité reçoit le libellé de SON FAI (apparié par IP WAN),
+    // puis le libellé du secours (5G) qui lui est rattaché.
+    const labA = (faiOf(ic.epA, 0).wanLabel || '');
+    const labB = (faiOf(ic.epB, 1).wanLabel || '');
+    const extraFor = (ownA, ownB, re) => fais.map(f => f.wanLabel || '')
+      .find(l => l && l !== ownA && l !== ownB && re.test(l)) || '';
+    set(rows, 'E62', labA);
+    set(rows, 'E63', extraFor(labA, labB, /rtr-?01|siège|siege/i));
+    set(rows, 'E64', '');
+    set(rows, 'E67', labB);
+    set(rows, 'E68', extraFor(labA, labB, /rtr-?02|agence/i));
+    set(rows, 'E69', '');
+    set(rows, 'E66', ic.lanA || '');
+    set(rows, 'E71', ic.lanB || '');
+    // VIP (N30/31) et masque admin (P30/31) : le template fusionne N30:N31 et
+    // P30:P31 alors que chaque extrémité a ses propres valeurs -> on défusionne.
+    const merges6 = (sheet.merges || []).filter(m => !/^(N30:N31|P30:P31)$/.test(m));
+    return out(sheet, rows, heights, merges6);
+  }
+
+  const FILLS = { 'LLD': lld, 'Governance': governance, '1': ch1, '2': ch2,
+                  '3': ch3, '4': ch4, '5': ch5, '6': ch6,
+                  '7': ch7,
+                  '8': switchZone, '8.1': switchZone, '8.2': switchZone,
+                  '8.3': switchZone, '8.4': switchZone, '8.5': switchZone,
+                  '9':  chapterWith('server', '9.1. Serveurs', '9.2. Machines virtuelles',
+                        [['VM', 'name'], ['Rôle', 'role'], ['Hôte', 'host'], ['IP / VLAN', 'ip']], 'vms',
+                        "À compléter : rôles et affectation des machines virtuelles.", 'server'),
+                  '10': chapterWith('storage', '10.1. Stockage', '10.2. Volumes / LUN',
+                        [['Volume', 'name'], ['Capacité', 'size'], ['Type', 'type'], ['Serveur', 'srv']], 'vols',
+                        "À compléter : volumes/LUN et plan de sauvegarde.", 'storage'),
+                  '11': chapterEquip(['ids'], "11.1. Détection d'intrusion", null, 'ids'),
+                  '12': chapterWith('cctv', '12.1. Caméras et enregistreur (NVR)', '12.2. Caméras',
+                        [['Caméra', 'name'], ['Emplacement', 'loc'], ['Modèle', 'model'], ['IP', 'ip']], 'cams',
+                        "À compléter : emplacements et plans d'implantation des caméras.", 'cctv'),
+                  '13': chapterEquip(['pointage'], '13.1. Pointeuses', null, 'pointage'),
+                  '14': ch14, '15': ch15, '15.1': ch151 };
+
+  function buildAll(ws, layout, stylesXml, themeXml) {
+    const sheets = layout.map(sheet => {
+      const fill = FILLS[sheet.name];
+      if (fill) return fill(sheet, ws);
+      const { rows, heights } = fromLayout(sheet);
+      return out(sheet, rows, heights);
+    });
+    return XLSX.build(sheets, { stylesXml, themeXml });
+  }
+
+  return { buildAll };
+})();
+
+$('#export-xlsx').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
   const ws = active();
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Export Excel' }); return; }
-  const sheets = [
-    { name: 'Inventaire',    rows: invRows(ws) },
-    { name: 'Câblage',       rows: cablingRows(ws) },
-    { name: 'Ports',         rows: portsRows(ws) },
-    { name: 'Racks',         rows: racksRows(ws) },
-    { name: 'Sites',         rows: sitesRows(ws) },
-    { name: 'Nomenclature',  rows: nomenRows(ws) },
-    { name: 'Adressage IP',  rows: addressingRows(ws) },
-    { name: 'Garanties',     rows: warrantyRows(ws) },
-    { name: 'Flux',          rows: flowsRows(ws) }
-  ].filter(s => s.rows.length > 1);   // feuilles vides omises
-  downloadBlob(XLSX.build(sheets), exportFileBase() + '.xlsx');
+  try {
+    const [layout, stylesXml, themeXml] = await Promise.all([
+      fetch('assets/lld/layout.json').then(r => { if (!r.ok) throw new Error('layout'); return r.json(); }),
+      fetch('assets/lld/styles.xml').then(r => { if (!r.ok) throw new Error('styles'); return r.text(); }),
+      fetch('assets/lld/theme1.xml').then(r => { if (!r.ok) throw new Error('theme'); return r.text(); })
+    ]);
+    downloadBlob(LLD_TPL.buildAll(ws, layout, stylesXml, themeXml), exportFileBase() + '.xlsx');
+  } catch (e) {
+    lldAlert("Impossible de charger le template Excel (assets/lld/) : l'export XLSX nécessite ces fichiers à côté de l'application.", { title: '📊 Export Excel' });
+  }
 });
 
 /* ============================================================

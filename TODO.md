@@ -305,3 +305,113 @@ interconnexion, domaines de câblage, flux) et exportable en Excel/CSV.
 ---
 
 *Document créé le 2026-09-08 — à cocher au fur et à mesure des lots.*
+
+---
+
+## X. Export XLSX « template Louis Michel » — état et champs manquants
+
+> Livré : le classeur exporté réplique les **24 feuilles** du template
+> (LLD, Governance, Contenu, chapitres 1→15.1) : styles/theme verbatim,
+> fusions, largeurs, hauteurs. Rempli depuis l'app : LLD (client/auteur/version),
+> Governance (révisions/approbateurs/réviseurs), ch.1 objectif, ch.2 site +
+> existant + inventaire par catégorie, ch.3 équipements par modèle, ch.4 VLANs,
+> ch.5 FAI, ch.6 interco (extrémités, sous-réseaux locaux).
+> Les captures d'écran du template (UI Aruba, diagrammes) restent à recoller
+> manuellement dans le fichier exporté.
+
+### Champs NON encore saisis dans l'app (à ajouter plus tard) :
+
+1. ~~**ch.2 — 2.1 Info site** : type de site, pays, nombre d'utilisateurs.~~
+   ✅ FAIT — champs ajoutés à la fiche de chaque site (fiche LLD) et projetés
+   dans l'export (C7/E7/C8 de la feuille « 2 »).
+2. **ch.2 — 2.2 Existant** : ✅ FAIT — tableau rempli dispositif par modèle
+   (B52-59 : modèle + quantité), FAI en ligne 51.
+3. **ch.3 — 3.1 Equipments** : ✅ FAIT — distinction besoin/existant
+   (« x1 (besoin) ») et colonnes Remarques/Statut via la table
+   « Équipements & licences hors baie » de la fiche LLD (r65-76 du ch.3) ;
+   les devices d'inventaire restent listés par modèle (B41-64).
+4. **ch.4 — Nomenclature détaillée** : l'arbre du template reste manuel ;
+   ✅ le registre de l'app est projeté en bloc annexe sous le tableau (r171+).
+5. **ch.5 — FAI** : ✅ FAIT — FAI multiples avec réglages avancés par FAI :
+   mode IP WAN (DHCP/Statique), IP WAN, IPv6, LAN IP/Mask/GW/DNS, DHCP,
+   Port Forwarding, DMZ, Firewall, WLAN/SSID → colonnes C-T des lignes 35-38.
+6. **ch.5 — 5.2 Câblage FAI** : ✅ FAIT — champ « Liaison physique » par FAI
+   (wanLabel) → boîtiers C46-52 + liaisons D46-53.
+7. **ch.6 — 6.1 Interco** : ✅ FAIT — par extrémité : N° série, firmware,
+   groupe HA, rôle préféré (Master/Slave → Resume Master déduit), IP admin ;
+   IP virtuelle par site ; WAN Connection Settings depuis les FAI (méthode,
+   IP, débits) ; LAN (routing, nb VLANs, subnets).
+   ✅ Admin Security (comptes d'administration) : table « adminSec » de la
+   fiche LLD → r37-38 (user/pwd, authentification, protocole, host, port,
+   CLI SSH, sécurité, Web Admin Access LAN/WAN, commentaire).
+   Reste manuel : health check (méthode/DNS/timeout).
+8. **ch.6 — 6.2 Câblage** : ✅ FAIT — liaisons WAN (wanLabel des FAI) et
+   LAN 1 (« LAN 1 connecté à » par extrémité) → E62-E71.
+9. **ch.7-13** : ✅ FAIT — 7.3 Règles & NAT (table « fw »), 9.2 Machines
+   virtuelles (table « vms »), 10.2 Volumes/LUN (table « vols »), 12.2
+   Caméras (table « cams »), VLANs par zone de switching (ch. 8). Reste
+   ✅ VPN S2S (table « vpns » → VPN Site to Site r15-18 du ch.4), alias
+   firewall (table « aliases » → r24-32), profils firewall (VPN SSL /
+   AppCtrl / WebBlocker / HTTP Proxy → r34-37), cluster Master/Slave
+   (champs clusterA/clusterB → r66-69), VLANs firewall mappés par mots-clés
+   (r38-63), mgmt/serveurs/SAN/imprimantes/clime (r64-137). Reste manuel :
+   configs poussées par switch (8.x), emplacements IDS/SPO (11/13),
+   health-check et Admin Security (ch.6).
+10. **ch.15 Cablage/Rack** : ✅ FAIT (câblage complet + élévations par baie).
+
+### Chapitres 7 → 15.1 — remplis par l'export depuis l'app (fait) :
+
+- **ch.7** : équipements Firewall/Routeurs (inventaire) + table des interfaces
+  VLAN (lld.vlans).
+- **ch.8 → 8.5** : équipements Switching filtrés par zone (lld.swZones rattachée
+  aux devices) + plan de ports (ports du device) quand la zone en a ; sinon la
+  feuille du template est conservée telle quelle (« Config: Voir CMDB »).
+- **ch.9/10/11/12/13** : table équipements de la catégorie (serveurs, stockage,
+  IDS, CCTV, pointage) avec position et IP mgmt ; message explicite si vide.
+- **ch.14** : tableau des flux (ws.flows) — diagramme reste à coller.
+- **ch.15** : tableau de câblage complet (tous câbles, A et B).
+- **ch.15.1** : élévations baie par baie (position U, nom, catégorie, modèle,
+  taille, IP mgmt).
+
+### Reste NON extractible de l'app (ch.7+) — à ajouter comme saisie plus tard :
+
+- **ch.7** : NAT 1-to-1, règles/alias, VPN SSL (profils utilisateurs),
+  paramètres de cluster/HA firewall.
+- **ch.8** : liaison zones ↔ VLANs par switch, configs par rôle (STP, DHCP
+  snooping, routage inter-VLAN, stacks/HA entre switches), « Config: Voir CMDB »
+  reste manuel.
+- **ch.9** : inventaire des VMs (nom, rôle, hôte, VLAN) — l'app ne connaît que
+  les serveurs physiques.
+- **ch.10** : volumes/LUN, targets iSCSI, plan de sauvegarde.
+- **ch.11/12/13** : zones de détection/caméras/pointage (emplacements, plans).
+- **ch.14** : diagramme de flux (image) — à coller dans le fichier exporté.
+- **ch.2/3/5/6** : voir la liste 1-8 ci-dessus.
+
+---
+
+## Passe de complétude classeur ↔ application (v98, 2026-09-21)
+
+**Objectif** : toute case du classeur LLD de référence est saisissable dans
+l'application, et l'export la reproduit au bon endroit ; les cases vides dues
+à des devices manquants sont comblées dans la démo.
+
+**Fait** :
+
+- **Nouveaux champs de saisie** (📘 Réseau → blocs FAI) : PF — Port WAN,
+  Port LAN, Client interne, Protocole ; WLAN statut (feuille 5, colonnes L-O et S).
+- **Correctifs d'export** : indices extrémité B feuille 15 ; défusions 6 (N30:N31,
+  P30:P31), 4 (C19:H20, B156:D156) ; VLANs site B + mot-clé iDRAC + IP/masque ;
+  ordre des modèles (2/3) + « + N autres » ; libellés WAN par FAI (6.2) ;
+  zones 8.x distinctes par ordinal ; notes « À compléter » seulement si table vide ;
+  notes Config exportées ; site VLAN conservé à l'enregistrement ; DHCP si IP WAN vide.
+- **Démo enrichie (demoVer 5)** : RACK-A 24U (22 dev), RACK-B 18U (14 dev) —
+  IDS-01/02, UPS-01/02, NVR-01, SPO-01, PRT-01→04, CLIM-01 ; VLAN 111 + bloc
+  agence 123-134 ; alias 7-9 ; 4 VM ; FAI 2/3 complétés ; 38 câbles ; 16
+  préfixes de nomenclature ; révision 1.2.
+- **Vérification** : `tools/audit_export.py` → 247 vérifications, 0 case vide
+  inattendue ; export final `Datacenter_Demo-LLD-export-2026-09-21.xlsx` ;
+  rapport détaillé `RAPPORT-VERIFICATION-EXCEL.md`.
+
+**Reste (fonctionnel, non bloquant pour la complétude)** :
+
+- **ch.14** : diagramme de flux (image) — à coller dans le fichier exporté.

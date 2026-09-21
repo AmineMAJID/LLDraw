@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 /* ---------------- Constantes physiques (mètres) ---------------- */
 const U_M     = 0.04445;         // 1U
@@ -149,61 +150,57 @@ function makeFloorTexture(rackRects, fs) {
   cv.width = cv.height = S;
   const ctx = cv.getContext('2d');
   const w2p = S / fs;   // m -> px
+  const tile = 0.6 * w2p;
 
   // Dalle technique claire
-  ctx.fillStyle = '#d7dbdf';
+  ctx.fillStyle = '#d5d9dd';
   ctx.fillRect(0, 0, S, S);
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  // Grandes variations douces (usure, reflets)
-  for (let i = 0; i < 90; i++) {
-    const x = rnd() * S, y = rnd() * S, r = rnd() * 190 + 60;
+
+  // Une dalle sur l'autre : variation + vignette d'occlusion (relief posé)
+  for (let ty = 0; ty * tile < S; ty++) {
+    for (let tx = 0; tx * tile < S; tx++) {
+      const v = rnd();
+      if (v > 0.72) ctx.fillStyle = `rgba(255,255,255,${(v - 0.72) * 0.16 + 0.01})`;
+      else if (v < 0.18) ctx.fillStyle = `rgba(96,104,114,${(0.18 - v) * 0.35 + 0.01})`;
+      else continue;
+      ctx.fillRect(tx * tile, ty * tile, tile, tile);
+      const g = ctx.createRadialGradient(tx * tile + tile / 2, ty * tile + tile / 2, tile * 0.22,
+                                         tx * tile + tile / 2, ty * tile + tile / 2, tile * 0.72);
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(1, 'rgba(40,46,55,0.085)');
+      ctx.fillStyle = g;
+      ctx.fillRect(tx * tile, ty * tile, tile, tile);
+    }
+  }
+  // Grandes variations douces (usure, polissage)
+  for (let i = 0; i < 70; i++) {
+    const x = rnd() * S, y = rnd() * S, r = rnd() * 220 + 70;
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    const light = rnd() > 0.5;
-    g.addColorStop(0, light ? 'rgba(255,255,255,0.055)' : 'rgba(96,104,114,0.045)');
+    g.addColorStop(0, rnd() > 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(96,104,114,0.04)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   }
-  // Dalles 600 mm : légère variation par tuile
-  const tile = 0.6 * w2p;
-  for (let ty = 0; ty * tile < S; ty++) {
-    for (let tx = 0; tx * tile < S; tx++) {
-      const v = rnd();
-      if (v > 0.72) {
-        ctx.fillStyle = `rgba(255,255,255,${((v - 0.72) * 0.10 + 0.008).toFixed(3)})`;
-        ctx.fillRect(tx * tile, ty * tile, tile, tile);
-      } else if (v < 0.16) {
-        ctx.fillStyle = `rgba(90,98,110,${((0.16 - v) * 0.22 + 0.008).toFixed(3)})`;
-        ctx.fillRect(tx * tile, ty * tile, tile, tile);
-      }
-    }
-  }
   // Grain fin
   for (let i = 0; i < 5200; i++) {
-    const x = rnd() * S, y = rnd() * S, r = rnd() * 1.4 + 0.3;
-    ctx.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.050)' : 'rgba(0,0,0,0.035)';
+    const x = rnd() * S, y = rnd() * S, r = rnd() * 1.3 + 0.3;
+    ctx.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.035)';
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   }
-  // Joints blancs entre dalles + ombre portée du joint
-  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-  ctx.lineWidth = 1.4;
+  // Joints chanfreinés : ombre + lumière adjacente
   for (let p = 0; p <= S + tile; p += tile) {
-    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, S); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(S, p); ctx.stroke();
-  }
-  ctx.strokeStyle = 'rgba(70,78,90,0.16)';
-  ctx.lineWidth = 1;
-  for (let p = 0; p <= S + tile; p += tile) {
-    ctx.beginPath(); ctx.moveTo(p + 1.4, 0); ctx.lineTo(p + 1.4, S); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, p + 1.4); ctx.lineTo(S, p + 1.4); ctx.stroke();
+    ctx.fillStyle = 'rgba(58,64,74,0.38)'; ctx.fillRect(p - 1, 0, 2, S);
+    ctx.fillRect(0, p - 1, S, 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.fillRect(p + 1.2, 0, 1, S);
+    ctx.fillRect(0, p + 1.2, S, 1);
   }
   // Joints de structure tous les 3 m
-  ctx.strokeStyle = 'rgba(60,68,80,0.20)';
-  ctx.lineWidth = 2.5;
+  ctx.fillStyle = 'rgba(50,56,66,0.30)';
   for (let p = 0; p <= S + 3 * w2p; p += 3 * w2p) {
-    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, S); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(S, p); ctx.stroke();
+    ctx.fillRect(p - 1.4, 0, 2.8, S);
+    ctx.fillRect(0, p - 1.4, S, 2.8);
   }
   // Marquage de sécurité jaune autour des baies
   ctx.strokeStyle = '#c9a233';
@@ -222,32 +219,176 @@ function makeFloorTexture(rackRects, fs) {
   tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   return tex;
 }
+
+/* Roughness map du sol : mêmes dalles, brillance variable (polissage) */
+function makeFloorRoughTexture(fs) {
+  const S = 1024;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const ctx = cv.getContext('2d');
+  const tile = 0.6 * (S / fs);
+  ctx.fillStyle = '#6f6f6f';
+  ctx.fillRect(0, 0, S, S);
+  let seed = 23;
+  const rnd = () => (seed = (seed * 48271) % 2147483647) / 2147483647;
+  for (let ty = 0; ty * tile < S; ty++) {
+    for (let tx = 0; tx * tile < S; tx++) {
+      const v = 96 + Math.floor(rnd() * 60);   // 0.38 - 0.61
+      ctx.fillStyle = `rgb(${v},${v},${v})`;
+      ctx.fillRect(tx * tile, ty * tile, tile, tile);
+    }
+  }
+  // joints plus rugueux
+  ctx.strokeStyle = '#c2c2c2';
+  ctx.lineWidth = 2;
+  for (let p = 0; p <= S + tile; p += tile) {
+    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(S, p); ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  return tex;
+}
+
 function makeWallTexture() {
   const cv = document.createElement('canvas');
   cv.width = 512; cv.height = 512;
   const ctx = cv.getContext('2d');
   const g = ctx.createLinearGradient(0, 0, 0, 512);
-  g.addColorStop(0, '#e2e7ee');
-  g.addColorStop(0.72, '#eef1f5');
-  g.addColorStop(1, '#f3f5f8');
+  g.addColorStop(0, '#dde3ea');
+  g.addColorStop(0.72, '#e9edf2');
+  g.addColorStop(1, '#eff2f6');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 512, 512);
   let seed = 11;
   const rnd = () => (seed = (seed * 48271) % 2147483647) / 2147483647;
-  for (let i = 0; i < 1500; i++) {
-    ctx.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(70,80,95,0.02)';
-    ctx.fillRect(rnd() * 512, rnd() * 512, rnd() * 26 + 2, 1);
+  // Grain fin (peinture satinée)
+  for (let i = 0; i < 2600; i++) {
+    ctx.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(70,80,95,0.018)';
+    ctx.fillRect(rnd() * 512, rnd() * 512, rnd() * 22 + 2, 1);
   }
-  // Bande technique + plinthe en pied de mur
-  ctx.fillStyle = 'rgba(120,130,145,0.10)';
+  // Salissures discrètes en pied de mur
+  const g2 = ctx.createLinearGradient(0, 400, 0, 512);
+  g2.addColorStop(0, 'rgba(0,0,0,0)');
+  g2.addColorStop(1, 'rgba(60,68,80,0.06)');
+  ctx.fillStyle = g2;
+  ctx.fillRect(0, 400, 512, 112);
+  // Bande technique + plinthe
+  ctx.fillStyle = 'rgba(120,130,145,0.12)';
   ctx.fillRect(0, 430, 512, 3);
-  ctx.fillStyle = '#99a1ac';
+  ctx.fillStyle = '#8f97a3';
   ctx.fillRect(0, 494, 512, 18);
-  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
   ctx.fillRect(0, 491, 512, 3);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.fillRect(0, 494, 512, 2);
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = THREE.RepeatWrapping;
+  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  return tex;
+}
+
+/* Plafond : dalles démontables 600 mm sur ossature en T */
+function makeCeilingTexture() {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 1024;
+  const ctx = cv.getContext('2d');
+  const tile = 1024 / 4;   // 4 dalles visibles par répétition
+  ctx.fillStyle = '#eceef2';
+  ctx.fillRect(0, 0, 1024, 1024);
+  let seed = 31;
+  const rnd = () => (seed = (seed * 48271) % 2147483647) / 2147483647;
+  for (let i = 0; i < 1800; i++) {
+    ctx.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.08)' : 'rgba(90,100,115,0.03)';
+    ctx.fillRect(rnd() * 1024, rnd() * 1024, rnd() * 3, rnd() * 3);
+  }
+  // Micro-perforations des dalles acoustiques
+  for (let i = 0; i < 4200; i++) {
+    ctx.fillStyle = 'rgba(120,130,145,0.10)';
+    ctx.fillRect(rnd() * 1024, rnd() * 1024, 1.4, 1.4);
+  }
+  // Ossature en T
+  ctx.fillStyle = '#b7bdc7';
+  for (let p = 0; p <= 1024 + tile; p += tile) {
+    ctx.fillRect(p - 2, 0, 4, 1024);
+    ctx.fillRect(0, p - 2, 1024, 4);
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  for (let p = 0; p <= 1024 + tile; p += tile) {
+    ctx.fillRect(p + 2, 0, 1.5, 1024);
+    ctx.fillRect(0, p + 2, 1024, 1.5);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(Math.max(6, Math.round(18 / 2.4)), Math.max(6, Math.round(18 / 2.4)));
+  return tex;
+}
+
+/* Métal brossé sombre (montants, panneaux de baie) */
+function makeBrushedTexture(base, streak) {
+  const cv = document.createElement('canvas');
+  cv.width = 512; cv.height = 1024;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 512, 1024);
+  let seed = 47;
+  const rnd = () => (seed = (seed * 48271) % 2147483647) / 2147483647;
+  // Brossage FIN : milliers de stries très étroites et très discrètes
+  for (let i = 0; i < 4200; i++) {
+    const x = rnd() * 512, w = rnd() * 0.9 + 0.25;
+    ctx.fillStyle = rnd() > 0.5
+      ? `rgba(255,255,255,${(rnd() * 0.028 + 0.006).toFixed(4)})`
+      : `rgba(0,0,0,${(rnd() * 0.035 + 0.008).toFixed(4)})`;
+    ctx.fillRect(x, 0, w, 1024);
+  }
+  // Micro-variation de teinte par bandes larges très douces
+  for (let i = 0; i < 30; i++) {
+    const x = rnd() * 512, w = rnd() * 60 + 20;
+    ctx.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.012)' : 'rgba(0,0,0,0.015)';
+    ctx.fillRect(x, 0, w, 1024);
+  }
+  // Usure ponctuelle très légère
+  for (let i = 0; i < 18; i++) {
+    const x = rnd() * 512, y = rnd() * 1024, r = rnd() * 36 + 10;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rnd() > 0.5 ? 'rgba(130,145,165,0.030)' : 'rgba(0,0,0,0.035)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  void streak;
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+/* Rails de montage 19" avec repères U gravés */
+function makeRailTexture(nU) {
+  const row = 26;
+  const cv = document.createElement('canvas');
+  cv.width = 56; cv.height = nU * row + 8;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  // rainure centrale
+  ctx.fillStyle = '#0d0e11';
+  ctx.fillRect(22, 0, 12, cv.height);
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.fillRect(22, 0, 2, cv.height);
+  ctx.font = '700 11px Inter, system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  for (let u = 1; u <= nU; u++) {
+    const y = (u - 0.5) * row + 4;
+    ctx.fillStyle = '#8ea4c2';
+    ctx.fillText('U' + u, 30, y + 4);
+    ctx.fillStyle = '#454c58';
+    ctx.fillRect(8, y - 1, 8, 2);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   return tex;
 }
@@ -257,21 +398,24 @@ function buildEnvironment(root, fs, rackRects) {
   const span = Math.max(fs, 18);       // la salle couvre le sol
   const H = 3.2;                       // hauteur sous plafond
 
-  // Sol clair (dalle technique)
+  // Sol clair semi-brillant (dalle technique + roughness map)
   const floorGeo = new THREE.PlaneGeometry(fs, fs);
-  const floorMat = new THREE.MeshStandardMaterial({
+  const floorMat = new THREE.MeshPhysicalMaterial({
     map: makeFloorTexture(rackRects, fs),
-    roughness: 0.52, metalness: 0.06, envMapIntensity: 0.7
+    roughnessMap: makeFloorRoughTexture(fs),
+    roughness: 1.0, metalness: 0.05,
+    clearcoat: 0.34, clearcoatRoughness: 0.38,
+    envMapIntensity: 0.85
   });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   root.add(floor);
 
-  // Murs blancs texturés (visibles depuis l'intérieur de la salle)
+  // Murs blancs satinés (visibles depuis l'intérieur de la salle)
   const wallTex = makeWallTexture();
   wallTex.repeat.set(Math.max(4, Math.round(span / 3.2)), 1);
-  const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.94, metalness: 0.0 });
+  const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.88, metalness: 0.0 });
   const mkWall = (x, z, ry) => {
     const w = new THREE.Mesh(new THREE.PlaneGeometry(span, H), wallMat);
     w.position.set(x, H / 2, z);
@@ -284,49 +428,59 @@ function buildEnvironment(root, fs, rackRects) {
   mkWall(c.x + span / 2, c.z, -Math.PI / 2); // face -x
   mkWall(c.x - span / 2, c.z, Math.PI / 2);  // face +x
 
-  // Plafond blanc
+  // Plafond dalles acoustiques sur ossature T
   const ceil = new THREE.Mesh(
     new THREE.PlaneGeometry(span, span),
-    new THREE.MeshStandardMaterial({ color: 0xf3f5f8, roughness: 0.96 })
+    new THREE.MeshStandardMaterial({ map: makeCeilingTexture(), roughness: 0.94 })
   );
   ceil.rotation.x = Math.PI / 2;
   ceil.position.set(c.x, H, c.z);
   root.add(ceil);
 
-  // Dalles lumineuses blanches encastrées (2 colonnes, rangées régulières)
-  const fixGeo = new THREE.BoxGeometry(1.25, 0.035, 0.55);
-  const fixMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.55
+  // Dalles lumineuses ENCASTRÉES avec cadre aluminium
+  const fixFrame = new THREE.BoxGeometry(1.30, 0.030, 0.62);
+  const fixPanel = new THREE.BoxGeometry(1.22, 0.014, 0.54);
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0xc9ced6, roughness: 0.35, metalness: 0.6 });
+  const panelMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.35
   });
   const rows = Math.min(14, Math.max(6, Math.round(span / 2.4)));
   for (let i = 0; i < rows; i++) {
     for (let col = -1; col <= 1; col += 2) {
-      const fix = new THREE.Mesh(fixGeo, fixMat);
-      fix.position.set(
-        c.x + col * 2.1,
-        H - 0.035,
-        c.z + (i - (rows - 1) / 2) * 2.4
-      );
-      root.add(fix);
+      const z = c.z + (i - (rows - 1) / 2) * 2.4;
+      const frame = new THREE.Mesh(fixFrame, frameMat);
+      frame.position.set(c.x + col * 2.1, H - 0.016, z);
+      root.add(frame);
+      const panel = new THREE.Mesh(fixPanel, panelMat);
+      panel.position.set(c.x + col * 2.1, H - 0.034, z);
+      root.add(panel);
     }
   }
 
   // Chemin de câbles au-dessus de l'allée arrière
-  const trayMat = new THREE.MeshStandardMaterial({ color: 0xb9bfc8, roughness: 0.45, metalness: 0.75 });
+  const trayMat = new THREE.MeshStandardMaterial({ color: 0xb9bfc8, roughness: 0.42, metalness: 0.78 });
   const tray = new THREE.Mesh(new THREE.BoxGeometry(span * 0.8, 0.025, 0.45), trayMat);
   tray.position.set(c.x, 2.72, layout.rearZ - 0.55);
   tray.castShadow = true;
   root.add(tray);
+  // suspentes du chemin de câbles
+  const rodGeo = new THREE.CylinderGeometry(0.006, 0.006, H - 2.72, 6);
+  for (const dx of [-span * 0.39, span * 0.39]) {
+    const rod = new THREE.Mesh(rodGeo, frameMat);
+    rod.position.set(c.x + dx, (H + 2.72) / 2, layout.rearZ - 0.55);
+    root.add(rod);
+  }
 
-  // Lumières : salle claire et homogène
-  const hemi = new THREE.HemisphereLight(0xf4f7ff, 0xd6d9de, 0.95);
+  // Lumières : salle claire, contrastes doux
+  const hemi = new THREE.HemisphereLight(0xf2f6ff, 0xd4d7dc, 0.8);
   root.add(hemi);
 
-  const key = new THREE.DirectionalLight(0xffffff, 2.1);
+  const key = new THREE.DirectionalLight(0xffffff, 2.0);
   key.position.set(c.x + 7, 10, c.z + 5);
   key.target.position.copy(c);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
+  key.shadow.radius = 5;              // pénombre douce (PCFSoft)
   key.shadow.bias = -0.0004;
   key.shadow.normalBias = 0.02;
   const sc = key.shadow.camera, R = layout.radius + 3;
@@ -334,9 +488,16 @@ function buildEnvironment(root, fs, rackRects) {
   sc.near = 1; sc.far = 40;
   root.add(key); root.add(key.target);
 
-  const fill = new THREE.DirectionalLight(0xe8eeff, 0.85);
+  const fill = new THREE.DirectionalLight(0xe8eeff, 0.7);
   fill.position.set(c.x - 6, 6, c.z - 7);
   root.add(fill);
+
+  // Reflets spéculaires locaux (donnent vie au métal des baies)
+  for (const dx of [-1.6, 1.6]) {
+    const pt = new THREE.PointLight(0xf4f8ff, 9, 9, 2);
+    pt.position.set(c.x + dx, 2.45, c.z + 1.4);
+    root.add(pt);
+  }
 }
 /* ============================================================
    Fabrication : une baie (frame, panneaux, PDU, guides câbles)
@@ -350,32 +511,77 @@ function buildRack(root, ws, rack, wx, wz) {
   const H = rackTotalH(nU);
   const hw = RACK_W_M / 2, hd = RACK_D / 2;
 
-  const postMat = new THREE.MeshStandardMaterial({ color: 0x0c0d10, roughness: 0.35, metalness: 0.85 });
-  const panelMat = new THREE.MeshStandardMaterial({ color: 0x101216, roughness: 0.45, metalness: 0.7 });
-  const darkMat  = new THREE.MeshStandardMaterial({ color: 0x16181c, roughness: 0.5, metalness: 0.6 });
+  // Métal brossé (textures partagées entre toutes les baies)
+  if (!rackMats) {
+    const brushedPost = makeBrushedTexture('#0d0e12', null);
+    const brushedPanel = makeBrushedTexture('#14161b', null);
+    brushedPanel.repeat.set(2, 2);
+    rackMats = {
+      post: new THREE.MeshStandardMaterial({ map: brushedPost, roughness: 0.38, metalness: 0.82, envMapIntensity: 1.1 }),
+      panel: new THREE.MeshStandardMaterial({ map: brushedPanel, roughness: 0.46, metalness: 0.72, envMapIntensity: 0.95 }),
+      dark: new THREE.MeshStandardMaterial({ color: 0x16181c, roughness: 0.5, metalness: 0.6 }),
+      trim: new THREE.MeshStandardMaterial({ color: 0x3a404b, roughness: 0.3, metalness: 0.85, envMapIntensity: 1.2 }),
+      screw: new THREE.MeshStandardMaterial({ color: 0x9aa3b0, roughness: 0.28, metalness: 0.95 })
+    };
+  }
+  const { post: postMat, panel: panelMat, dark: darkMat, trim: trimMat, screw: screwMat } = rackMats;
 
-  const postGeo = new THREE.BoxGeometry(POST, H, POST);
+  // Montants : arêtes adoucies (accrochent la lumière -> moins cartoon)
+  const postGeo = new RoundedBoxGeometry(POST, H, POST, 2, 0.005);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     const p = new THREE.Mesh(postGeo, postMat);
     p.position.set(sx * (hw - POST / 2), H / 2, sz * (hd - POST / 2));
     p.castShadow = true;
     g.add(p);
   }
-  // Socle + capot
-  const base = new THREE.Mesh(new THREE.BoxGeometry(RACK_W_M, BASE_H, RACK_D - 0.02), panelMat);
-  base.position.y = BASE_H / 2; base.castShadow = true; base.receiveShadow = true;
+  // Socle (plinthe creuse) + capot avec plaque de passage
+  const kick = new THREE.Mesh(new RoundedBoxGeometry(RACK_W_M - 0.02, 0.05, RACK_D - 0.06, 2, 0.004), darkMat);
+  kick.position.y = 0.025; kick.receiveShadow = true;
+  g.add(kick);
+  const base = new THREE.Mesh(new RoundedBoxGeometry(RACK_W_M, BASE_H - 0.05, RACK_D - 0.02, 2, 0.004), panelMat);
+  base.position.y = 0.05 + (BASE_H - 0.05) / 2; base.castShadow = true; base.receiveShadow = true;
   g.add(base);
-  const cap = new THREE.Mesh(new THREE.BoxGeometry(RACK_W_M, TOP_H, RACK_D), panelMat);
+  const cap = new THREE.Mesh(new RoundedBoxGeometry(RACK_W_M, TOP_H, RACK_D, 2, 0.004), panelMat);
   cap.position.y = H - TOP_H / 2; cap.castShadow = true;
   g.add(cap);
+  // Plaque de passage de câbles sur le capot
+  const gland = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.008, 0.16), darkMat);
+  gland.position.set(0, H + 0.002, -(hd - 0.22));
+  g.add(gland);
 
-  // Panneaux latéraux
-  const sideGeo = new THREE.BoxGeometry(0.012, H - 0.07, RACK_D - 0.02);
+  // Panneaux latéraux (brossés, arêtes douces) + vis de coin
+  const sideGeo = new RoundedBoxGeometry(0.012, H - 0.07, RACK_D - 0.02, 2, 0.004);
+  const screwGeo = new THREE.CylinderGeometry(0.0045, 0.0045, 0.004, 12);
   for (const sx of [-1, 1]) {
     const s = new THREE.Mesh(sideGeo, panelMat);
     s.position.set(sx * (hw - 0.006), H / 2 - 0.015, 0);
     s.castShadow = true; s.receiveShadow = true;
     g.add(s);
+    for (const sy of [0.09, H - 0.12]) for (const sz of [-hd + 0.06, hd - 0.06]) {
+      const sc2 = new THREE.Mesh(screwGeo, screwMat);
+      sc2.rotation.z = Math.PI / 2;
+      sc2.position.set(sx * (hw - 0.001), sy, sz);
+      g.add(sc2);
+    }
+  }
+
+  // Rails de montage avant 19" avec repères U gravés
+  const railH = nU * U_M;
+  const railTex = makeRailTexture(nU);
+  const railSideMat = new THREE.MeshStandardMaterial({ color: 0x1a1c21, roughness: 0.4, metalness: 0.8 });
+  const railMats = [railSideMat, railSideMat, railSideMat, railSideMat,
+    new THREE.MeshStandardMaterial({ map: railTex, roughness: 0.5, metalness: 0.65 }), railSideMat];
+  const railGeo = new THREE.BoxGeometry(0.016, railH, 0.018);
+  for (const sx of [-1, 1]) {
+    const rail = new THREE.Mesh(railGeo, railMats);
+    rail.position.set(sx * (INNER_W / 2 + 0.008), BASE_H + railH / 2, hd - 0.062);
+    g.add(rail);
+    // équerres de fixation haut/bas des rails
+    for (const ry of [BASE_H + 0.012, BASE_H + railH - 0.012]) {
+      const br = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.012, 0.016), trimMat);
+      br.position.set(sx * (INNER_W / 2 + 0.004), ry, hd - 0.062);
+      g.add(br);
+    }
   }
 
   // Guides de câbles verticaux (arrière) + anneaux D
@@ -424,6 +630,7 @@ function buildRack(root, ws, rack, wx, wz) {
   return { group: g, height: H };
 }
 
+let rackMats = null;   // matériaux brossés partagés (créés à la 1re baie)
 let _pduTex = null;
 function pduTexture() {
   if (_pduTex) return _pduTex;
@@ -718,14 +925,22 @@ function buildDevice(root, ws, rack, rackH, inst, wx, wz) {
   deviceMeshes.push(box);
   deviceByMesh.set(box, { rack, inst, mats });
 
-  // Oreilles de montage
-  const earGeo = new THREE.BoxGeometry(0.018, h, 0.03);
-  const earMat = new THREE.MeshStandardMaterial({ color: 0x2a2e35, roughness: 0.45, metalness: 0.7 });
+  // Oreilles de montage (arêtes douces) + vis de chassis
+  const earGeo = new RoundedBoxGeometry(0.018, h, 0.03, 2, 0.003);
+  const earMat = rackMats?.panel || new THREE.MeshStandardMaterial({ color: 0x22252b, roughness: 0.45, metalness: 0.7 });
+  const dScrewGeo = new THREE.CylinderGeometry(0.0032, 0.0032, 0.003, 10);
+  const dScrewMat = rackMats?.screw || new THREE.MeshStandardMaterial({ color: 0x9aa3b0, roughness: 0.3, metalness: 0.9 });
   for (const sx of [-1, 1]) {
     const ear = new THREE.Mesh(earGeo, earMat);
     ear.position.set(sx * (INNER_W / 2 + 0.008), 0, depth / 2 - 0.015);
     ear.castShadow = true;
     g.add(ear);
+    for (const sy of [Math.min(h / 2 - 0.012, 0.02), Math.max(-h / 2 + 0.012, -0.02)]) {
+      const scw = new THREE.Mesh(dScrewGeo, dScrewMat);
+      scw.rotation.x = Math.PI / 2;
+      scw.position.set(sx * (INNER_W / 2 + 0.008), sy, depth / 2 + 0.0005);
+      g.add(scw);
+    }
   }
 
   // LEDs d'activité en face avant

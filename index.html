@@ -452,46 +452,10 @@
         </div>
 
         <div class="d-inv-title" style="margin-top:14px">FAI — accès Internet (ch. 5)</div>
-        <div class="d-grid">
-          <label>Opérateur
-            <input id="lld-fai-operator" type="text" placeholder="Ex : Maroc Telecom" maxlength="60">
-          </label>
-          <label>Offre
-            <input id="lld-fai-offer" type="text" placeholder="Ex : FTTO Pro 100M" maxlength="60">
-          </label>
-          <label>Type de lien
-            <select id="lld-fai-type">
-              <option value="">—</option>
-              <option>FTTH</option>
-              <option>FTTO</option>
-              <option>Fibre dédiée</option>
-              <option>EoC (Ethernet over Coax)</option>
-              <option>ADSL / VDSL</option>
-              <option>Liaison spécialisée</option>
-              <option>4G / 5G (secours)</option>
-              <option>Autre</option>
-            </select>
-          </label>
-          <label>Débit descendant
-            <input id="lld-fai-down" type="text" placeholder="Ex : 100 Mbps" maxlength="40">
-          </label>
-          <label>Débit montant
-            <input id="lld-fai-up" type="text" placeholder="Ex : 100 Mbps" maxlength="40">
-          </label>
-          <label>Bloc IP publiques
-            <input id="lld-fai-block" type="text" placeholder="Ex : 41.92.10.0/29" maxlength="60">
-          </label>
-          <label>CPE — modèle
-            <input id="lld-fai-cpe" type="text" placeholder="Ex : Huawei EG8148" maxlength="60">
-          </label>
-          <label>CPE — IP
-            <input id="lld-fai-cpeip" type="text" placeholder="Ex : 41.92.10.1" maxlength="45">
-          </label>
+        <div class="lld-table" id="lld-fais"></div>
+        <div class="lld-vlan-actions">
+          <button id="lld-add-fai" class="btn btn-ghost btn-sm">＋ Ajouter un FAI</button>
         </div>
-        <label>Notes de configuration (FAI)
-          <textarea id="lld-fai-notes" rows="3" maxlength="2000"
-            placeholder="Ex : CPE en mode bridge, IP publique sur l'interface WAN du pare-feu…"></textarea>
-        </label>
 
         <div class="d-inv-title" style="margin-top:14px">Interconnexion site 2 site (ch. 6)</div>
         <div class="d-grid">
@@ -525,6 +489,91 @@
             <input id="lld-ic-enc" type="text" placeholder="Ex : AES-256 / IKEv2" maxlength="60">
           </label>
         </div>
+        <div class="d-grid" style="margin-top:8px">
+          <label>Extrémité A — N° de série
+            <input id="lld-ic-sna" type="text" placeholder="Ex : PL5815421" maxlength="60">
+          </label>
+          <label>Extrémité B — N° de série
+            <input id="lld-ic-snb" type="text" placeholder="Ex : PL5815422" maxlength="60">
+          </label>
+          <label>Extrémité A — Firmware
+            <input id="lld-ic-fwa" type="text" placeholder="Ex : 8.3.2" maxlength="40">
+          </label>
+          <label>Extrémité B — Firmware
+            <input id="lld-ic-fwb" type="text" placeholder="Ex : 8.3.2" maxlength="40">
+          </label>
+          <label>HA — Groupe (A)
+            <input id="lld-ic-haa" type="text" placeholder="Ex : Group 1" maxlength="40">
+          </label>
+          <label>HA — Groupe (B)
+            <input id="lld-ic-hab" type="text" placeholder="Ex : Group 1" maxlength="40">
+          </label>
+          <label>HA — Rôle préféré (A)
+            <input id="lld-ic-rolea" type="text" placeholder="Ex : Master" maxlength="30">
+          </label>
+          <label>HA — Rôle préféré (B)
+            <input id="lld-ic-roleb" type="text" placeholder="Ex : Slave" maxlength="30">
+          </label>
+          <label>IP virtuelle (HA) — site A
+            <input id="lld-ic-vipa" type="text" placeholder="Ex : 41.92.10.1" maxlength="45">
+          </label>
+          <label>IP virtuelle (HA) — site B
+            <input id="lld-ic-vipb" type="text" placeholder="Ex : 105.157.20.1" maxlength="45">
+          </label>
+          <label>IP admin — extrémité B
+            <input id="lld-ic-mgmtb" type="text" placeholder="Ex : 10.11.99.12" maxlength="45">
+          </label>
+          <label>Masque admin — extrémité B
+            <input id="lld-ic-mgmtmaskb" type="text" placeholder="Ex : 255.255.255.0" maxlength="45">
+          </label>
+          <label>IP admin — extrémité A
+            <input id="lld-ic-mgmta" type="text" placeholder="Ex : 10.10.99.12" maxlength="45">
+          </label>
+          <label>Masque admin — extrémité A
+            <input id="lld-ic-mgmtmaska" type="text" placeholder="Ex : 255.255.255.0" maxlength="45">
+          </label>
+          <label>Extrémité B — LAN 1 connecté à
+            <input id="lld-ic-lanb" type="text" placeholder="Ex : SW-02 port 25" maxlength="60">
+          </label>
+          <label>Extrémité A — LAN 1 connecté à
+            <input id="lld-ic-lana" type="text" placeholder="Ex : SW-01 port 25" maxlength="60">
+          </label>
+          <label>Cluster firewall — Master (A)
+            <input id="lld-ic-clustera" type="text" placeholder="Ex : Cluster 1" maxlength="40">
+          </label>
+          <label>Cluster firewall — Slave (B)
+            <input id="lld-ic-clusterb" type="text" placeholder="Ex : Cluster 2" maxlength="40">
+          </label>
+        </div>
+
+        <div class="d-inv-title" style="margin-top:14px">Profils firewall (ch. 4)</div>
+        <div class="d-grid">
+          <label>VPN SSL — utilisateurs
+            <input id="lld-fwp-vpnssl" type="text" placeholder="Ex : USER_SSL" maxlength="60">
+          </label>
+          <label>Application Control
+            <input id="lld-fwp-appctrl" type="text" placeholder="Ex : AppControl.V1" maxlength="60">
+          </label>
+          <label>WebBlocker
+            <input id="lld-fwp-webblocker" type="text" placeholder="Ex : WebBlocker.V1" maxlength="60">
+          </label>
+          <label>HTTP Proxy
+            <input id="lld-fwp-httpproxy" type="text" placeholder="Ex : HTTP-Client-v1" maxlength="60">
+          </label>
+        </div>
+
+        <div class="d-inv-title" style="margin-top:14px">Admin Security — comptes d'administration (ch. 6)</div>
+        <div class="lld-table" id="lld-adminsec"></div>
+        <button id="lld-add-admin" class="btn btn-ghost btn-sm">＋ Ajouter un compte d'administration</button>
+
+        <div class="d-inv-title" style="margin-top:14px">Tunnels VPN site à site (ch. 4)</div>
+        <div class="lld-table" id="lld-vpns"></div>
+        <button id="lld-add-vpn" class="btn btn-ghost btn-sm">＋ Ajouter un tunnel VPN</button>
+
+        <div class="d-inv-title" style="margin-top:14px">Alias firewall (ch. 4)</div>
+        <div class="lld-table" id="lld-aliases"></div>
+        <button id="lld-add-alias" class="btn btn-ghost btn-sm">＋ Ajouter un alias</button>
+
         <label>Notes de configuration (interconnexion)
           <textarea id="lld-ic-notes" rows="3" maxlength="2000"
             placeholder="Ex : tunnel IPsec redondé, DPD activé, SA en IKEv2…"></textarea>
@@ -553,6 +602,26 @@
         <div class="d-inv-title">Zones de Switching (ch. 8)</div>
         <div class="lld-table" id="lld-zones"></div>
         <button id="lld-add-zone" class="btn btn-ghost btn-sm">＋ Ajouter une zone</button>
+
+        <div class="d-inv-title" style="margin-top:14px">Équipements &amp; licences hors baie (ch. 3)</div>
+        <div class="lld-table" id="lld-equip"></div>
+        <button id="lld-add-equip" class="btn btn-ghost btn-sm">＋ Ajouter un élément</button>
+
+        <div class="d-inv-title" style="margin-top:14px">Règles &amp; NAT Firewall (ch. 7)</div>
+        <div class="lld-table" id="lld-fw"></div>
+        <button id="lld-add-fw" class="btn btn-ghost btn-sm">＋ Ajouter une règle / NAT</button>
+
+        <div class="d-inv-title" style="margin-top:14px">Machines virtuelles (ch. 9)</div>
+        <div class="lld-table" id="lld-vms"></div>
+        <button id="lld-add-vm" class="btn btn-ghost btn-sm">＋ Ajouter une VM</button>
+
+        <div class="d-inv-title" style="margin-top:14px">Volumes / LUN (ch. 10)</div>
+        <div class="lld-table" id="lld-vols"></div>
+        <button id="lld-add-vol" class="btn btn-ghost btn-sm">＋ Ajouter un volume</button>
+
+        <div class="d-inv-title" style="margin-top:14px">Caméras CCTV (ch. 12)</div>
+        <div class="lld-table" id="lld-cams"></div>
+        <button id="lld-add-cam" class="btn btn-ghost btn-sm">＋ Ajouter une caméra</button>
 
         <div class="d-inv-title" style="margin-top:14px">Notes de configuration par chapitre</div>
         <label>7. Firewall
@@ -677,7 +746,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=67"></script>
+  <script src="app.js?v=97"></script>
   <script type="importmap">
   {
     "imports": {
@@ -686,6 +755,6 @@
     }
   }
   </script>
-  <script type="module" src="view3d.js?v=69"></script>
+  <script type="module" src="view3d.js?v=71"></script>
 </body>
 </html>

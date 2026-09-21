@@ -131,11 +131,17 @@ via localStorage, en secours).
      statistiques). Les chapitres non encore renseignés affichent
      « Section à compléter ». Pieds de page numérotés (date, page X/Y).
      Généré sans dépendance (PDF natif).
-   - **Classeur Excel (.xlsx)** — un vrai fichier Excel (écrit sans dépendance)
-     avec jusqu'à 9 feuilles : *Inventaire*, *Câblage*, *Ports*, *Racks*,
-     *Sites*, *Nomenclature*, *Adressage IP*, *Garanties* et *Flux*
-     (en-têtes stylés, largeurs automatiques, première ligne figée ; les
-     feuilles vides sont omises) ;
+   - **Classeur Excel (.xlsx)** — la réplique exacte du classeur LLD «
+     template » à 24 feuilles (LLD, Governance, Contenu, chapitres 1 → 15.1),
+     écrite sans dépendance, cellule par cellule, alimentée par les données
+     du workspace — page de garde, révisions/approbateurs, sites, architecture,
+     matrice nomenclature & adressage (FAI, interconnexion, VPN, alias, VLANs
+     par site, switches, serveurs/stockage/VM, imprimantes, UPS, IDS, CCTV,
+     pointage, clime), FAI détaillé (débits, adressage LAN/WAN, IPv6, DHCP,
+     redirection de ports, DMZ, WLAN), interconnexion S2S (extrémités, HA,
+     Admin Security, câblage), équipements par chapitre, plans de ports des
+     zones de switching, matrice des flux, tableau de câblage et élévations
+     de baies ;
    - **Inventaire (CSV)** — tableau de tous les devices posés (rack, site,
      étage, taille, nom, catégorie, marque, modèle, référence, n° série,
      IP mgmt, VLAN, puissance, poids, garantie/contrat, fin de garantie,
