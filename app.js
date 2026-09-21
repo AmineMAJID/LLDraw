@@ -144,8 +144,8 @@ function normLldInfo(w) {
   L.fai = L.fais[0] || normFai({});
   if (!L.interco || typeof L.interco !== 'object') L.interco = {};
   for (const k of ['tech', 'epA', 'epB', 'localSubnets', 'remoteSubnets', 'routing', 'encryption',
-                   'snA', 'fwA', 'haA', 'roleA', 'vipA', 'mgmtA', 'lanA', 'clusterA',
-                   'snB', 'fwB', 'haB', 'roleB', 'vipB', 'mgmtB', 'lanB', 'clusterB']) {
+                   'snA', 'fwA', 'haA', 'roleA', 'vipA', 'mgmtA', 'mgmtMaskA', 'lanA', 'clusterA',
+                   'snB', 'fwB', 'haB', 'roleB', 'vipB', 'mgmtB', 'mgmtMaskB', 'lanB', 'clusterB']) {
     if (typeof L.interco[k] !== 'string') L.interco[k] = '';
     L.interco[k] = L.interco[k].slice(0, 120);
   }
@@ -3929,9 +3929,9 @@ const LLD_IC_FIELDS = [
   ['localSubnets', '#lld-ic-local'], ['remoteSubnets', '#lld-ic-remote'],
   ['routing', '#lld-ic-routing'], ['encryption', '#lld-ic-enc'], ['notes', '#lld-ic-notes'],
   ['snA', '#lld-ic-sna'], ['fwA', '#lld-ic-fwa'], ['haA', '#lld-ic-haa'], ['roleA', '#lld-ic-rolea'],
-  ['vipA', '#lld-ic-vipa'], ['mgmtA', '#lld-ic-mgmta'], ['lanA', '#lld-ic-lana'],
+  ['vipA', '#lld-ic-vipa'], ['mgmtA', '#lld-ic-mgmta'], ['mgmtMaskA', '#lld-ic-mgmtmaska'], ['lanA', '#lld-ic-lana'],
   ['snB', '#lld-ic-snb'], ['fwB', '#lld-ic-fwb'], ['haB', '#lld-ic-hab'], ['roleB', '#lld-ic-roleb'],
-  ['vipB', '#lld-ic-vipb'], ['mgmtB', '#lld-ic-mgmtb'], ['lanB', '#lld-ic-lanb'],
+  ['vipB', '#lld-ic-vipb'], ['mgmtB', '#lld-ic-mgmtb'], ['mgmtMaskB', '#lld-ic-mgmtmaskb'], ['lanB', '#lld-ic-lanb'],
   ['clusterA', '#lld-ic-clustera'], ['clusterB', '#lld-ic-clusterb']
 ];
 // Tables par chapitre : règles/NAT firewall (7), VMs (9), volumes (10), caméras (12)
@@ -6643,23 +6643,40 @@ const LLD_TPL = (() => {
     const fais = (L.fais && L.fais.length) ? L.fais
       : (L.fai && (L.fai.operator || L.fai.down) ? [L.fai] : []);
     const short = s => String(s || '').split(' — ')[0];
-    // 6.1 — extrémités (r30/31) : identité, SN, firmware, HA (J→O), VIP partagée (N30)
+    const ipOf = s => { const m = /(\d{1,3}(?:\.\d{1,3}){3})/.exec(String(s || '')); return m ? m[1] : ''; };
+    // FAI rattaché à chaque extrémité : IP WAN trouvée dans le libellé, sinon par ordre
+    const faiOf = (ep, idx) => {
+      const ip = ipOf(ep);
+      return fais.find(f => ip && f.wanIp === ip) || fais[idx] || {};
+    };
+    // 6.1 — extrémités (r30/31) : identité, SN, firmware, adressage WAN du FAI,
+    // HA (J→P), VIP partagée (N30/31), commentaire
     const endpoints = [
-      ['30', 'B', ic.epA, ic.snA, ic.fwA, ic.haA, ic.roleA, ic.mgmtA, 'C62'],
-      ['31', 'B', ic.epB, ic.snB, ic.fwB, ic.haB, ic.roleB, ic.mgmtB, 'C67']
+      ['30', ic.epA, ic.snA, ic.fwA, ic.haA, ic.roleA, ic.mgmtA, ic.mgmtMaskA, faiOf(ic.epA, 0), 'C62'],
+      ['31', ic.epB, ic.snB, ic.fwB, ic.haB, ic.roleB, ic.mgmtB, ic.mgmtMaskB, faiOf(ic.epB, 1), 'C67']
     ];
-    endpoints.forEach(([r, col, ep, sn, fw, ha, role, mgmt, cabRef]) => {
+    endpoints.forEach(([r, ep, sn, fw, ha, role, mgmt, mgmtMask, f, cabRef]) => {
       if (ep) {
-        set(rows, `${col}${r}`, ep);
+        set(rows, `B${r}`, ep);
         if (cabRef) set(rows, cabRef, short(ep));
       }
+      // Nomenclature : modèle du device d'inventaire correspondant à l'extrémité
+      const nm = short(ep).split(/[\s(]/)[0].toLowerCase();
+      const inst = sortedRackInstances(ws).find(x => (x.inst.name || '').toLowerCase() === nm);
+      set(rows, `C${r}`, inst ? [inst.inst.brand, inst.inst.model].filter(Boolean).join(' ') : '');
       set(rows, `D${r}`, sn || '');
       set(rows, `E${r}`, fw || '');
+      set(rows, `F${r}`, f.wanIp || ipOf(ep) || '');
+      set(rows, `G${r}`, f.wanMask || '');
+      set(rows, `H${r}`, f.wanGw || '');
+      set(rows, `I${r}`, f.wanDns || '');
       set(rows, `J${r}`, ha ? 'Oui' : '');
       set(rows, `K${r}`, ha || '');
       set(rows, `L${r}`, role || '');
       set(rows, `M${r}`, /master/i.test(role || '') ? 'Oui' : '');
       set(rows, `O${r}`, mgmt || '');
+      set(rows, `P${r}`, mgmtMask || '');
+      if (f.operator) set(rows, `Q${r}`, `FAI : ${f.operator}${f.offer ? ' — ' + f.offer : ''}`);
     });
     if (ic.vipA) set(rows, 'N30', ic.vipA);
     if (ic.vipB) set(rows, 'N31', ic.vipB);

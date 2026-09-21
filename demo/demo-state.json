@@ -4238,7 +4238,9 @@
      "mgmtB": "10.11.99.12",
      "lanB": "Switch HA — SW-02 port 25",
      "clusterA": "Cluster 1",
-     "clusterB": "Cluster 2"
+     "clusterB": "Cluster 2",
+     "mgmtMaskA": "255.255.255.0",
+     "mgmtMaskB": "255.255.255.0"
     },
     "catNotes": {
      "firewall": "Deux Firebox M390 en architecture déportée (une par site). Politique par défaut : tout le trafic sortant autorisé en NAT, entrant bloqué sauf publication HTTPS (443) vers le reverse-proxy du VLAN 20. HA non activé sur la démo — remplacement à froid sous 4 h (matériel de rechange au siège). Administration via Fireware Web UI sur le VLAN 99.",
