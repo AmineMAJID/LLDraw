@@ -1914,6 +1914,190 @@
        "weightKg": 0.5,
        "warranty": "Garantie constructeur 2 ans",
        "warrantyEnd": "2028-06-30"
+      },
+      {
+       "id": "inst-sw-01",
+       "deviceId": "dev-sw-01",
+       "name": "SW-01",
+       "slot": 16,
+       "sizeU": 1,
+       "cat": "switch",
+       "zone": "zone-lan-a",
+       "photo": "",
+       "brand": "HPE Aruba",
+       "model": "Aruba 6100 24G PoE (JL677A)",
+       "partRef": "JL677A",
+       "serial": "CN4XF7Q1",
+       "ipMgmt": "10.10.99.21",
+       "vlan": "VLAN 10",
+       "watts": 360,
+       "weightKg": 3,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-sw-01-1",
+         "name": "1",
+         "label": "VLAN 10",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 10"
+        },
+        {
+         "id": "p-sw-01-2",
+         "name": "2",
+         "label": "VLAN 20",
+         "xPct": 24.285714285714285,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 20"
+        },
+        {
+         "id": "p-sw-01-3",
+         "name": "3",
+         "label": "VLAN 21",
+         "xPct": 34.57142857142857,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 21"
+        },
+        {
+         "id": "p-sw-01-4",
+         "name": "4",
+         "label": "VLAN 30",
+         "xPct": 44.85714285714286,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 30"
+        },
+        {
+         "id": "p-sw-01-5",
+         "name": "5",
+         "label": "VLAN 40",
+         "xPct": 55.142857142857146,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 40"
+        },
+        {
+         "id": "p-sw-01-6",
+         "name": "6",
+         "label": "VLAN 50",
+         "xPct": 65.42857142857143,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 50"
+        },
+        {
+         "id": "p-sw-01-7",
+         "name": "7",
+         "label": "VLAN 60",
+         "xPct": 75.71428571428572,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 60"
+        },
+        {
+         "id": "p-sw-01-8",
+         "name": "8",
+         "label": "VLAN 99",
+         "xPct": 86.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 99"
+        }
+       ]
+      },
+      {
+       "id": "inst-sw-infra",
+       "deviceId": "dev-sw-infra",
+       "name": "SW-INFRA",
+       "slot": 17,
+       "sizeU": 1,
+       "cat": "switch",
+       "zone": "zone-infra",
+       "photo": "",
+       "brand": "HPE Aruba",
+       "model": "Aruba 6000 12G (R8N89A)",
+       "partRef": "R8N89A",
+       "serial": "CN4XF7Q0",
+       "ipMgmt": "10.10.99.20",
+       "vlan": "VLAN 99",
+       "watts": 120,
+       "weightKg": 3,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-sw-infra-1",
+         "name": "1",
+         "label": "VLAN 99",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 99"
+        },
+        {
+         "id": "p-sw-infra-2",
+         "name": "2",
+         "label": "VLAN 10",
+         "xPct": 28.4,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 10"
+        },
+        {
+         "id": "p-sw-infra-3",
+         "name": "3",
+         "label": "VLAN 21",
+         "xPct": 42.8,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 21"
+        },
+        {
+         "id": "p-sw-infra-4",
+         "name": "4",
+         "label": "VLAN 91",
+         "xPct": 57.2,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 91"
+        },
+        {
+         "id": "p-sw-infra-5",
+         "name": "5",
+         "label": "VLAN 30",
+         "xPct": 71.6,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 30"
+        },
+        {
+         "id": "p-sw-infra-6",
+         "name": "6",
+         "label": "VLAN 121",
+         "xPct": 86.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 121"
+        }
+       ]
       }
      ]
     },
@@ -2771,6 +2955,204 @@
        "weightKg": 0.5,
        "warranty": "Garantie constructeur 2 ans",
        "warrantyEnd": "2028-06-30"
+      },
+      {
+       "id": "inst-sw-02",
+       "deviceId": "dev-sw-02",
+       "name": "SW-02",
+       "slot": 9,
+       "sizeU": 1,
+       "cat": "switch",
+       "zone": "zone-lan-b",
+       "photo": "",
+       "brand": "HPE Aruba",
+       "model": "Aruba 6100 12G (JL678A)",
+       "partRef": "JL678A",
+       "serial": "CN4XF8A2",
+       "ipMgmt": "10.11.99.21",
+       "vlan": "VLAN 10",
+       "watts": 195,
+       "weightKg": 3,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-sw-02-1",
+         "name": "1",
+         "label": "VLAN 10",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 10"
+        },
+        {
+         "id": "p-sw-02-2",
+         "name": "2",
+         "label": "VLAN 20",
+         "xPct": 28.4,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 20"
+        },
+        {
+         "id": "p-sw-02-3",
+         "name": "3",
+         "label": "VLAN 40",
+         "xPct": 42.8,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 40"
+        },
+        {
+         "id": "p-sw-02-4",
+         "name": "4",
+         "label": "VLAN 99",
+         "xPct": 57.2,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 99"
+        },
+        {
+         "id": "p-sw-02-5",
+         "name": "5",
+         "label": "VLAN 70",
+         "xPct": 71.6,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 70"
+        },
+        {
+         "id": "p-sw-02-6",
+         "name": "6",
+         "label": "",
+         "xPct": 86.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": ""
+        }
+       ]
+      },
+      {
+       "id": "inst-ids-01",
+       "deviceId": "dev-ids-01",
+       "name": "IDS-01",
+       "slot": 10,
+       "sizeU": 1,
+       "cat": "ids",
+       "zone": "",
+       "photo": "",
+       "brand": "WatchGuard",
+       "model": "WatchGuard Dimension + TDR",
+       "partRef": "",
+       "serial": "WG-DIM-8841",
+       "ipMgmt": "10.11.99.51",
+       "vlan": "",
+       "watts": 60,
+       "weightKg": 3,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-ids-01-1",
+         "name": "1",
+         "label": "VLAN 99",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 99"
+        },
+        {
+         "id": "p-ids-01-2",
+         "name": "2",
+         "label": "VLAN 91",
+         "xPct": 86.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 91"
+        }
+       ]
+      },
+      {
+       "id": "inst-nvr-01",
+       "deviceId": "dev-nvr-01",
+       "name": "NVR-01",
+       "slot": 11,
+       "sizeU": 1,
+       "cat": "cctv",
+       "zone": "",
+       "photo": "",
+       "brand": "Hikvision",
+       "model": "DS-7732NI-K4 (32 canaux)",
+       "partRef": "",
+       "serial": "DS7732-2219",
+       "ipMgmt": "10.11.99.61",
+       "vlan": "",
+       "watts": 40,
+       "weightKg": 3,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-nvr-01-1",
+         "name": "1",
+         "label": "VLAN 91",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 91"
+        },
+        {
+         "id": "p-nvr-01-2",
+         "name": "2",
+         "label": "VLAN 91",
+         "xPct": 86.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 91"
+        }
+       ]
+      },
+      {
+       "id": "inst-spo-01",
+       "deviceId": "dev-spo-01",
+       "name": "SPO-01",
+       "slot": 12,
+       "sizeU": 1,
+       "cat": "pointage",
+       "zone": "",
+       "photo": "",
+       "brand": "ZKTeco",
+       "model": "SpeedFace-V5L",
+       "partRef": "",
+       "serial": "ZK-V5L-3301",
+       "ipMgmt": "10.11.99.71",
+       "vlan": "",
+       "watts": 15,
+       "weightKg": 3,
+       "warranty": "CT-2026-88",
+       "warrantyEnd": "2028-01-15",
+       "ports": [
+        {
+         "id": "p-spo-01-1",
+         "name": "1",
+         "label": "VLAN 101",
+         "xPct": 14.0,
+         "yPct": 62,
+         "size": 0.7,
+         "ip": "",
+         "vlan": "VLAN 101"
+        }
+       ]
       }
      ]
     }
@@ -3800,6 +4182,26 @@
       "size": "8 To (SAS)",
       "type": "NFS — sauvegardes",
       "srv": "SRV-VEEAM / NAS-01"
+     }
+    ],
+    "cams": [
+     {
+      "name": "CAM-ACC",
+      "loc": "Siège — accès principal (RDC)",
+      "model": "Hikvision DS-2CD2143G2 (dôme 4 MP)",
+      "ip": "10.10.91.11 — VLAN 91"
+     },
+     {
+      "name": "CAM-STO",
+      "loc": "Agence — salle technique",
+      "model": "Hikvision DS-2CD2087G2 (8 MP)",
+      "ip": "10.11.91.12 — VLAN 91"
+     },
+     {
+      "name": "CAM-REC",
+      "loc": "Agence — réception",
+      "model": "Hikvision DS-2CD1043 (bulle)",
+      "ip": "10.11.91.13 — VLAN 91"
      }
     ]
    },

@@ -6002,18 +6002,24 @@ const LLD_TPL = (() => {
   /* — 8.x Switching : équipements de la zone correspondant au titre — */
   function switchZone(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
+    // la feuille du template ne porte que le titre (la ligne « Config: Voir
+    // CMDB », placeholder à 30 lignes du titre, est remplacée par le contenu)
+    rows.length = 1;
     const title = String(rows[0][0] && rows[0][0].v || '');
     const zones = (ws.lld && ws.lld.swZones) || [];
     let zone = null;
     if (/INFRA/i.test(title)) zone = zones.find(z => /infra/i.test(z.name));
     else if (/\(AP\)/i.test(title)) zone = zones.find(z => /\bAP\b/i.test(z.name));
     else if (/\(LAN\)/i.test(title)) zone = zones.find(z => /lan/i.test(z.name) && !/infra/i.test(z.name));
-    const sws = byCat(ws, ['switch']).filter(x => !zone || x.inst.zone === zone.id);
+    const catList = /\(AP\)/i.test(title) ? ['switch', 'ap'] : ['switch'];
+    const sws = byCat(ws, catList).filter(x => !zone || x.inst.zone === zone.id);
     if (sws.length) {
       equipTable(rows, sws, { titre: `Equipements Switching${zone ? ' — zone ' + zone.name : ''}`,
         cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
       if (zone && zone.vlans) rows.push([{ v: `VLANs de la zone : ${zone.vlans}`, s: 129 }]);
-      const portRows = portsRowsByCat(ws, ['switch']).slice(1);
+      const zoneNames = new Set(sws.map(x => x.inst.name));
+      const portRows = portsRowsByCat(ws, catList).slice(1)
+        .filter(p => zoneNames.has(p[3]));
       if (portRows.length) {
         rows.push([]); rows.push([]);
         rows.push(SEC('Plan de ports'));
