@@ -161,6 +161,10 @@ function normLldInfo(w) {
   L.vpns = normTable(L.vpns, [['name', 40], ['peer', 60]]);
   L.aliases = normTable(L.aliases, [['name', 40], ['value', 80]]);
   L.equip = normTable(L.equip, [['model', 70], ['qty', 20], ['remark', 80], ['status', 20]]);
+  L.adminSec = normTable(L.adminSec, [
+    ['user', 60], ['auth', 40], ['proto', 20], ['host', 60], ['port', 20],
+    ['cli', 20], ['sec', 40], ['webA', 60], ['webB', 60], ['note', 120]
+  ]);
   if (!L.fwProfiles || typeof L.fwProfiles !== 'object') L.fwProfiles = {};
   for (const k of ['vpnSsl', 'appCtrl', 'webBlocker', 'httpProxy']) {
     if (typeof L.fwProfiles[k] !== 'string') L.fwProfiles[k] = '';
@@ -3942,6 +3946,11 @@ const LLD_VPN_COLS = [['name', 'Tunnel VPN S2S', 'flex'], ['peer', 'Pair / subne
 const LLD_ALIAS_COLS = [['name', 'Alias', 140], ['value', 'Définition (hosts, subnet…)', 'flex']];
 const LLD_EQUIP_COLS = [['model', 'Élément (licence, lien, câble…)', 'flex'], ['qty', 'Quantité', 110],
                         ['remark', 'Remarque', 150], ['status', 'Statut', 110]];
+const LLD_ADMIN_COLS = [['user', 'Admin user/pwd', 150], ['auth', 'Authentification', 130],
+                        ['proto', 'Protocole', 90], ['host', 'Host', 110], ['port', 'Port', 70],
+                        ['cli', 'CLI SSH', 90], ['sec', 'Sécurité', 110],
+                        ['webA', 'Web Admin Access (LAN)', 150], ['webB', 'Web Admin Access (WAN)', 150],
+                        ['note', 'Commentaire', 'flex']];
 const LLD_VOL_COLS = [['name', 'Volume / LUN', 'flex'], ['size', 'Capacité', 90], ['type', 'Type', 90], ['srv', 'Serveur', 120]];
 const LLD_CAM_COLS = [['name', 'Caméra', 110], ['loc', 'Emplacement', 'flex'], ['model', 'Modèle', 120], ['ip', 'IP', 100]];
 // Notes de configuration par chapitre (clé = domaine du chapitre)
@@ -4265,7 +4274,7 @@ function openLldModal() {
   [['#lld-fw', L.fw, LLD_FW_COLS], ['#lld-vms', L.vms, LLD_VM_COLS],
    ['#lld-vols', L.vols, LLD_VOL_COLS], ['#lld-cams', L.cams, LLD_CAM_COLS],
    ['#lld-vpns', L.vpns, LLD_VPN_COLS], ['#lld-aliases', L.aliases, LLD_ALIAS_COLS],
-   ['#lld-equip', L.equip, LLD_EQUIP_COLS]]
+   ['#lld-equip', L.equip, LLD_EQUIP_COLS], ['#lld-adminsec', L.adminSec, LLD_ADMIN_COLS]]
     .forEach(([sel, tbl, cols]) => {
       const el = $(sel);
       el.innerHTML = '';
@@ -4316,6 +4325,7 @@ $('#lld-add-vm').addEventListener('click', () => lldAddRow($('#lld-vms'), LLD_VM
 $('#lld-add-vpn').addEventListener('click', () => lldAddRow($('#lld-vpns'), LLD_VPN_COLS, {}));
 $('#lld-add-alias').addEventListener('click', () => lldAddRow($('#lld-aliases'), LLD_ALIAS_COLS, {}));
 $('#lld-add-equip').addEventListener('click', () => lldAddRow($('#lld-equip'), LLD_EQUIP_COLS, {}));
+$('#lld-add-admin').addEventListener('click', () => lldAddRow($('#lld-adminsec'), LLD_ADMIN_COLS, {}));
 $('#lld-add-vol').addEventListener('click', () => lldAddRow($('#lld-vols'), LLD_VOL_COLS, {}));
 $('#lld-add-cam').addEventListener('click', () => lldAddRow($('#lld-cams'), LLD_CAM_COLS, {}));
 $('#lld-add-fai').addEventListener('click', () => {
@@ -4415,6 +4425,7 @@ $('#lld-save').addEventListener('click', () => {
   L.vpns = lldRowsFrom($('#lld-vpns')).filter(r => r.name.trim());
   L.aliases = lldRowsFrom($('#lld-aliases')).filter(r => r.name.trim());
   L.equip = lldRowsFrom($('#lld-equip')).filter(r => r.model.trim());
+  L.adminSec = lldRowsFrom($('#lld-adminsec')).filter(r => r.user.trim());
   L.fwProfiles = {};
   LLD_FWP_FIELDS.forEach(([k, sel]) => { L.fwProfiles[k] = $(sel).value.slice(0, 60); });
   L.fais = lldFaisFrom($('#lld-fais'))
@@ -6680,6 +6691,22 @@ const LLD_TPL = (() => {
     });
     if (ic.vipA) set(rows, 'N30', ic.vipA);
     if (ic.vipB) set(rows, 'N31', ic.vipB);
+    // System — Admin Security (r37-38) : comptes d'administration saisis dans la fiche LLD
+    (L.adminSec || []).slice(0, 2).forEach((a, i) => {
+      const r = 37 + i;
+      set(rows, `B${r}`, a.user || '');
+      set(rows, `C${r}`, a.auth || '');
+      set(rows, `D${r}`, a.proto || '');
+      set(rows, `E${r}`, a.host || '');
+      set(rows, `F${r}`, a.port || '');
+      set(rows, `G${r}`, a.cli || '');
+      set(rows, `H${r}`, a.sec || '');
+      set(rows, `I${r}`, a.webA || '');
+      set(rows, `K${r}`, a.webB || '');
+      set(rows, `M${r}`, a.note || '');
+    });
+    for (let r = 37 + Math.min((L.adminSec || []).length, 2); r <= 38; r++)
+      ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'M'].forEach(c2 => set(rows, `${c2}${r}`, ''));
     // WAN Connection Settings (r45-47) : alimenté par les FAI
     fais.slice(0, 3).forEach((f, i) => {
       const r = 45 + i;

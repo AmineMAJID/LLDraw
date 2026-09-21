@@ -4562,6 +4562,32 @@
       "organization": "Partenaire intégrateur",
       "approvedVersion": ""
      }
+    ],
+    "adminSec": [
+     {
+      "user": "admin / •••••••• (compte local de secours)",
+      "auth": "Radius — Active Directory",
+      "proto": "HTTPS",
+      "host": "10.10.99.12",
+      "port": "443",
+      "cli": "Oui (SSH)",
+      "sec": "Certificat + 2FA",
+      "webA": "https://10.10.99.12",
+      "webB": "https://41.92.10.2:8443",
+      "note": "Compte local scellé — enveloppe DSI"
+     },
+     {
+      "user": "admin-agence / ••••••••",
+      "auth": "Local",
+      "proto": "HTTPS",
+      "host": "10.11.99.12",
+      "port": "443",
+      "cli": "Oui (SSH)",
+      "sec": "Certificat auto-signé",
+      "webA": "https://10.11.99.12",
+      "webB": "https://105.157.20.2:8443",
+      "note": "Accès restreint VPN admin"
+     }
     ]
    },
    "view": {
@@ -4574,5 +4600,5 @@
   }
  ],
  "activeWorkspaceId": "demo-dc",
- "demoVer": 3
+ "demoVer": 4
 }

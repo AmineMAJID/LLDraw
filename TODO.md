@@ -340,8 +340,11 @@ interconnexion, domaines de câblage, flux) et exportable en Excel/CSV.
 7. **ch.6 — 6.1 Interco** : ✅ FAIT — par extrémité : N° série, firmware,
    groupe HA, rôle préféré (Master/Slave → Resume Master déduit), IP admin ;
    IP virtuelle par site ; WAN Connection Settings depuis les FAI (méthode,
-   IP, débits) ; LAN (routing, nb VLANs, subnets). Reste manuel : health
-   check, Admin Security (users/mots de passe).
+   IP, débits) ; LAN (routing, nb VLANs, subnets).
+   ✅ Admin Security (comptes d'administration) : table « adminSec » de la
+   fiche LLD → r37-38 (user/pwd, authentification, protocole, host, port,
+   CLI SSH, sécurité, Web Admin Access LAN/WAN, commentaire).
+   Reste manuel : health check (méthode/DNS/timeout).
 8. **ch.6 — 6.2 Câblage** : ✅ FAIT — liaisons WAN (wanLabel des FAI) et
    LAN 1 (« LAN 1 connecté à » par extrémité) → E62-E71.
 9. **ch.7-13** : ✅ FAIT — 7.3 Règles & NAT (table « fw »), 9.2 Machines
