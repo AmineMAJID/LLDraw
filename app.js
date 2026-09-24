@@ -97,15 +97,15 @@ function defaultLldToc() {
     ]),
     ch('4', 'Conception Nomenclature et Adressage IP Global',
        ['addrMatrix', 'vlans', 'nomen']),
-    ch('5', 'Conception et Configuration FAI', [], [
+    ch('5', 'Conception et Configuration FAI', ['diag5', 'shots5'], [
       sub('5.1', 'Informations & Configuration', ['fais']),
       sub('5.2', 'Câblage', [])
     ]),
-    ch('6', 'Conception et Configuration Interconnexion site 2 site', [], [
+    ch('6', 'Conception et Configuration Interconnexion site 2 site', ['diag6', 'shots6'], [
       sub('6.1', 'Informations & Configuration', ['interco', 'adminSec']),
       sub('6.2', 'Câblage', [])
     ]),
-    ch('7', 'Conception et Configuration Firewall', ['fw', 'note:firewall']),
+    ch('7', 'Conception et Configuration Firewall', ['diag7', 'shots7', 'fw', 'note:firewall']),
     // ch. 8 : pas de sous-chapitres ajoutés à la main — le PDF découpe
     // 8.1, 8.2… dynamiquement selon les zones de Switching (info « zones »).
     ch('8', 'Conception et Configuration Switching', ['zones', 'note:switching'], [], { noSubs: true }),
@@ -263,6 +263,18 @@ function normLldToc(raw) {
       const rest = blocks.filter(b => !std.includes(b));
       blocks = [...std.filter(b => blocks.includes(b)), ...rest];
     }
+    // Ch. 5/6/7 : injection unique du diagramme + captures en tête de blocs
+    // (l'ancien sommaire n'avait rien avant 5.1 / 6.1 ; blocksSeeded évite
+    // de ressusciter un bloc détaché par l'utilisateur).
+    let blocksSeeded = r.blocksSeeded === 1 || r.blocksSeeded === true;
+    const seedNum = String(d.num);
+    if (!blocksSeeded && (seedNum === '5' || seedNum === '6' || seedNum === '7')) {
+      const pref = seedNum === '5' ? ['diag5', 'shots5']
+        : seedNum === '6' ? ['diag6', 'shots6'] : ['diag7', 'shots7'];
+      const need = pref.filter(k => !blocks.includes(k));
+      if (need.length) blocks = [...need, ...blocks];
+      blocksSeeded = true;
+    }
     return {
       id: String(r.id || d.id || uid()),
       num: String(r.num ?? d.num),
@@ -271,7 +283,8 @@ function normLldToc(raw) {
       subs,
       ...(d.cover ? { cover: true } : {}),
       ...(d.noSubs ? { noSubs: true } : {}),
-      ...(r.custom || d.custom ? { custom: true } : {})
+      ...(r.custom || d.custom ? { custom: true } : {}),
+      ...(blocksSeeded ? { blocksSeeded: true } : {})
     };
   };
   if (!Array.isArray(raw) || !raw.length) return def;
@@ -434,6 +447,45 @@ function normLldInfo(w) {
   L.cams = normTable(L.cams, [['name', 40], ['loc', 60], ['model', 40], ['ip', 40]]);
   if (typeof L.interco.notes !== 'string') L.interco.notes = '';
   L.interco.notes = L.interco.notes.slice(0, 2000);
+  // Captures d’écran (ch. 5/6/7) + diagrammes générés
+  const normShots = arr => (Array.isArray(arr) ? arr : [])
+    .filter(s => s && typeof s === 'object' && typeof s.dataUrl === 'string'
+      && s.dataUrl.startsWith('data:image/'))
+    .slice(0, 10)
+    .map(s => ({
+      id: String(s.id || uid()),
+      name: String(s.name || 'capture').slice(0, 80),
+      dataUrl: s.dataUrl.slice(0, 2_500_000),
+      w: Number(s.w) > 0 ? Math.min(Number(s.w), 4000) : 0,
+      h: Number(s.h) > 0 ? Math.min(Number(s.h), 4000) : 0
+    }));
+  for (const k of ['shots5', 'shots6', 'shots7']) L[k] = normShots(L[k]);
+  if (!L.diagrams || typeof L.diagrams !== 'object' || Array.isArray(L.diagrams)) L.diagrams = {};
+  else {
+    const cleanD = {};
+    for (const [k, v] of Object.entries(L.diagrams)) {
+      if (v && typeof v === 'object' && Array.isArray(v.nodes) && Array.isArray(v.links)
+          && ['fai', 'interco', 'fw'].includes(k)) {
+        cleanD[k] = {
+          nodes: v.nodes.slice(0, 40).map(n => ({
+            id: String(n.id || uid()).slice(0, 24),
+            x: Number(n.x) || 0, y: Number(n.y) || 0,
+            w: Number(n.w) || 150, h: Number(n.h) || 56,
+            label: String(n.label || '').slice(0, 48),
+            sub: String(n.sub || '').slice(0, 56),
+            kind: String(n.kind || 'dev').slice(0, 16)
+          })),
+          links: v.links.slice(0, 60).map(l => ({
+            a: String(l.a || '').slice(0, 24), b: String(l.b || '').slice(0, 24),
+            label: String(l.label || '').slice(0, 48),
+            color: String(l.color || '#60a5fa').slice(0, 20),
+            dashed: !!l.dashed
+          }))
+        };
+      }
+    }
+    L.diagrams = cleanD;
+  }
   // Surcharges libres de la matrice ch. 4 (« C19 » → texte exporté dans l'Excel)
   if (!L.ch4ov || typeof L.ch4ov !== 'object' || Array.isArray(L.ch4ov)) L.ch4ov = {};
   else {
@@ -4424,6 +4476,31 @@ const LLD_INFOS = {
     label: 'Alias firewall (ch. 4)', kind: 'table', cols: LLD_ALIAS_COLS,
     addLabel: '＋ Ajouter un alias', filter: r => r.name.trim()
   },
+  diag5: {
+    label: 'Diagramme d’accès FAI (avant 5.1)', kind: 'diagram', mode: 'fai',
+    hint: 'Schéma du chapitre 5 : FAI au centre, équipements de l’élévation reliés à ce qu’ils branchent. '
+      + 'Bouton « 🔎 Générer depuis l’élévation » — crée aussi le rack FAI (5 routeurs) à gauche s’il manque.'
+  },
+  shots5: {
+    label: 'Captures d’écran — ch. 5', kind: 'shots',
+    hint: 'Glissez-déposez des captures (ou 📁) : contrats FAI, config CPE, tickets opérateur… exportées dans le PDF.'
+  },
+  diag6: {
+    label: 'Diagramme d’interconnexion (avant 6.1)', kind: 'diagram', mode: 'interco',
+    hint: 'Schéma site A ↔ tunnel ↔ site B avec extrémités, FAI et sous-réseaux — généré depuis l’élévation et l’interco saisie.'
+  },
+  shots6: {
+    label: 'Captures d’écran — ch. 6', kind: 'shots',
+    hint: 'Glissez-déposez des captures (contrat MPLS, config IPsec, capture tunnel…) — exportées dans le PDF.'
+  },
+  diag7: {
+    label: 'Diagramme Firewall (avant le reste du ch. 7)', kind: 'diagram', mode: 'fw',
+    hint: 'Schéma du pare-feu au centre : WAN / FAI, LAN, zones et équipements reliés — généré depuis l’élévation.'
+  },
+  shots7: {
+    label: 'Captures d’écran — ch. 7', kind: 'shots',
+    hint: 'Glissez-déposez des captures (policies, NAT, dashboard FW…) — exportées dans le PDF.'
+  },
   fais: {
     label: 'FAI — accès Internet (ch. 5)', kind: 'fais', addLabel: '＋ Ajouter un FAI',
     hint: 'Chaque FAI alimente le ch. 5 du PDF et la feuille Excel « 5 » (infos + réglages WAN/LAN avancés), '      + 'ainsi que le tableau de dispositifs du ch. 2.2.',
@@ -4499,9 +4576,11 @@ const LLD_TOC_AUTO = {
   '2.1': 'Tableau des racks par site (depuis les baies)',
   '3.1': 'Récapitulatif par catégorie, inventaire détaillé & suivi des garanties',
   '4': "Matrice d'adressage (feuille Excel), registre VLANs, nomenclature & ports étiquetés (depuis les devices)",
+  '5': 'Diagramme d’accès FAI + captures (si renseignées) avant 5.1',
   '5.2': 'Tableau de câblage des câbles classés « FAI »',
+  '6': 'Diagramme d’interconnexion + captures (si renseignées) avant 6.1',
   '6.2': 'Tableau de câblage des câbles classés « Interconnexion »',
-  '7': 'Équipements firewall, interfaces VLAN, ports & câblage du domaine',
+  '7': 'Diagramme Firewall + captures, puis équipements firewall, interfaces VLAN, ports & câblage',
   '8': 'Sous-chapitres 8.1… = zones de Switching ; équipements, ports & câblage',
   '9': 'Équipements serveurs, ports & câblage du domaine',
   '10': 'Équipements stockage, ports & câblage du domaine',
@@ -5123,6 +5202,20 @@ function lldInfoFlush(box, def, key) {
       if (revi) L.reviewers = lldRowsFrom(revi);
       break;
     }
+    case 'shots': {
+      // La liste est mutée en place par le rendu (drag & drop) ; on la ré-écrit
+      // depuis le DOM pour rester synchrone si le listener n'a pas tourné.
+      const grid = box.querySelector('.lld-shots-grid');
+      if (grid && lldDraft) {
+        // rien à lire des inputs : les dataUrl sont déjà dans L[key] via paint
+        if (!Array.isArray(L[key])) L[key] = [];
+      }
+      break;
+    }
+    case 'diagram': {
+      // Diagramme stocké dans L.diagrams[mode] lors de la génération.
+      break;
+    }
     case 'ch4matrix': {
       // Toutes les cellules de valeurs sont éditables :
       //  - data-mx  → champs structurés (vpns / aliases / fwProfiles) ;
@@ -5438,6 +5531,298 @@ function lldBuildCh4Matrix(L) {
   return wrap;
 }
 
+// ---- Rack FAI (5 routeurs) à gauche des baies + liens topo ----
+function lldEnsureFaiRack(ws) {
+  if (!ws || !Array.isArray(ws.racks)) return null;
+  // Déjà présent ?
+  let rack = ws.racks.find(r => /(^|\s)FAI(\s|$)|Accès FAI|Routeurs FAI/i.test(String(r.name || '')));
+  if (rack) return rack;
+  const tpl = (state && Array.isArray(state.devices)
+    ? state.devices.find(d => d.cat === 'router' || d.cat === 'firewall')
+    : null) || null;
+  const minX = ws.racks.length ? Math.min(...ws.racks.map(r => Number(r.x) || 0)) : 200;
+  const minY = ws.racks.length ? Math.min(...ws.racks.map(r => Number(r.y) || 0)) : 120;
+  rack = normalizeRack({
+    id: uid(),
+    name: 'RACK FAI — Accès opérateurs',
+    x: Math.max(0, minX - RACK_W - 90),
+    y: Math.max(0, minY),
+    sizeU: 12,
+    siteId: (ws.racks[0] && ws.racks[0].siteId) || '',
+    instances: []
+  });
+  const base = tpl || {};
+  for (let i = 0; i < 5; i++) {
+    const id = uid();
+    rack.instances.push({
+      id,
+      deviceId: base.id || '',
+      name: `ISP-RTR-${i + 1}`,
+      sizeU: 1,
+      photo: '',
+      cat: 'router',
+      slot: i,
+      brand: base.brand || 'Cisco',
+      model: base.model || 'ISR 4321',
+      partRef: base.partRef || '',
+      serial: '',
+      ipMgmt: `10.255.0.${10 + i}`,
+      vlan: 'VLAN 99 — Mgmt',
+      warranty: '',
+      warrantyEnd: '',
+      watts: base.watts || 30,
+      weightKg: base.weightKg || 3,
+      ports: []
+    });
+  }
+  ws.racks.push(rack);
+  // Noeuds topo + liens vers le 1er firewall de chaque autre rack
+  if (!ws.topology || !Array.isArray(ws.topology.nodes)) ws.topology = { nodes: [], links: [] };
+  const topo = ws.topology;
+  const fws = [];
+  ws.racks.forEach(r => {
+    if (r.id === rack.id) return;
+    r.instances.filter(i => i.cat === 'firewall').forEach(inst => fws.push({ r, inst }));
+  });
+  const isps = rack.instances.map((inst, i) => {
+    let n = topo.nodes.find(x => x.instId === inst.id);
+    if (!n) {
+      n = { id: uid(), instId: inst.id, x: 40, y: 60 + i * 110 };
+      topo.nodes.push(n);
+    }
+    return n;
+  });
+  fws.slice(0, 2).forEach((fw, i) => {
+    let n = topo.nodes.find(x => x.instId === fw.inst.id);
+    if (!n) {
+      n = { id: uid(), instId: fw.inst.id, x: 360, y: 60 + i * 160 };
+      topo.nodes.push(n);
+    }
+    // 2 ISP par firewall + 1 en secours sur le 1er
+    const pair = i === 0 ? [isps[0], isps[1], isps[4]] : [isps[2], isps[3]];
+    pair.filter(Boolean).forEach(isp => {
+      if (topo.links.some(l => (l.a === isp.id && l.b === n.id) || (l.b === isp.id && l.a === n.id))) return;
+      topo.links.push({
+        id: uid(), a: isp.id, b: n.id,
+        label: i === 0 && isp === isps[4] ? 'Secours 5G' : 'Transit FAI',
+        speed: '1 Gb/s', vlan: '', style: 'solid', color: '#f59e0b'
+      });
+    });
+  });
+  return rack;
+}
+
+// ---- Diagrammes ch. 5/6/7 : structure + génération depuis l'élévation ----
+function lldDiagColors(kind) {
+  return {
+    cloud: '#38bdf8', fai: '#f59e0b', router: '#38bdf8', fw: '#f87171',
+    switch: '#60a5fa', site: '#a78bfa', lan: '#34d399', internet: '#94a3b8'
+  }[kind] || '#60a5fa';
+}
+
+function lldBuildDiagData(ws, mode) {
+  const L = (ws && ws.lld) || {};
+  const nodes = [];
+  const links = [];
+  const add = (id, x, y, label, sub, kind, w = 150, h = 56) => {
+    nodes.push({ id, x, y, label, sub, kind, w, h });
+    return id;
+  };
+  const byCat = cat => (ws.racks || []).flatMap(r =>
+    r.instances.filter(i => i.cat === cat).map(inst => ({ rack: r, inst })));
+
+  if (mode === 'fai') {
+    // FAI au centre (ou « Internet » si aucun FAI saisi)
+    const fais = (L.fais && L.fais.length) ? L.fais
+      : (L.fai && (L.fai.operator || L.fai.cpe) ? [L.fai] : []);
+    const cx = 300, cy = 160;
+    if (fais.length) {
+      fais.slice(0, 3).forEach((f, i) => {
+        add(`fai${i}`, cx - 75, cy - 90 + i * 78,
+          f.operator || `FAI ${i + 1}`,
+          [f.offer, f.down, f.wanIp].filter(Boolean).join(' · ') || f.linkType || '',
+          'fai');
+      });
+    } else {
+      add('fai0', cx - 75, cy - 40, 'Internet / FAI', 'Renseignez les FAI (5.1)', 'cloud');
+    }
+    // Routeurs / firewall reliés
+    const rtrs = byCat('router');
+    const fws = byCat('firewall');
+    rtrs.forEach((x, i) => {
+      const id = `r${i}`;
+      add(id, 40, 40 + i * 90, x.inst.name || 'Routeur',
+        [x.inst.brand, x.inst.model, x.inst.ipMgmt].filter(Boolean).join(' · '),
+        'router');
+      links.push({ a: fais.length ? `fai${Math.min(i, fais.length - 1)}` : 'fai0', b: id,
+        label: 'WAN', color: '#f59e0b' });
+    });
+    fws.slice(0, 4).forEach((x, i) => {
+      const id = `fw${i}`;
+      add(id, 520, 40 + i * 90, x.inst.name || 'Pare-feu',
+        [x.inst.brand, x.inst.model, x.inst.ipMgmt].filter(Boolean).join(' · '),
+        'fw');
+      const r = rtrs[i] ? `r${i}` : (fais.length ? `fai${Math.min(i, fais.length - 1)}` : 'fai0');
+      links.push({ a: r, b: id, label: 'Transit', color: '#f87171' });
+    });
+    // Switchs (échantillon)
+    byCat('switch').slice(0, 3).forEach((x, i) => {
+      const id = `s${i}`;
+      add(id, 520, 320 + i * 80, x.inst.name || 'Switch',
+        x.inst.ipMgmt || '', 'switch');
+      if (fws[i]) links.push({ a: `fw${i}`, b: id, label: 'LAN', color: '#60a5fa' });
+      else if (fws[0]) links.push({ a: 'fw0', b: id, label: 'LAN', color: '#60a5fa' });
+    });
+  } else if (mode === 'interco') {
+    const ic = L.interco || {};
+    const sites = (ws.sites && ws.sites.length) ? ws.sites : [{ name: 'Site A' }, { name: 'Site B' }];
+    add('sa', 30, 120, String(sites[0].name || 'Site A').slice(0, 40),
+      ic.localSubnets || '', 'site', 170, 64);
+    add('sb', 520, 120, String(sites[1] ? sites[1].name : 'Site B').slice(0, 40),
+      ic.remoteSubnets || '', 'site', 170, 64);
+    add('tun', 270, 130, ic.tech || 'Tunnel IPsec / SD-WAN',
+      [ic.epA, ic.epB].filter(Boolean).join(' ↔ ') || ic.encryption || '—',
+      'fai', 170, 64);
+    links.push({ a: 'sa', b: 'tun', label: ic.epA || 'Endpoint A', color: '#a78bfa' });
+    links.push({ a: 'tun', b: 'sb', label: ic.epB || 'Endpoint B', color: '#a78bfa' });
+    // Routeurs des 2 sites
+    const rtrs = byCat('router');
+    if (rtrs[0]) {
+      add('ra', 30, 240, rtrs[0].inst.name || 'RTR-A', rtrs[0].inst.ipMgmt || '', 'router');
+      links.push({ a: 'sa', b: 'ra', label: 'LAN', color: '#60a5fa' });
+    }
+    if (rtrs[1]) {
+      add('rb', 520, 240, rtrs[1].inst.name || 'RTR-B', rtrs[1].inst.ipMgmt || '', 'router');
+      links.push({ a: 'sb', b: 'rb', label: 'LAN', color: '#60a5fa' });
+    }
+    // VPN listés
+    (L.vpns || []).slice(0, 3).forEach((v, i) => {
+      if (!v.name && !v.peer) return;
+      const id = `v${i}`;
+      add(id, 250, 300 + i * 70, v.name || `VPN ${i + 1}`, v.peer || '', 'lan', 190, 52);
+      links.push({ a: 'tun', b: id, label: 'S2S', color: '#34d399', dashed: true });
+    });
+  } else { // fw
+    const fws = byCat('firewall');
+    const fw = fws[0];
+    add('fwc', 270, 150, fw ? (fw.inst.name || 'Firewall') : 'Firewall',
+      fw ? [fw.inst.brand, fw.inst.model, fw.inst.ipMgmt].filter(Boolean).join(' · ')
+         : 'Placez un pare-feu dans l’élévation',
+      'fw', 170, 64);
+    const fais = (L.fais && L.fais.length) ? L.fais : (L.fai && L.fai.operator ? [L.fai] : []);
+    add('wan', 40, 40, fais[0] ? (fais[0].operator || 'FAI') : 'WAN / Internet',
+      fais[0] ? (fais[0].wanIp || fais[0].offer || '') : '', 'fai');
+    links.push({ a: 'wan', b: 'fwc', label: 'WAN', color: '#f59e0b' });
+    // FAI rack ISP
+    const isps = byCat('router').filter(x => /ISP|FAI/i.test(x.inst.name || ''));
+    const others = byCat('router').filter(x => !/ISP|FAI/i.test(x.inst.name || ''));
+    [...isps, ...others].slice(0, 4).forEach((x, i) => {
+      const id = `r${i}`;
+      add(id, 40, 140 + i * 80, x.inst.name || 'Routeur', x.inst.ipMgmt || '', 'router');
+      links.push({ a: id, b: 'fwc', label: 'Transit', color: '#f59e0b' });
+    });
+    byCat('switch').slice(0, 4).forEach((x, i) => {
+      const id = `s${i}`;
+      add(id, 520, 40 + i * 80, x.inst.name || 'Switch', x.inst.ipMgmt || '', 'switch');
+      links.push({ a: 'fwc', b: id, label: 'LAN', color: '#60a5fa' });
+    });
+    const zones = (L.swZones || []).slice(0, 3);
+    zones.forEach((z, i) => {
+      const id = `z${i}`;
+      add(id, 520, 380 + i * 70, z.name || `Zone ${i + 1}`, z.vlans ? 'VLAN ' + z.vlans : '', 'lan', 160, 52);
+      links.push({ a: 'fwc', b: id, label: 'Zone', color: '#34d399', dashed: true });
+    });
+  }
+  return { nodes, links };
+}
+
+function lldRenderDiagSvg(diag) {
+  const NS = 'http://www.w3.org/000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  const nodes = (diag && diag.nodes) || [];
+  const links = (diag && diag.links) || [];
+  let maxX = 700, maxY = 420;
+  nodes.forEach(n => { maxX = Math.max(maxX, n.x + (n.w || 150) + 20); maxY = Math.max(maxY, n.y + (n.h || 56) + 20); });
+  svg.setAttribute('viewBox', `0 0 ${maxX} ${maxY}`);
+  svg.setAttribute('class', 'lld-diag-svg');
+  svg.setAttribute('width', '100%');
+  const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+  // liens
+  links.forEach(l => {
+    const a = byId[l.a], b = byId[l.b];
+    if (!a || !b) return;
+    const x1 = a.x + (a.w || 150) / 2, y1 = a.y + (a.h || 56) / 2;
+    const x2 = b.x + (b.w || 150) / 2, y2 = b.y + (b.h || 56) / 2;
+    const line = document.createElementNS(NS, 'line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    line.setAttribute('stroke', l.color || '#60a5fa');
+    line.setAttribute('stroke-width', '2.5');
+    if (l.dashed) line.setAttribute('stroke-dasharray', '7 5');
+    svg.appendChild(line);
+    if (l.label) {
+      const t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', (x1 + x2) / 2);
+      t.setAttribute('y', (y1 + y2) / 2 - 6);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('class', 'lld-diag-link-label');
+      t.textContent = String(l.label).slice(0, 32);
+      svg.appendChild(t);
+    }
+  });
+  // noeuds
+  nodes.forEach(n => {
+    const g = document.createElementNS(NS, 'g');
+    const w = n.w || 150, h = n.h || 56;
+    const rect = document.createElementNS(NS, 'rect');
+    rect.setAttribute('x', n.x); rect.setAttribute('y', n.y);
+    rect.setAttribute('width', w); rect.setAttribute('height', h);
+    rect.setAttribute('rx', 10);
+    rect.setAttribute('class', 'lld-diag-node lld-diag-' + (n.kind || 'dev'));
+    g.appendChild(rect);
+    const bar = document.createElementNS(NS, 'rect');
+    bar.setAttribute('x', n.x); bar.setAttribute('y', n.y + 10);
+    bar.setAttribute('width', 5); bar.setAttribute('height', h - 20);
+    bar.setAttribute('fill', lldDiagColors(n.kind));
+    g.appendChild(bar);
+    const t1 = document.createElementNS(NS, 'text');
+    t1.setAttribute('x', n.x + 14); t1.setAttribute('y', n.y + 22);
+    t1.setAttribute('class', 'lld-diag-t');
+    t1.textContent = String(n.label || '').slice(0, 22);
+    g.appendChild(t1);
+    if (n.sub) {
+      const t2 = document.createElementNS(NS, 'text');
+      t2.setAttribute('x', n.x + 14); t2.setAttribute('y', n.y + 40);
+      t2.setAttribute('class', 'lld-diag-s');
+      t2.textContent = String(n.sub).slice(0, 28);
+      g.appendChild(t2);
+    }
+    svg.appendChild(g);
+  });
+  return svg;
+}
+
+// Lecture image large (captures d'écran lisibles dans le PDF)
+function lldReadShot(file) {
+  return new Promise(resolve => {
+    if (!file || !/^image\//.test(file.type || '')) { resolve(null); return; }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 1400;
+      const scale = Math.min(1, maxW / img.width || 1);
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.width * scale));
+      c.height = Math.max(1, Math.round(img.height * scale));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve({ dataUrl: c.toDataURL('image/jpeg', 0.86), w: c.width, h: c.height });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
 function lldInfoRender(box, def, key) {
   const L = lldDraft.lld;
   if (def.hint) {
@@ -5591,6 +5976,136 @@ function lldInfoRender(box, def, key) {
     }
     case 'ch4matrix': {
       box.appendChild(lldBuildCh4Matrix(L));
+      break;
+    }
+    case 'shots': {
+      const wrap = document.createElement('div');
+      wrap.className = 'lld-shots-wrap';
+      const drop = document.createElement('div');
+      drop.className = 'lld-shots-drop';
+      drop.innerHTML = '<span>Déposez des captures ici (ou clic pour choisir un fichier)</span>';
+      const fileIn = document.createElement('input');
+      fileIn.type = 'file';
+      fileIn.accept = 'image/*';
+      fileIn.multiple = true;
+      fileIn.className = 'hidden';
+      drop.appendChild(fileIn);
+      const grid = document.createElement('div');
+      grid.className = 'lld-shots-grid';
+      const list = Array.isArray(L[key]) ? L[key] : [];
+      const paint = () => {
+        grid.innerHTML = '';
+        list.forEach((s, idx) => {
+          const fig = document.createElement('figure');
+          fig.className = 'lld-shot';
+          const im = document.createElement('img');
+          im.src = s.dataUrl;
+          im.alt = s.name || '';
+          im.draggable = false;
+          const cap = document.createElement('figcaption');
+          cap.textContent = s.name || `capture-${idx + 1}`;
+          const del = document.createElement('button');
+          del.type = 'button';
+          del.className = 'lld-shot-del';
+          del.textContent = '\u2715';
+          del.title = 'Supprimer cette capture';
+          del.addEventListener('click', () => {
+            lldPushUndo(true);
+            list.splice(idx, 1);
+            if (lldDraft) lldDraft.lld[key] = list;
+            paint();
+          });
+          fig.appendChild(im);
+          fig.appendChild(cap);
+          fig.appendChild(del);
+          grid.appendChild(fig);
+        });
+      };
+      paint();
+      const ingest = async files => {
+        const arr = [...(files || [])].slice(0, 10);
+        let n = 0;
+        for (const f of arr) {
+          if (list.length >= 10) break;
+          const r = await lldReadShot(f);
+          if (!r) continue;
+          lldPushUndo(true);
+          list.push({ id: uid(), name: String(f.name || 'capture').slice(0, 80), ...r });
+          n++;
+        }
+        if (lldDraft) lldDraft.lld[key] = list.slice();
+        paint();
+        if (!n) lldAlert('Aucune image lisible (PNG/JPG/WebP uniquement).', { title: '🖼 Captures' });
+      };
+      drop.addEventListener('click', () => fileIn.click());
+      fileIn.addEventListener('change', () => { ingest(fileIn.files); fileIn.value = ''; });
+      drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+      drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+      drop.addEventListener('drop', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        drop.classList.remove('over');
+        ingest(e.dataTransfer && e.dataTransfer.files);
+      });
+      wrap.appendChild(drop);
+      wrap.appendChild(grid);
+      box.appendChild(wrap);
+      break;
+    }
+    case 'diagram': {
+      const wrap = document.createElement('div');
+      wrap.className = 'lld-diag-wrap';
+      const bar = document.createElement('div');
+      bar.className = 'lld-diag-bar';
+      const host = document.createElement('div');
+      host.className = 'lld-diag-host';
+      const mode = def.mode || 'fai';
+      const paint = () => {
+        host.innerHTML = '';
+        const d = L.diagrams && L.diagrams[mode];
+        if (d && (d.nodes || []).length) {
+          host.appendChild(lldRenderDiagSvg(d));
+        } else {
+          const ph = document.createElement('p');
+          ph.className = 'lld-diag-empty';
+          ph.textContent = 'Aucun diagramme — cliquez « 🔎 Générer depuis l’élévation » pour construire le schéma à partir des racks, FAI et interco.';
+          host.appendChild(ph);
+        }
+      };
+      paint();
+      const genBtn = lldBtn('🔎 Générer depuis l\'élévation', () => {
+        const ws = active();
+        if (!ws || !lldDraft) return;
+        lldPushUndo(true);
+        let rackAdded = false;
+        if (mode === 'fai') {
+          const before = ws.racks.length;
+          lldEnsureFaiRack(ws);
+          rackAdded = ws.racks.length > before;
+          if (rackAdded) {
+            touchWorkspace(ws);
+            saveState();
+            renderBoard();
+          }
+        }
+        lldDraft.lld.diagrams = lldDraft.lld.diagrams || {};
+        lldDraft.lld.diagrams[mode] = lldBuildDiagData(ws, mode);
+        // le rack FAI éventuellement créé doit survivre à l'enregistrement
+        paint();
+        lldAlert('Diagramme généré depuis l’élévation (pensez à Enregistrer).'
+          + (mode === 'fai' ? '\nRack « RACK FAI — Accès opérateurs » (5 routeurs) ajouté à gauche s’il manquait, et relié en topologie.' : ''),
+          { title: 'Diagramme' });
+      }, 'Construit le schéma du chapitre depuis les devices posés, les FAI et l’interconnexion');
+      const clearBtn = lldBtn('✕ Vider', () => {
+        lldPushUndo(true);
+        if (lldDraft && lldDraft.lld.diagrams) delete lldDraft.lld.diagrams[mode];
+        paint();
+      }, 'Supprimer le diagramme de ce chapitre');
+      bar.appendChild(genBtn);
+      bar.appendChild(clearBtn);
+      wrap.appendChild(bar);
+      wrap.appendChild(host);
+      box.appendChild(wrap);
       break;
     }
     case 'governance': {
@@ -8786,6 +9301,17 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     cur.push(`${color.map(c => (+c).toFixed(2)).join(' ')} rg ${(+x).toFixed(2)} ${(+yy).toFixed(2)} ${(+w).toFixed(2)} ${(+h).toFixed(2)} re f`);
   };
   const hline = (x1, x2, yy) => cur.push(lineOp(x1, yy, x2));
+  // Ligne libre (2 points) + contour de rectangle — diagrammes ch. 5/6/7
+  const hexToRgb = hex => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+    if (!m) return [0.38, 0.65, 0.98];
+    const n = parseInt(m[1], 16);
+    return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  };
+  const line2 = (x1, y1, x2, y2, color = [0.4, 0.6, 0.9], lw = 2) =>
+    `${color.map(c => (+c).toFixed(2)).join(' ')} RG ${lw} w ${(+x1).toFixed(2)} ${(+y1).toFixed(2)} m ${(+x2).toFixed(2)} ${(+y2).toFixed(2)} l S`;
+  const strokeRect = (x, yy, w, h, color = [0.4, 0.6, 0.9], lw = 1.2) =>
+    `${color.map(c => (+c).toFixed(2)).join(' ')} RG ${lw} w ${(+x).toFixed(2)} ${(+yy).toFixed(2)} ${(+w).toFixed(2)} ${(+h).toFixed(2)} re S`;
 
   const newPage = () => { cur = []; pagesOps.push(cur); y = PH - M; };
 
@@ -8807,6 +9333,21 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     const n = tocByNum.get(String(num));
     return !!(n && Array.isArray(n.blocks) && n.blocks.includes(key));
   };
+  // Captures d'écran rattachées à un chapitre (ch. 5/6/7…) → images JPEG
+  // dont le numéro d'objet est fixé maintenant (dessin + assemblage PDF).
+  const shotImgs = [];   // { ref: '/ImS0', key, bytes, w, h, name }
+  const SHOT_SLOTS = [['shots5', '5'], ['shots6', '6'], ['shots7', '7']];
+  SHOT_SLOTS.forEach(([k, num]) => {
+    if (!hasB(num, k)) return;
+    (L[k] || []).slice(0, 8).forEach(s => {
+      if (!s || typeof s.dataUrl !== 'string' || !s.dataUrl.startsWith('data:image/')) return;
+      let bytes = null;
+      try { bytes = dataURLBytes(s.dataUrl); } catch (_) { return; }
+      if (!bytes || bytes.length < 300) return;
+      const ref = `/ImS${shotImgs.length}`;
+      shotImgs.push({ ref, srcKey: k, bytes, w: s.w || 900, h: s.h || 600, name: s.name || '' });
+    });
+  });
   // Titre issu du sommaire — seuls les nœuds d'origine sont surchargés
   // (les nums dynamiques 8.x des zones ne collisionnent pas avec un
   // sous-chapitre personnalisé, le ch. 8 n'en accepte pas).
@@ -8959,6 +9500,80 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
           ...fpPairs.map(pr => [String(pr[0]), String(pr[1])])], [2.2, 3.0], 7.5);
       }
       if (!vpnRows.length && !aliasRows.length && !fpPairs.length) placeholder();
+    } else if (def.kind === 'diagram') {
+      const mode = def.mode || 'fai';
+      const d = (L.diagrams || {})[mode];
+      if (!d || !(d.nodes || []).length) {
+        placeholder();
+        note("Généré depuis l'élévation dans la modale 📘 (bouton « 🔎 »).");
+      } else {
+        const byId = Object.fromEntries(d.nodes.map(n => [n.id, n]));
+        let maxX = 700, maxY = 400;
+        d.nodes.forEach(n => {
+          maxX = Math.max(maxX, (n.x || 0) + (n.w || 150));
+          maxY = Math.max(maxY, (n.y || 0) + (n.h || 56));
+        });
+        const availW = PW - 2 * M;
+        const maxH = Math.min(y - M - 16, 360);
+        const scale = Math.min(availW / (maxX + 8), maxH / (maxY + 8), 1.15);
+        const ox = M, oyTop = y - 4;
+        const X = x0 => ox + (x0 || 0) * scale;
+        const Y = y0 => oyTop - (y0 || 0) * scale;
+        (d.links || []).forEach(l => {
+          const a = byId[l.a], b = byId[l.b];
+          if (!a || !b) return;
+          const x1 = X(a.x + (a.w || 150) / 2), y1 = Y(a.y + (a.h || 56) / 2);
+          const x2 = X(b.x + (b.w || 150) / 2), y2 = Y(b.y + (b.h || 56) / 2);
+          const col = hexToRgb(l.color || '#60a5fa');
+          if (l.dashed) {
+            const steps = 10;
+            for (let i = 0; i < steps; i += 2) {
+              const t0 = i / steps, t1 = Math.min(1, (i + 1) / steps);
+              cur.push(line2(x1 + (x2 - x1) * t0, y1 + (y2 - y1) * t0,
+                x1 + (x2 - x1) * t1, y1 + (y2 - y1) * t1, col, 1.6));
+            }
+          } else {
+            cur.push(line2(x1, y1, x2, y2, col, 2));
+          }
+          if (l.label) {
+            const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - 3;
+            txt(mx - Math.min(48, String(l.label).length * 2.6), my,
+              String(l.label).slice(0, 30), 7.5, true, col);
+          }
+        });
+        d.nodes.forEach(n => {
+          const w = (n.w || 150) * scale, h = (n.h || 56) * scale;
+          const x0 = X(n.x), y0 = Y(n.y + (n.h || 56));  // bas de la boîte
+          rectFill(x0, y0, w, h, [0.97, 0.98, 1.0]);
+          const col = hexToRgb(lldDiagColors(n.kind));
+          cur.push(strokeRect(x0, y0, w, h, col, 1.3));
+          rectFill(x0, y0 + 3, 4, Math.max(4, h - 6), col);
+          const fs = Math.max(7.5, Math.min(10, 9 * scale + 2));
+          txt(x0 + 10, y0 + h - fs - 6, String(n.label || '').slice(0, 24), fs, true, [0.12, 0.16, 0.22]);
+          if (n.sub) {
+            txt(x0 + 10, y0 + 8, String(n.sub).slice(0, 32), Math.max(6.5, fs - 1.5), false, [0.4, 0.45, 0.52]);
+          }
+        });
+        y = Y(maxY) - 10;
+        if (y < M + 40) y = M + 40;
+      }
+    } else if (def.kind === 'shots') {
+      const drawList = shotImgs.filter(s => s.srcKey === key);
+      if (!drawList.length) {
+        placeholder();
+        note('Aucune capture (glisser-déposer dans la modale 📘).');
+      } else {
+        drawList.forEach(im => {
+          if (y < M + 80) newPage();
+          const availW = PW - 2 * M, availH = y - M - 36;
+          const k = Math.min(availW / im.w, availH / im.h, 1.5);
+          const iw = im.w * k, ih = im.h * k;
+          const ix = M + (availW - iw) / 2, iy = y - ih;
+          cur.push(`q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${ix.toFixed(2)} ${iy.toFixed(2)} cm ${im.ref} Do Q`);
+          y = iy - 10;
+        });
+        if (y < M + 30) newPage();
+      }
     } else if (def.kind === 'table') {
       const rows = L[key] || [];
       if (rows.length) {
@@ -9251,6 +9866,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
 
   // ---- 5. Conception et Configuration FAI ----
   chapter('5', 'Conception et Configuration FAI', { flow: true });
+  drawNodeExtras('5');          // diagramme + captures AVANT 5.1
   sub('5.1', 'Informations & Configuration');
   if (hasB('5.1', 'fais')) {
     const F = L.fai;
@@ -9269,10 +9885,11 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   if (cabFai.length > 1) drawTable(cabFai, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
   else note('Aucun câble classé « FAI » (mode Câblage : domaine du câble).');
   endNode('5.2');
-  endNode('5');
+  drawCustomSubs('5');          // extras déjà imprimés avant 5.1
 
   // ---- 6. Conception et Configuration Interconnexion site 2 site ----
   chapter('6', 'Conception et Configuration Interconnexion site 2 site', { flow: true });
+  drawNodeExtras('6');          // diagramme + captures AVANT 6.1
   sub('6.1', 'Informations & Configuration');
   if (hasB('6.1', 'interco')) {
     const I = L.interco;
@@ -9291,7 +9908,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   if (cabIc.length > 1) drawTable(cabIc, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
   else note('Aucun câble classé « Interconnexion » (mode Câblage : domaine du câble).');
   endNode('6.2');
-  endNode('6');
+  drawCustomSubs('6');
 
   // ---- 7 à 13 : chapitres par domaine (générés depuis les catégories) ----
   const CAT_CHAPTERS = [
@@ -9305,6 +9922,8 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   ];
   for (const [num, title, cats, dom] of CAT_CHAPTERS) {
     chapter(num, title, { flow: true });
+    // ch. 7 : diagramme + captures avant les tableaux du domaine
+    if (num === '7') drawNodeExtras('7');
     const notes = L.catNotes[dom] || '';
     if (hasB(num, `note:${dom}`) && notes.trim()) {
       miniTitle('Notes de configuration'); paragraph(notes);
@@ -9340,8 +9959,10 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     if (cabD.length > 1) drawTable(cabD, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
     else note('Aucun câble classé dans ce domaine (mode Câblage : domaine du câble).');
     // Extras du sommaire : VMs (9), volumes (10), caméras (12), Admin (6.1)…
-    // + sous-chapitres personnalisés ajoutés dans la modale.
-    endNode(num);
+    // + sous-chapitres personnalisés. Pour le ch. 7, extras déjà imprimés
+    // en tête (diagramme/captures) → ne garder que les sous-chapitres.
+    if (num === '7') drawCustomSubs('7');
+    else endNode(num);
   }
 
   // ---- 14. Flux réseau et diagram ----
@@ -9482,8 +10103,11 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   const firstPageObj = 5;
   const contentObjs = [];
   pagesOps.forEach((_, i) => contentObjs.push(firstPageObj + nPages + i));
-  const img0Num = firstPageObj + 2 * nPages;
-  const img1Num = img0Num + 1;
+  const img0Num = firstPageObj + 2 * nPages;          // élévations
+  const img1Num = img0Num + 1;                        // topologie
+  const shotNum0 = img1Num + 1;                       // captures ch. 5/6/7…
+  // Numéros d'objets des captures (ordre de shotImgs)
+  shotImgs.forEach((im, i) => { im.num = shotNum0 + i; });
 
   addObj(`<< /Type /Catalog /Pages 2 0 R >>`);
   const kids = pagesOps.map((_, i) => `${firstPageObj + i} 0 R`).join(' ');
@@ -9492,11 +10116,12 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   addObj(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>`);
 
   pagesOps.forEach((ops, i) => {
-    // Une seule entrée /XObject pour les deux images (topologie + élévations) :
-    // définir la clé deux fois rend l'image d'élévations invisible selon les lecteurs.
+    // Une seule entrée /XObject par image (double clé = image invisible chez
+    // certains lecteurs) — plan, topo puis captures éventuelles.
     const xobjs = [];
     if (hasPlan) xobjs.push(`/Im0 ${img0Num} 0 R`);
     if (hasTopo) xobjs.push(`/Im1 ${img1Num} 0 R`);
+    shotImgs.forEach(im => xobjs.push(`${im.ref} ${im.num} 0 R`));
     let res = `<< /Font << /F1 3 0 R /F2 4 0 R >>`;
     if (xobjs.length) res += ` /XObject << ${xobjs.join(' ')} >>`;
     res += ` >>`;
@@ -9514,6 +10139,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   };
   if (hasPlan) addImage(img0Num, planJpeg, planW, planH);
   if (hasTopo) addImage(img1Num, topoJpeg, topoW, topoH);
+  shotImgs.forEach(im => addImage(im.num, im.bytes, im.w, im.h));
 
   const xrefPos = offset;
   let xref = `xref\n0 ${offsets.length + 1}\n0000000000 65535 f \n`;

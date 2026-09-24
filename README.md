@@ -301,6 +301,13 @@ via localStorage, en secours).
       valeur d'origine réactive le recalcul auto depuis devices / FAI) ;
       sous la matrice, le **registre VLANs** puis la **nomenclature**, comme
       en bas de la feuille.
+    - **Ch. 5/6/7 — diagrammes & captures avant les sous-chapitres** :
+      chaque chapitre FAI, Interconnexion et Firewall s'ouvre sur un
+      **diagramme généré depuis l'élévation** (FAI / tunnel / FW au centre,
+      équipements reliés à ce qu'ils branchent) et une zone de
+      **glisser-dépose de captures d'écran** exportées dans le PDF ;
+      « 🔎 Générer » crée aussi le **rack FAI** (5 routeurs) à gauche des
+      baies et le relie en topologie aux pare-feux.
     - **Synchro exports** : les saisies sont enregistrées dans le workspace
       (bouton **Enregistrer**) et lues telles quelles par le **PDF** et
       l'**Excel** à chaque export ; retirer une information d'un chapitre la
