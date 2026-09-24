@@ -142,7 +142,9 @@ via localStorage, en secours).
      redirection de ports, DMZ, WLAN), interconnexion S2S (extrémités, HA,
      Admin Security, câblage), équipements par chapitre, plans de ports des
      zones de switching, matrice des flux, tableau de câblage et élévations
-     de baies ;
+     de baies. Les chapitres 5/6/7 embarquent aussi le diagramme (tableau
+     De → Liaison → Vers, mêmes nœuds/liens que le schéma modal) et les
+     captures d'écran (lignes + images JPEG/PNG ancrées dans la feuille) ;
    - **Inventaire (CSV)** — tableau de tous les devices posés (rack, site,
      étage, taille, nom, catégorie, marque, modèle, référence, n° série,
      IP mgmt, VLAN, puissance, poids, garantie/contrat, fin de garantie,

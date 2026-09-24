@@ -7827,6 +7827,55 @@ const XLSX = (() => {
     return s;
   }
 
+  function dataUrlBytes(dataUrl) {
+    const b64 = String(dataUrl || '').split(',')[1] || '';
+    let bin;
+    if (typeof atob === 'function') bin = atob(b64);
+    else {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+      let buf = '';
+      const clean = b64.replace(/=+$/, '');
+      for (let i = 0; i < clean.length; i += 4) {
+        const a = chars.indexOf(clean[i]);
+        const b = chars.indexOf(clean[i + 1]);
+        const c = chars.indexOf(clean[i + 2]);
+        const d = chars.indexOf(clean[i + 3]);
+        buf += String.fromCharCode((a << 2) | (b >> 4));
+        if (clean[i + 2] !== undefined && clean[i + 2] !== '-' && c >= 0) buf += String.fromCharCode(((b & 15) << 4) | (c >> 2));
+        if (clean[i + 3] !== undefined && clean[i + 3] !== '-' && d >= 0) buf += String.fromCharCode(((c & 3) << 6) | d);
+      }
+      bin = buf;
+    }
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr;
+  }
+  function drawingXml(images) {
+    const anchors = images.map((im, i) => {
+      const col = im.col || 1;
+      const row = Math.max(0, (im.row | 0));
+      const toCol = col + Math.max(4, Math.ceil((im.widthPx || 480) / 70));
+      const toRow = row + Math.max(6, Math.ceil((im.heightPx || 240) / 18));
+      return `<xdr:twoCellAnchor editAs="oneCell">` +
+        `<xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>0</xdr:colOff>` +
+        `<xdr:row>${row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>` +
+        `<xdr:to><xdr:col>${toCol}</xdr:col><xdr:colOff>0</xdr:colOff>` +
+        `<xdr:row>${toRow}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>` +
+        `<xdr:pic><xdr:nvPicPr>` +
+        `<xdr:cNvPr id="${i + 2}" name="${xmlEsc(im.name || ('img' + i))}"/>` +
+        `<xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr>` +
+        `</xdr:nvPicPr><xdr:blipFill><a:blip r:embed="${im.relId}"/>` +
+        `<a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
+        `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1" cy="1"/></a:xfrm>` +
+        `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>` +
+        `</xdr:pic><xdr:clientData/></xdr:twoCellAnchor>`;
+    }).join('');
+    return XML_DECL +
+      `<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"` +
+      ` xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"` +
+      ` xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
+      anchors + `</xdr:wsDr>`;
+  }
   function sheetXml(rows, opts = {}) {
     const freeze = opts.freeze !== false;
     const autoHeader = opts.autoHeader !== false;
@@ -7880,9 +7929,15 @@ const XLSX = (() => {
       ? '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
       : '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
     const fmtPr = opts.dcw ? `<sheetFormatPr defaultColWidth="${opts.dcw}" defaultRowHeight="15"/>` : '';
+    const hasIm = !!(opts.images && opts.images.length);
+    const rootOpen = hasIm
+      ? '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"' +
+        ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+      : '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+    const drawing = hasIm ? '<drawing r:id="rId1"/>' : '';
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-      views + fmtPr + cols + '<sheetData>' + body + '</sheetData>' + merges + '</worksheet>';
+      rootOpen +
+      views + fmtPr + cols + '<sheetData>' + body + '</sheetData>' + merges + drawing + '</worksheet>';
   }
   const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
   // ZIP minimal (méthode « store », sans compression)
@@ -7938,6 +7993,54 @@ const XLSX = (() => {
     return out;
   }
 
+  function sheetHasIm(s) { return !!((s.opts && s.opts.images) || s.images || []).length; }
+  function allImgs(s) { return (s.opts && s.opts.images) || s.images || []; }
+  function patchContentTypes(files, sheets) {
+    const hasIm = sheets.some(sheetHasIm);
+    if (!hasIm) return files;
+    return files.map(f => {
+      if (f.name !== '[Content_Types].xml') return f;
+      let xml = String(f.data);
+      if (!/Extension="jpeg"/.test(xml))
+        xml = xml.replace('</Types>', '<Default Extension="jpeg" ContentType="image/jpeg"/></Types>');
+      if (!/Extension="png"/.test(xml))
+        xml = xml.replace('</Types>', '<Default Extension="png" ContentType="image/png"/></Types>');
+      sheets.forEach((s, i) => {
+        if (!sheetHasIm(s)) return;
+        const part = `/xl/drawings/drawing${i + 1}.xml`;
+        if (!xml.includes(`PartName="${part}"`))
+          xml = xml.replace('</Types>',
+            `<Override PartName="${part}" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>`);
+      });
+      return { name: f.name, data: xml };
+    });
+  }
+  function imageFiles(sheets) {
+    const files = [];
+    sheets.forEach((s, i) => {
+      const imgs = allImgs(s);
+      if (!imgs.length) return;
+      const rels = [];
+      const prepared = imgs.map((im, k) => {
+        const ext = /data:image\/png/i.test(im.dataUrl || '') ? 'png' : 'jpeg';
+        const mediaName = `image${i + 1}_${k + 1}.${ext}`;
+        files.push({ name: `xl/media/${mediaName}`, data: dataUrlBytes(im.dataUrl) });
+        const relId = `rId${k + 1}`;
+        rels.push(`<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${mediaName}"/>`);
+        return Object.assign({}, im, { relId });
+      });
+      files.push({ name: `xl/drawings/_rels/drawing${i + 1}.xml.rels`, data: XML_DECL +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        rels.join('') + '</Relationships>' });
+      files.push({ name: `xl/drawings/drawing${i + 1}.xml`, data: drawingXml(prepared) });
+      files.push({ name: `xl/worksheets/_rels/sheet${i + 1}.xml.rels`, data: XML_DECL +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${i + 1}.xml"/>` +
+        '</Relationships>' });
+    });
+    return files;
+  }
+
   function build(sheets, extra = {}) {
     /* extra = { stylesXml, themeXml } : styles et thème repris VERBATIM d'un
        template Excel — les indices s= des cellules référencent alors directement
@@ -7972,9 +8075,10 @@ const XLSX = (() => {
           '</Relationships>' },
         { name: 'xl/styles.xml', data: extra.stylesXml },
         { name: 'xl/theme/theme1.xml', data: extra.themeXml },
-        ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.rows, s.opts || {}) }))
+        ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.rows, s.opts || {}) })),
+        ...imageFiles(sheets)
       ];
-      return new Blob([zip(files2)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      return new Blob([zip(patchContentTypes(files2, sheets))], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     }
     /* Moteur de styles : les 9 styles historiques (0..8) gardent leur index pour
        les 9 feuilles existantes ; les feuilles LLD/Governance passent des
@@ -8098,9 +8202,10 @@ const XLSX = (() => {
         `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
         '</Relationships>' },
       { name: 'xl/styles.xml', data: stylesXml },
-      ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.rows, s.opts || {}) }))
+      ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.rows, s.opts || {}) })),
+      ...imageFiles(sheets)
     ];
-    const u8 = zip(files);
+    const u8 = zip(patchContentTypes(files, sheets));
     return new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   }
 
@@ -8237,7 +8342,10 @@ const LLD_TPL = (() => {
     if (missing7.length) pushNote(rows, `À compléter manuellement : ${missing7.join(', ')} (cluster/HA : voir fiche matériel).`);
     const cfg7 = hasB('7', 'note:firewall') ? ((ws.lld && ws.lld.catNotes) || {}).firewall : '';
     if (cfg7) pushNote(rows, `Config : ${String(cfg7).split('\n')[0]}`);
-    return out(sheet, rows, heights, null, [3.43, 46, 30, 22, 22, 30, 16]);
+    const s7 = out(sheet, rows, heights, null, [3.43, 46, 30, 22, 22, 30, 16]);
+    const im7 = insertChapterExtras(s7.rows, ws, '7');
+    if (im7) s7.opts.images = im7;
+    return s7;
   }
 
   /* — 8.x Switching : équipements de la zone correspondant au titre — */
@@ -8961,7 +9069,10 @@ const LLD_TPL = (() => {
     /* Le template fusionne L36:O36 (sous-colonnes « Port Forwarding » de la
        ligne FAI 2) : on défusionne pour écrire chaque champ séparément. */
     const merges5 = (sheet.merges || []).filter(m => !/^L3[6-8]:O3[6-8]$/.test(m));
-    return out(sheet, rows, heights, merges5);
+    const s5 = out(sheet, rows, heights, merges5);
+    const im5 = insertChapterExtras(s5.rows, ws, '5');
+    if (im5) s5.opts.images = im5;
+    return s5;
   }
 
   /* — Feuille « 6 » : interconnexion site à site (complète) — */
@@ -9066,7 +9177,10 @@ const LLD_TPL = (() => {
     // VIP (N30/31) et masque admin (P30/31) : le template fusionne N30:N31 et
     // P30:P31 alors que chaque extrémité a ses propres valeurs -> on défusionne.
     const merges6 = (sheet.merges || []).filter(m => !/^(N30:N31|P30:P31)$/.test(m));
-    return out(sheet, rows, heights, merges6);
+    const s6 = out(sheet, rows, heights, merges6);
+    const im6 = insertChapterExtras(s6.rows, ws, '6');
+    if (im6) s6.opts.images = im6;
+    return s6;
   }
 
   /* — Sommaire du dossier (modale 📘) : index par numéro de chapitre —
@@ -9099,7 +9213,21 @@ const LLD_TPL = (() => {
                ['user', 'auth', 'host']]
   };
 
-  function blockRows(key, ws) {
+  /* Métadonnées des blocs diagramme/captures (LLD_INFOS si présent, sinon repli). */
+  function lldBlockDef(key) {
+    if (typeof LLD_INFOS !== 'undefined' && LLD_INFOS && LLD_INFOS[key]) return LLD_INFOS[key];
+    const m = {
+      diag5: { label: 'Diagramme d’accès FAI (avant 5.1)', kind: 'diagram', mode: 'fai' },
+      diag6: { label: 'Diagramme d’interconnexion (avant 6.1)', kind: 'diagram', mode: 'interco' },
+      diag7: { label: 'Diagramme Firewall (avant le reste du ch. 7)', kind: 'diagram', mode: 'fw' },
+      shots5: { label: 'Captures d’écran — ch. 5', kind: 'shots' },
+      shots6: { label: 'Captures d’écran — ch. 6', kind: 'shots' },
+      shots7: { label: 'Captures d’écran — ch. 7', kind: 'shots' }
+    };
+    return m[key] || null;
+  }
+
+  function blockRows(key, ws, imgSink) {
     const L = ws.lld || {};
     const out = [];
     const texts = {
@@ -9214,25 +9342,120 @@ const LLD_TPL = (() => {
       } else out.push(NOTE('Aucune révision.'));
       return out;
     }
+    // Diagramme ch. 5/6/7 — tableau De/Liaison/Vers (même données que le SVG modal)
+    if (lldBlockDef(key) && lldBlockDef(key).kind === 'diagram') {
+      const def = lldBlockDef(key);
+      const mode = def.mode || 'fai';
+      const d = (L.diagrams || {})[mode];
+      out.push([]);
+      out.push(SEC(def.label));
+      if (def.hint) out.push(NOTE(String(def.hint).split('\n')[0]));
+      if (d && (d.nodes || []).length) {
+        const byId = Object.fromEntries(d.nodes.map(n => [n.id, n]));
+        out.push([]);
+        out.push(H(['Élément', 'Type', 'Détail']));
+        d.nodes.forEach((n, i) => out.push(D([
+          String(n.label || n.id || ''),
+          String(n.kind || ''),
+          String(n.sub || '')
+        ], i % 2)));
+        if ((d.links || []).length) {
+          out.push([]);
+          out.push(H(['De', 'Liaison', 'Vers']));
+          d.links.forEach((l, i) => {
+            const a = byId[l.a], b = byId[l.b];
+            out.push(D([
+              a ? String(a.label) : String(l.a || ''),
+              String(l.label || (l.dashed ? 'secours' : '—')),
+              b ? String(b.label) : String(l.b || '')
+            ], i % 2));
+          });
+        }
+      } else {
+        out.push(NOTE('Diagramme non généré — bouton « 🔎 Générer depuis l’élévation » dans la modale 📘.'));
+      }
+      return out;
+    }
+    // Captures d'écran — légende + image embarquée (opts.images)
+    if (lldBlockDef(key) && lldBlockDef(key).kind === 'shots') {
+      const def = lldBlockDef(key);
+      const shots = (L[key] || []).slice(0, 8);
+      out.push([]);
+      out.push(SEC(def.label));
+      if (!shots.length) {
+        out.push(NOTE('Aucune capture (glisser-déposer dans la modale 📘).'));
+        return out;
+      }
+      out.push(H(['Fichier', 'Dimensions (px)']));
+      shots.forEach((s, i) => {
+        out.push(D([String(s.name || 'capture'), `${s.w || ''} × ${s.h || ''}`], i % 2));
+        if (imgSink && typeof s.dataUrl === 'string' && s.dataUrl.startsWith('data:image/')) {
+          imgSink.push({
+            dataUrl: s.dataUrl,
+            widthPx: Math.min(900, s.w || 640),
+            heightPx: Math.min(500, s.h || 360),
+            name: String(s.name || ('capture-' + (i + 1))).slice(0, 40)
+          });
+        }
+      });
+      return out;
+    }
     return out;
   }
 
   /* — Feuille Excel pour un chapitre / sous-chapitre ajouté au sommaire — */
+  /* Blocs de chapitre absents du template Excel (diagramme / captures) :
+     écrits dans la première zone vide sous le titre, sinon après le contenu. */
+  function insertChapterExtras(rows, ws, num) {
+    const n = BUILD_TOC.get(String(num));
+    if (!n || !Array.isArray(n.blocks) || !n.blocks.length) return null;
+    const imgs = [];
+    const chunks = [];
+    n.blocks.forEach(k => {
+      const def = lldBlockDef(k);
+      if (!def || (def.kind !== 'diagram' && def.kind !== 'shots')) return;
+      const local = [];
+      blockRows(k, ws, imgs).forEach(r => local.push(r));
+      if (local.length) chunks.push(local);
+    });
+    if (!chunks.length) return null;
+    const flat = [];
+    chunks.forEach(chunk => { flat.push([]); flat.push(...chunk); });
+    let firstOcc = rows.length;
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i] && rows[i].length) { firstOcc = i; break; }
+    }
+    const gap = Math.max(0, firstOcc - 1);
+    const use = Math.min(gap, flat.length);
+    for (let i = 0; i < use; i++) rows[1 + i] = flat[i];
+    let imgRowBase;
+    if (flat.length > use) {
+      rows.push(...flat.slice(use));
+      imgRowBase = rows.length;
+    } else {
+      imgRowBase = firstOcc;
+    }
+    imgs.forEach((im, i) => { im.row = Math.max(0, imgRowBase + 1 + i * 16); });
+    return imgs;
+  }
+
   function customSheet(name, node, ws) {
     const rows = [];
     rows.push([{ v: `${node.num}. ${node.title}`, s: 50 }, { v: '', s: 50 }]);
     rows.push([]);
+    const imgs = [];
     const keys = node.blocks || [];
-    if (keys.length) keys.forEach(k => blockRows(k, ws).forEach(r => rows.push(r)));
+    if (keys.length) keys.forEach(k => blockRows(k, ws, imgs).forEach(r => rows.push(r)));
     else rows.push(NOTE('Section à compléter.'));
     (node.subs || []).forEach(s => {
       if (!s.custom) return;
       rows.push([]);
       rows.push(SEC(`${s.num}. ${s.title}`));
-      if ((s.blocks || []).length) s.blocks.forEach(k => blockRows(k, ws).forEach(r => rows.push(r)));
+      if ((s.blocks || []).length) s.blocks.forEach(k => blockRows(k, ws, imgs).forEach(r => rows.push(r)));
       else rows.push(NOTE('Section à compléter.'));
     });
-    return { name, rows, opts: { freeze: false, autoHeader: false, dcw: 11.57, heights: {}, merges: [] } };
+    imgs.forEach((im, i) => { im.row = rows.length + 1 + i * 16; });
+    return { name, rows, opts: { freeze: false, autoHeader: false, dcw: 11.57, heights: {}, merges: [], images: imgs } };
   }
 
   const FILLS = { 'LLD': lld, 'Governance': governance, '1': ch1, '2': ch2,
