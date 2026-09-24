@@ -268,12 +268,22 @@ function normLldToc(raw) {
     // de ressusciter un bloc détaché par l'utilisateur).
     let blocksSeeded = r.blocksSeeded === 1 || r.blocksSeeded === true;
     const seedNum = String(d.num);
-    if (!blocksSeeded && (seedNum === '5' || seedNum === '6' || seedNum === '7')) {
-      const pref = seedNum === '5' ? ['diag5', 'shots5']
-        : seedNum === '6' ? ['diag6', 'shots6'] : ['diag7', 'shots7'];
+    // Injection unique (blocksSeeded) — ne ressuscite pas un bloc détaché :
+    //  - ch. 5/6/7 : diagramme + captures en tête
+    //  - 5.1/5.2  : tableaux Excel (fais / faiCab) si l'ancien sommaire
+    //    les avait vides (modèle avant les tableaux du dossier)
+    if (!blocksSeeded) {
+      const SEED = {
+        '5': ['diag5', 'shots5'],
+        '6': ['diag6', 'shots6'],
+        '7': ['diag7', 'shots7'],
+        '5.1': ['fais'],
+        '5.2': ['faiCab']
+      };
+      const pref = SEED[seedNum] || [];
       const need = pref.filter(k => !blocks.includes(k));
       if (need.length) blocks = [...need, ...blocks];
-      blocksSeeded = true;
+      if (pref.length) blocksSeeded = true;
     }
     return {
       id: String(r.id || d.id || uid()),
@@ -4647,7 +4657,7 @@ const LLD_TOC_AUTO = {
   '3.1': 'Récapitulatif par catégorie, inventaire détaillé & suivi des garanties',
   '4': "Matrice d'adressage (feuille Excel), registre VLANs, nomenclature & ports étiquetés (depuis les devices)",
   '5': 'Diagramme d’accès FAI + captures (si renseignées) avant 5.1',
-  '5.2': 'Tableau de câblage des câbles classés « FAI »',
+  '5.2': 'Tableau 5.2 (Categorie / Description / Connecté a) — éditable ici, + câbles FAI si absents du tableau',
   '6': 'Diagramme d’interconnexion + captures (si renseignées) avant 6.1',
   '6.2': 'Tableau de câblage des câbles classés « Interconnexion »',
   '7': 'Diagramme Firewall + captures, puis équipements firewall, interfaces VLAN, ports & câblage',
