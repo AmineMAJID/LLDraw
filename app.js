@@ -102,8 +102,8 @@ function defaultLldToc() {
       sub('5.2', 'Câblage', ['faiCab'])
     ]),
     ch('6', 'Conception et Configuration Interconnexion site 2 site', ['diag6', 'shots6'], [
-      sub('6.1', 'Informations & Configuration', ['interco', 'adminSec']),
-      sub('6.2', 'Câblage', [])
+      sub('6.1', 'Informations & Configuration', ['ic61', 'interco', 'adminSec']),
+      sub('6.2', 'Câblage', ['icCab'])
     ]),
     ch('7', 'Conception et Configuration Firewall', ['diag7', 'shots7', 'fw', 'note:firewall']),
     // ch. 8 : pas de sous-chapitres ajoutés à la main — le PDF découpe
@@ -278,7 +278,9 @@ function normLldToc(raw) {
         '6': ['diag6', 'shots6'],
         '7': ['diag7', 'shots7'],
         '5.1': ['fais'],
-        '5.2': ['faiCab']
+        '5.2': ['faiCab'],
+        '6.1': ['ic61'],
+        '6.2': ['icCab']
       };
       const pref = SEED[seedNum] || [];
       const need = pref.filter(k => !blocks.includes(k));
@@ -498,6 +500,58 @@ function normLldInfo(w) {
   L.faiCab = Array.isArray(L.faiCab) ? L.faiCab.filter(r => r && typeof r === 'object').map(r => ({
     cat: String(r.cat ?? 'FAI').slice(0, 20) || 'FAI',
     desc: String(r.desc ?? '').slice(0, 120),
+    conn: String(r.conn ?? '').slice(0, 160)
+  })) : [];
+  // 6.1 extrémités / HA (miroir Excel) — migration depuis les champs interco
+  if (!Array.isArray(L.ic61) || !L.ic61.some(r => r && Object.values(r).some(v => String(v ?? '').trim()))) {
+    const ic = L.interco || {};
+    const mk = (side) => {
+      const ep = side === 'A' ? ic.epA : ic.epB;
+      const sn = side === 'A' ? ic.snA : ic.snB;
+      const fw = side === 'A' ? ic.fwA : ic.fwB;
+      const ha = side === 'A' ? ic.haA : ic.haB;
+      const role = side === 'A' ? ic.roleA : ic.roleB;
+      const vip = side === 'A' ? ic.vipA : ic.vipB;
+      const mgmt = side === 'A' ? ic.mgmtA : ic.mgmtB;
+      const mask = side === 'A' ? ic.mgmtMaskA : ic.mgmtMaskB;
+      if (!ep && !sn && !mgmt) return null;
+      const short = String(ep || '').split(' — ')[0];
+      return {
+        equip: String(ep || '').slice(0, 120),
+        nomen: '', sn: String(sn || '').slice(0, 60),
+        fw: String(fw || '').slice(0, 40),
+        ip: '', mask: '', gw: '', dns: '',
+        haEn: ha ? 'Oui' : '', haGroup: String(ha || '').slice(0, 40),
+        haRole: String(role || '').slice(0, 30),
+        haMaster: /master/i.test(String(role || '')) ? 'Oui' : '',
+        vip: String(vip || '').slice(0, 45),
+        mgmt: String(mgmt || '').slice(0, 45),
+        mgmtMask: String(mask || '').slice(0, 45),
+        note: ''
+      };
+    };
+    const seedIc = [mk('A'), mk('B')].filter(Boolean);
+    L.ic61 = (Array.isArray(L.ic61) ? L.ic61 : [])
+      .filter(r => r && typeof r === 'object')
+      .map(r => Object.assign({}, r));
+    if (!L.ic61.length && seedIc.length) L.ic61 = seedIc;
+  } else {
+    L.ic61 = L.ic61.filter(r => r && typeof r === 'object').map(r => {
+      const o = {};
+      for (const [k, max] of [['equip', 120], ['nomen', 100], ['sn', 60], ['fw', 40],
+        ['ip', 45], ['mask', 45], ['gw', 45], ['dns', 60],
+        ['haEn', 10], ['haGroup', 40], ['haRole', 30], ['haMaster', 10],
+        ['vip', 45], ['mgmt', 45], ['mgmtMask', 45], ['note', 200]]) {
+        o[k] = String(r[k] ?? '').slice(0, max);
+      }
+      return o;
+    });
+  }
+  // 6.2 câblage interconnexion
+  L.icCab = Array.isArray(L.icCab) ? L.icCab.filter(r => r && typeof r === 'object').map(r => ({
+    cat: String(r.cat ?? 'Interconnexion S2S').slice(0, 30) || 'Interconnexion S2S',
+    desc: String(r.desc ?? '').slice(0, 120),
+    port: String(r.port ?? '').slice(0, 40),
     conn: String(r.conn ?? '').slice(0, 160)
   })) : [];
   if (!L.diagrams || typeof L.diagrams !== 'object' || Array.isArray(L.diagrams)) L.diagrams = {};
@@ -4479,6 +4533,32 @@ const LLD_FAI_CAB_COLS = [
   ['desc', 'Description', 160],
   ['conn', 'Connecté a', 200]
 ];
+/* Colonnes 6.1 — miroir de la feuille Excel « 6 » (extrémités / HA). */
+const LLD_IC61_COLS = [
+  ['equip', 'Equipment', 130],
+  ['nomen', 'Nomenclature', 120],
+  ['sn', 'SN', 90],
+  ['fw', 'Firmware', 80],
+  ['ip', 'IP', 100],
+  ['mask', 'Mask', 100],
+  ['gw', 'GW', 100],
+  ['dns', 'DNS', 100],
+  ['haEn', 'Enable', 60],
+  ['haGroup', 'Group Number', 90],
+  ['haRole', 'Preferred role', 90],
+  ['haMaster', 'Resume Master', 90],
+  ['vip', 'Virtual IP', 100],
+  ['mgmt', 'LAN admin IP', 100],
+  ['mgmtMask', 'Mask', 100],
+  ['note', 'Commentaire', 140]
+];
+/* Colonnes 6.2 — câblage interconnexion (feuille Excel « 6 »). */
+const LLD_IC_CAB_COLS = [
+  ['cat', 'Categorie', 110],
+  ['desc', 'Description', 140],
+  ['port', 'Port', 90],
+  ['conn', 'Connecté a', 180]
+];
 const LLD_INFOS = {
   meta: {
     label: 'Client, auteur & version', kind: 'fields', path: '',
@@ -4595,6 +4675,24 @@ const LLD_INFOS = {
     label: "Admin Security — comptes d'administration (ch. 6)", kind: 'table', cols: LLD_ADMIN_COLS,
     addLabel: '＋ Ajouter un compte d’administration', filter: r => r.user.trim()
   },
+  ic61: {
+    label: '6.1 — Informations & Configuration (extrémités / HA)',
+    kind: 'table', cols: LLD_IC61_COLS, def: {},
+    addLabel: '＋ Ajouter une extrémité',
+    hint: 'Même tableau que la section 6.1 de la feuille Excel « 6 » : extrémités, SN, firmware, IP, HA. '
+      + '🔎 Générer depuis l’élévation pré-remplit depuis interco, routeurs et FAI ; le reste reste vide.',
+    filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
+    extra: 'gen-ic61'
+  },
+  icCab: {
+    label: '6.2 — Câblage interconnexion',
+    kind: 'table', cols: LLD_IC_CAB_COLS, def: { cat: 'Interconnexion S2S' },
+    addLabel: '＋ Ajouter une liaison',
+    hint: 'Section 6.2 de la feuille Excel « 6 » (Categorie / Description / Port / Connecté a). '
+      + '🔎 Générer depuis l’élévation : WAN/LAN des équipements d’interco et câbles du domaine.',
+    filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
+    extra: 'gen-ic-cab'
+  },
   fw: {
     label: 'Règles & NAT Firewall (ch. 7)', kind: 'table', cols: LLD_FW_COLS,
     addLabel: '＋ Ajouter une règle / NAT', filter: r => r.name.trim(), def: { type: 'Règle' }
@@ -4659,7 +4757,7 @@ const LLD_TOC_AUTO = {
   '5': 'Diagramme d’accès FAI + captures (si renseignées) avant 5.1',
   '5.2': 'Tableau 5.2 (Categorie / Description / Connecté a) — éditable ici, + câbles FAI si absents du tableau',
   '6': 'Diagramme d’interconnexion + captures (si renseignées) avant 6.1',
-  '6.2': 'Tableau de câblage des câbles classés « Interconnexion »',
+  '6.2': 'Tableau 6.2 (Categorie / Description / Port / Connecté a) — éditable ici, + câbles interco si absents',
   '7': 'Diagramme Firewall + captures, puis équipements firewall, interfaces VLAN, ports & câblage',
   '8': 'Sous-chapitres 8.1… = zones de Switching ; équipements, ports & câblage',
   '9': 'Équipements serveurs, ports & câblage du domaine',
@@ -6097,6 +6195,16 @@ function lldInfoRender(box, def, key) {
           () => { lldPushUndo(true); lldGenFaiCab(tbl, cols); },
           'Construit les lignes 5.2 (CPE → port WAN) depuis les FAI, routeurs et câbles posés'));
       }
+      if (def.extra === 'gen-ic61') {
+        acts.push(lldBtn("🔎 Générer depuis l'élévation",
+          () => { lldPushUndo(true); lldGenIc61(tbl, cols); },
+          'Pré-remplit le tableau 6.1 (extrémités, SN, firmware, IP, HA) depuis interco, routeurs et FAI'));
+      }
+      if (def.extra === 'gen-ic-cab') {
+        acts.push(lldBtn("🔎 Générer depuis l'élévation",
+          () => { lldPushUndo(true); lldGenIcCab(tbl, cols); },
+          'Construit les lignes 6.2 (WAN/LAN interco) depuis les équipements et câbles posés'));
+      }
       box.appendChild(tbl);
       box.appendChild(lldGridActions(...acts));
       break;
@@ -6777,6 +6885,172 @@ function lldGenFaiCab(tbl, cols) {
     ? `${added} ligne(s) de câblage 5.2 ajoutée(s) (reprises dans la feuille Excel « 5 »).`
     : 'Rien de nouveau — câblage 5.2 déjà à jour.',
     { title: '🔎 Générer 5.2' });
+}
+
+/* ---- 6.1 : pré-remplissage extrémités / HA depuis l'élévation ---- */
+function lldGenIc61(tbl, cols) {
+  const ws = active();
+  if (!ws || !lldDraft || !tbl) return;
+  const C = cols || LLD_IC61_COLS;
+  const ic = lldDraft.lld.interco || {};
+  const fais = lldDraft.lld.fais || [];
+  const ipOf = s => {
+    const m = /(\d{1,3}(?:\.\d{1,3}){3})/.exec(String(s || ''));
+    return m ? m[1] : '';
+  };
+  const faiOf = (ep, idx) => {
+    const ip = ipOf(ep);
+    return fais.find(f => ip && f.wanIp === ip) || fais[idx] || {};
+  };
+  const have = new Set(lldRowsFrom(tbl)
+    .map(r => String(r.equip || '').trim().toLowerCase()));
+  let added = 0, filled = 0;
+  const ensure = (row) => {
+    const key = String(row.equip || '').trim().toLowerCase();
+    if (!key) return;
+    const existing = lldRowsFrom(tbl).find(r =>
+      String(r.equip || '').trim().toLowerCase() === key);
+    if (existing) {
+      let t = false;
+      Object.keys(row).forEach(k => {
+        if (k === 'equip') return;
+        if (!String(existing[k] || '').trim() && row[k]) { existing[k] = row[k]; t = true; }
+      });
+      if (t) filled++;
+      return;
+    }
+    lldAddRow(tbl, C, row);
+    have.add(key);
+    added++;
+  };
+
+  // a) depuis les champs interco (A / B)
+  [[ic.epA, ic.snA, ic.fwA, ic.haA, ic.roleA, ic.vipA, ic.mgmtA, ic.mgmtMaskA, 0],
+   [ic.epB, ic.snB, ic.fwB, ic.haB, ic.roleB, ic.vipB, ic.mgmtB, ic.mgmtMaskB, 1]
+  ].forEach(([ep, sn, fw, ha, role, vip, mgmt, mgmtMask, idx]) => {
+    if (!ep && !sn && !mgmt) return;
+    const f = faiOf(ep, idx);
+    const short = String(ep || '').split(' — ')[0];
+    const nm = short.split(/[\s(]/)[0].toLowerCase();
+    const inst = sortedRackInstances(ws).find(x =>
+      (x.inst.name || '').toLowerCase() === nm);
+    ensure({
+      equip: String(ep || '').slice(0, 120),
+      nomen: inst ? [inst.inst.brand, inst.inst.model].filter(Boolean).join(' ') : '',
+      sn: sn || '', fw: fw || '',
+      ip: f.wanIp || ipOf(ep) || '',
+      mask: f.wanMask || '', gw: f.wanGw || '', dns: f.wanDns || '',
+      haEn: ha ? 'Oui' : '', haGroup: ha || '',
+      haRole: role || '',
+      haMaster: /master/i.test(String(role || '')) ? 'Oui' : '',
+      vip: vip || '', mgmt: mgmt || '', mgmtMask: mgmtMask || '',
+      note: f.operator ? `FAI : ${f.operator}${f.offer ? ' — ' + f.offer : ''}` : ''
+    });
+  });
+
+  // b) routeurs / firewall de l'élévation encore absents
+  sortedRackInstances(ws).forEach(({ rack, inst }) => {
+    if (!/router|firewall/i.test(String(inst.cat || ''))) return;
+    const name = String(inst.name || '').trim();
+    if (!name || have.has(name.toLowerCase())) return;
+    // ne pas dupliquer si déjà couvert par un libellé d'extrémité
+    const covered = [...have].some(h => h && (h.includes(name.toLowerCase()) || name.toLowerCase().includes(h.split(' ')[0])));
+    if (covered) return;
+    const site = (ws.sites || []).find(s => s.id === rack.siteId);
+    ensure({
+      equip: name + (site && site.name ? ` (${site.name})` : ''),
+      nomen: [inst.brand, inst.model].filter(Boolean).join(' '),
+      sn: '', fw: '',
+      ip: '', mask: '', gw: '', dns: '',
+      haEn: '', haGroup: '', haRole: '', haMaster: '',
+      vip: '',
+      mgmt: inst.ipMgmt || '', mgmtMask: '',
+      note: 'Source : élévation (compléter IP WAN / HA)'
+    });
+  });
+
+  lldAlert((added || filled)
+    ? `Tableau 6.1 : ${added} ligne(s) ajoutée(s), ${filled} champ(s) complété(s) sur les cellules vides.\n`
+      + 'Colonnes sans source dans l’élévation restent vides (saisie manuelle).'
+    : 'Rien de nouveau — tableau 6.1 déjà à jour.',
+    { title: '🔎 Générer 6.1' });
+}
+
+/* ---- 6.2 : câblage interconnexion depuis l'élévation ---- */
+function lldGenIcCab(tbl, cols) {
+  const ws = active();
+  if (!ws || !lldDraft || !tbl) return;
+  const C = cols || LLD_IC_CAB_COLS;
+  const ic = lldDraft.lld.interco || {};
+  const fais = lldDraft.lld.fais || [];
+  const have = new Set(lldRowsFrom(tbl).map(r =>
+    `${(r.desc || '').toLowerCase()}|${(r.port || '').toLowerCase()}|${(r.conn || '').toLowerCase()}`));
+  let added = 0;
+  const push = (desc, port, conn) => {
+    const d = String(desc || '').trim().slice(0, 120);
+    const pt = String(port || '').trim().slice(0, 40);
+    const cn = String(conn || '').trim().slice(0, 160);
+    if (!d && !pt && !cn) return;
+    const key = `${d.toLowerCase()}|${pt.toLowerCase()}|${cn.toLowerCase()}`;
+    if (have.has(key)) return;
+    lldAddRow(tbl, C, { cat: 'Interconnexion S2S', desc: d, port: pt, conn: cn });
+    have.add(key);
+    added++;
+  };
+
+  // a) extrémités interco + LAN
+  const labA = String(fais[0] && fais[0].wanLabel || '');
+  const labB = String(fais[1] && fais[1].wanLabel || '');
+  const eqA = String(ic.epA || 'Extrémité A').split(' — ')[0];
+  const eqB = String(ic.epB || 'Extrémité B').split(' — ')[0];
+  if (labA) push(eqA, 'WAN', labA);
+  if (labB) push(eqB, 'WAN', labB);
+  fais.slice(2).forEach(f => {
+    if (f.wanLabel) push(String(f.operator || 'Secours'), 'WAN', f.wanLabel);
+  });
+  if (ic.lanA) push(eqA, 'LAN 1', ic.lanA);
+  if (ic.lanB) push(eqB, 'LAN 1', ic.lanB);
+
+  // b) câbles domaine interco
+  try {
+    if (typeof cablingRowsByDomain === 'function') {
+      (cablingRowsByDomain(ws, 'interco') || []).slice(1).forEach(r => {
+        const cells = Array.isArray(r) ? r.map(x => String(x ?? '')) : [];
+        if (!cells.length) return;
+        if (cells.length >= 4) push(cells[1] || cells[0], cells[2], cells[cells.length - 1]);
+        else if (cells.length >= 2) push(cells[0], '', cells[cells.length - 1]);
+      });
+    }
+  } catch (_) { /* hors harnais */ }
+
+  // c) ports WAN/LAN des routeurs d'interco
+  const cables = ws.cables || [];
+  sortedRackInstances(ws).forEach(({ inst }) => {
+    if (!/router|firewall/i.test(String(inst.cat || ''))) return;
+    (inst.ports || []).forEach(pt => {
+      if (!/wan|lan/i.test(String(pt.name || '') + ' ' + String(pt.label || ''))) return;
+      const cab = cables.find(c =>
+        (c.a && c.a.instId === inst.id && c.a.portId === pt.id) ||
+        (c.b && c.b.instId === inst.id && c.b.portId === pt.id));
+      if (!cab) return;
+      const otherEnd = (cab.a && cab.a.instId === inst.id) ? cab.b : cab.a;
+      let oDev = '';
+      if (otherEnd) {
+        const r = (ws.racks || []).find(x => x.id === otherEnd.rackId);
+        const oi = r && (r.instances || []).find(x => x.id === otherEnd.instId);
+        const op = oi && (oi.ports || []).find(x => x.id === otherEnd.portId);
+        oDev = [oi && oi.name, op && (op.label || op.name)].filter(Boolean).join(' (') + (otherEnd ? ')' : '');
+        if (oDev.endsWith('()')) oDev = oDev.slice(0, -2);
+      }
+      const port = /wan/i.test(String(pt.name || '') + String(pt.label || '')) ? (pt.name || '') : 'LAN';
+      push(inst.name || 'Équipement', port, oDev || (cab.name || ''));
+    });
+  });
+
+  lldAlert(added
+    ? `${added} ligne(s) de câblage 6.2 ajoutée(s) (reprises dans la feuille Excel « 6 »).`
+    : 'Rien de nouveau — câblage 6.2 déjà à jour.',
+    { title: '🔎 Générer 6.2' });
 }
 
 function openLldModal(selectKey = null) {
@@ -9378,35 +9652,76 @@ const LLD_TPL = (() => {
     };
     // 6.1 — extrémités (r30/31) : identité, SN, firmware, adressage WAN du FAI,
     // HA (J→P), VIP partagée (N30/31), commentaire
+    // Source prioritaire : tableau 6.1 du sommaire (L.ic61), sinon champs interco
+    const ic61 = (Array.isArray(L.ic61) && L.ic61.length)
+      ? L.ic61.filter(r => r && Object.values(r).some(v => String(v ?? '').trim()))
+      : [];
+    const epFrom = (row, sideEp, idx) => {
+      if (row) {
+        return [
+          row.equip || sideEp,
+          row.sn || '', row.fw || '',
+          row.haEn === 'Oui' || row.haGroup ? (row.haGroup || 'Oui') : '',
+          row.haRole || '',
+          row.mgmt || '', row.mgmtMask || '',
+          // FAI comment + IP depuis row.ip si présent
+          { wanIp: row.ip || '', wanMask: row.mask || '', wanGw: row.gw || '', wanDns: row.dns || '',
+            operator: /FAI\s*:/.test(row.note || '') ? String(row.note).replace(/^FAI\s*:\s*/, '').split(' — ')[0] : '',
+            offer: '' },
+          'C62'
+        ];
+      }
+      const side = idx === 0 ? 'A' : 'B';
+      const ep = sideEp;
+      const sn = side === 'A' ? ic.snA : ic.snB;
+      const fw = side === 'A' ? ic.fwA : ic.fwB;
+      const ha = side === 'A' ? ic.haA : ic.haB;
+      const role = side === 'A' ? ic.roleA : ic.roleB;
+      const mgmt = side === 'A' ? ic.mgmtA : ic.mgmtB;
+      const mgmtMask = side === 'A' ? ic.mgmtMaskA : ic.mgmtMaskB;
+      return [ep, sn, fw, ha, role, mgmt, mgmtMask, faiOf(ep, idx), idx === 0 ? 'C62' : 'C67'];
+    };
     const endpoints = [
-      ['30', ic.epA, ic.snA, ic.fwA, ic.haA, ic.roleA, ic.mgmtA, ic.mgmtMaskA, faiOf(ic.epA, 0), 'C62'],
-      ['31', ic.epB, ic.snB, ic.fwB, ic.haB, ic.roleB, ic.mgmtB, ic.mgmtMaskB, faiOf(ic.epB, 1), 'C67']
-    ];
+      (() => { const a = epFrom(ic61[0], ic.epA, 0); a[8] = 'C62'; return ['30', ...a]; })(),
+      (() => { const b = epFrom(ic61[1], ic.epB, 1); b[8] = 'C67'; return ['31', ...b]; })()
+    ].map(arr => {
+      // arr = [r, ep, sn, fw, ha, role, mgmt, mgmtMask, f, cabRef]
+      return [arr[0], arr[1], arr[2], arr[3], arr[4], arr[5], arr[6], arr[7], arr[8], arr[9]];
+    });
     endpoints.forEach(([r, ep, sn, fw, ha, role, mgmt, mgmtMask, f, cabRef]) => {
       if (ep) {
         set(rows, `B${r}`, ep);
         if (cabRef) set(rows, cabRef, short(ep));
       }
-      // Nomenclature : modèle du device d'inventaire correspondant à l'extrémité
+      // Nomenclature : saisie 6.1 si presente, sinon device d'inventaire
       const nm = short(ep).split(/[\s(]/)[0].toLowerCase();
       const inst = sortedRackInstances(ws).find(x => (x.inst.name || '').toLowerCase() === nm);
-      set(rows, `C${r}`, inst ? [inst.inst.brand, inst.inst.model].filter(Boolean).join(' ') : '');
+      const rowIc = (r === '30' || r === '31') ? ic61[r === '30' ? 0 : 1] : null;
+      const nomen = (rowIc && rowIc.nomen)
+        || (inst ? [inst.inst.brand, inst.inst.model].filter(Boolean).join(' ') : '');
+      set(rows, `C${r}`, nomen);
       set(rows, `D${r}`, sn || '');
       set(rows, `E${r}`, fw || '');
-      set(rows, `F${r}`, f.wanIp || ipOf(ep) || '');
-      set(rows, `G${r}`, f.wanMask || '');
-      set(rows, `H${r}`, f.wanGw || '');
-      set(rows, `I${r}`, f.wanDns || '');
-      set(rows, `J${r}`, ha ? 'Oui' : '');
-      set(rows, `K${r}`, ha || '');
-      set(rows, `L${r}`, role || '');
-      set(rows, `M${r}`, /master/i.test(role || '') ? 'Oui' : '');
-      set(rows, `O${r}`, mgmt || '');
-      set(rows, `P${r}`, mgmtMask || '');
-      if (f.operator) set(rows, `Q${r}`, `FAI : ${f.operator}${f.offer ? ' — ' + f.offer : ''}`);
+      const ipR = (r === '30' || r === '31') ? ic61[r === '30' ? 0 : 1] : null;
+      set(rows, `F${r}`, (ipR && ipR.ip) || f.wanIp || ipOf(ep) || '');
+      set(rows, `G${r}`, (ipR && ipR.mask) || f.wanMask || '');
+      set(rows, `H${r}`, (ipR && ipR.gw) || f.wanGw || '');
+      set(rows, `I${r}`, (ipR && ipR.dns) || f.wanDns || '');
+      const haR = (r === '30' || r === '31') ? ic61[r === '30' ? 0 : 1] : null;
+      set(rows, `J${r}`, (haR && haR.haEn) || (ha ? 'Oui' : ''));
+      set(rows, `K${r}`, (haR && haR.haGroup) || ha || '');
+      set(rows, `L${r}`, (haR && haR.haRole) || role || '');
+      set(rows, `M${r}`, (haR && haR.haMaster) || (/master/i.test(role || '') ? 'Oui' : ''));
+      set(rows, `O${r}`, (haR && haR.mgmt) || mgmt || '');
+      set(rows, `P${r}`, (haR && haR.mgmtMask) || mgmtMask || '');
+      const noteIc = haR && haR.note;
+      if (noteIc) set(rows, `Q${r}`, noteIc);
+      else if (f.operator) set(rows, `Q${r}`, `FAI : ${f.operator}${f.offer ? ' — ' + f.offer : ''}`);
     });
-    if (ic.vipA) set(rows, 'N30', ic.vipA);
-    if (ic.vipB) set(rows, 'N31', ic.vipB);
+    const vipA = (ic61[0] && ic61[0].vip) || ic.vipA || '';
+    const vipB = (ic61[1] && ic61[1].vip) || ic.vipB || '';
+    if (vipA) set(rows, 'N30', vipA);
+    if (vipB) set(rows, 'N31', vipB);
     // System — Admin Security (r37-38) : comptes d'administration saisis dans la fiche LLD
     (L.adminSec || []).slice(0, 2).forEach((a, i) => {
       const r = 37 + i;
@@ -9446,21 +9761,40 @@ const LLD_TPL = (() => {
     const nv = (L.vlans || []).length;
     set(rows, 'D52', nv ? `x${nv} VLANs routés` : '');
     if (ic.localSubnets) set(rows, 'B53', `LAN — ${ic.localSubnets}`);
-    // 6.2 câblage : liaisons WAN (E62-64 / E67-69) + LAN 1 (E66 / E71).
-    // Chaque extrémité reçoit le libellé de SON FAI (apparié par IP WAN),
-    // puis le libellé du secours (5G) qui lui est rattaché.
-    const labA = (faiOf(ic.epA, 0).wanLabel || '');
-    const labB = (faiOf(ic.epB, 1).wanLabel || '');
-    const extraFor = (ownA, ownB, re) => fais.map(f => f.wanLabel || '')
-      .find(l => l && l !== ownA && l !== ownB && re.test(l)) || '';
-    set(rows, 'E62', labA);
-    set(rows, 'E63', extraFor(labA, labB, /rtr-?01|siège|siege/i));
-    set(rows, 'E64', '');
-    set(rows, 'E67', labB);
-    set(rows, 'E68', extraFor(labA, labB, /rtr-?02|agence/i));
-    set(rows, 'E69', '');
-    set(rows, 'E66', ic.lanA || '');
-    set(rows, 'E71', ic.lanB || '');
+    // 6.2 câblage — source prioritaire : tableau L.icCab (sommaire) ;
+    // sinon dérivation FAI/interco sur les lignes du template (62-71).
+    const icCab = (Array.isArray(L.icCab) && L.icCab.length)
+      ? L.icCab.filter(r => r && ((r.desc || '').trim() || (r.port || '').trim() || (r.conn || '').trim()))
+      : [];
+    if (icCab.length) {
+      // template : B=Categorie (col1), C=Description, D=Port, E=Connecté a
+      for (let r = 62; r <= 71; r++) {
+        set(rows, `B${r}`, '');
+        set(rows, `C${r}`, '');
+        set(rows, `D${r}`, '');
+        set(rows, `E${r}`, '');
+      }
+      icCab.slice(0, 10).forEach((c, i) => {
+        const r = 62 + i;
+        set(rows, `B${r}`, i === 0 ? String(c.cat || 'Interconnexion S2S') : '');
+        set(rows, `C${r}`, String(c.desc || ''));
+        set(rows, `D${r}`, String(c.port || ''));
+        set(rows, `E${r}`, String(c.conn || ''));
+      });
+    } else {
+      const labA = (faiOf(ic.epA, 0).wanLabel || '');
+      const labB = (faiOf(ic.epB, 1).wanLabel || '');
+      const extraFor = (ownA, ownB, re) => fais.map(f => f.wanLabel || '')
+        .find(l => l && l !== ownA && l !== ownB && re.test(l)) || '';
+      set(rows, 'E62', labA);
+      set(rows, 'E63', extraFor(labA, labB, /rtr-?01|siège|siege/i));
+      set(rows, 'E64', '');
+      set(rows, 'E67', labB);
+      set(rows, 'E68', extraFor(labA, labB, /rtr-?02|agence/i));
+      set(rows, 'E69', '');
+      set(rows, 'E66', ic.lanA || '');
+      set(rows, 'E71', ic.lanB || '');
+    }
     // VIP (N30/31) et masque admin (P30/31) : le template fusionne N30:N31 et
     // P30:P31 alors que chaque extrémité a ses propres valeurs -> on défusionne.
     const merges6 = (sheet.merges || []).filter(m => !/^(N30:N31|P30:P31)$/.test(m));
@@ -9537,9 +9871,14 @@ const LLD_TPL = (() => {
       else out.push(NOTE('Section à compléter.'));
       return out;
     }
-    if (key === 'faiCab' || key === 'fais') {
-      const cols = key === 'faiCab' ? LLD_FAI_CAB_COLS : LLD_FAI51_COLS;
-      const titre = key === 'faiCab' ? '5.2. Câblage FAI' : '5.1. Informations & Configuration';
+    if (key === 'faiCab' || key === 'fais' || key === 'ic61' || key === 'icCab') {
+      const META = {
+        faiCab: [LLD_FAI_CAB_COLS, '5.2. Câblage FAI'],
+        fais: [LLD_FAI51_COLS, '5.1. Informations & Configuration'],
+        ic61: [LLD_IC61_COLS, '6.1. Informations & Configuration'],
+        icCab: [LLD_IC_CAB_COLS, '6.2. Câblage interconnexion']
+      };
+      const [cols, titre] = META[key];
       const tbl = (L[key] || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim()));
       out.push([]);
       if (tbl.length) {
@@ -10073,7 +10412,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     'cover': ['meta', 'governance'],
     '1': ['objectif'], '2.1': ['sites'], '2.2': ['existant'],
     '3': ['architecture'], '4': ['nomen', 'vlans'],
-    '5.1': ['fais'], '6.1': ['interco'],
+    '5.1': ['fais'], '6.1': ['interco', 'ic61'],
     '7': ['note:firewall'], '8': ['zones', 'note:switching'],
     '9': ['note:server'], '10': ['note:storage'], '11': ['note:ids'],
     '12': ['note:cctv'], '13': ['note:pointage'], '14': ['flows']
@@ -10518,6 +10857,16 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   chapter('6', 'Conception et Configuration Interconnexion site 2 site', { flow: true });
   drawNodeExtras('6');          // diagramme + captures AVANT 6.1
   sub('6.1', 'Informations & Configuration');
+  if (hasB('6.1', 'ic61')) {
+    const rowsIc = (L.ic61 || []).filter(r =>
+      r && Object.values(r).some(v => String(v ?? '').trim()));
+    if (rowsIc.length) {
+      drawTable([
+        LLD_IC61_COLS.map(c => String(c[1])),
+        ...rowsIc.map(r => LLD_IC61_COLS.map(c => String(r[c[0]] ?? '')))
+      ], pdfColW(LLD_IC61_COLS), 6.5);
+    } else placeholder();
+  }
   if (hasB('6.1', 'interco')) {
     const I = L.interco;
     const icr = [['Technologie', I.tech], ['Endpoint public site A', I.epA], ['Endpoint public site B', I.epB],
@@ -10525,15 +10874,29 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
                  ['Routage', I.routing], ['Chiffrement', I.encryption]]
       .filter(([, v]) => v && v.trim());
     if (icr.length) {
+      miniTitle('Paramètres d’interconnexion');
       drawTable([['Élément', 'Valeur'], ...icr], [1.9, 3.1], 8.5);
       if (I.notes.trim()) { miniTitle('Notes de configuration'); paragraph(I.notes); }
-    } else placeholder();
+    }
   }
   endNode('6.1');   // extras : comptes Admin Security (et toute info ajoutée)
   sub('6.2', 'Câblage');
-  const cabIc = cablingRowsByDomain(ws, 'interco');
-  if (cabIc.length > 1) drawTable(cabIc, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
-  else note('Aucun câble classé « Interconnexion » (mode Câblage : domaine du câble).');
+  const icCabRows = (Array.isArray(L.icCab) && L.icCab.length)
+    ? L.icCab.filter(r => r && ((r.desc || '').trim() || (r.port || '').trim() || (r.conn || '').trim()))
+    : [];
+  if (icCabRows.length) {
+    drawTable([
+      ['Categorie', 'Description', 'Port', 'Connecté a'],
+      ...icCabRows.map(r => [
+        String(r.cat || 'Interconnexion S2S'), String(r.desc || ''),
+        String(r.port || ''), String(r.conn || '')
+      ])
+    ], [1.2, 1.6, 0.9, 2.0], 8);
+  } else {
+    const cabIc = cablingRowsByDomain(ws, 'interco');
+    if (cabIc.length > 1) drawTable(cabIc, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
+    else note('Aucun câble classé « Interconnexion » (mode Câblage : domaine du câble).');
+  }
   endNode('6.2');
   drawCustomSubs('6');
 
