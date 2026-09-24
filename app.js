@@ -224,6 +224,10 @@ function normLldInfo(w) {
     if (typeof L[k] !== 'string') L[k] = '';
     L[k] = L[k].slice(0, 80);
   }
+  // Page de garde : informations directes (pas de libellé/placeholder vide) —
+  // l'auteur et la version sont pré-remplis tant qu'ils n'ont pas été saisis.
+  if (!L.author.trim()) L.author = 'Amine MJID';
+  if (!L.version.trim()) L.version = '1.0';
   // Textes documentaires (ch. 1, 2.2 et 3 du dossier LLD)
   for (const k of ['objectif', 'existant', 'architecture']) {
     if (typeof L[k] !== 'string') L[k] = '';
@@ -7247,11 +7251,14 @@ const LLD_TPL = (() => {
       ? `Mise en place d'une infrastructure IT pour ${L.client}`
       : (sites.map(s => s.name).join(' / ') || ws.name);
     set(rows, 'E1', project);
-    set(rows, 'E3', L.author || '', 104);
+    // valeurs directes : jamais de cellule à côté de « Auteur »/« Version » vide
+    set(rows, 'E3', (L.author || '').trim() || 'Amine MJID', 104);
     // ligne « Version » (absente du template, ajoutée avec ses styles)
     rows[3] = new Array(17).fill('');
     rows[3][0] = { v: 'Version', s: 14 };
-    for (let c = 4; c < 17; c++) rows[3][c] = { v: c === 4 ? (L.version || '') : '', s: 104 };
+    for (let c = 4; c < 17; c++) {
+      rows[3][c] = { v: c === 4 ? ((L.version || '').trim() || '1.0') : '', s: 104 };
+    }
     heights[4] = 28.5;
     return out(sheet, rows, heights);
   }
