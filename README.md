@@ -269,10 +269,17 @@ via localStorage, en secours).
       chapitres concernés et toute modification est reprise partout ;
     - **Colonnes personnalisables** : sur chaque tableau éditable, **✕** dans
       l'en-tête supprime la colonne, un **double-clic** sur l'en-tête la
-      renomme et **＋ Colonne** en ajoute une — le schéma est mémorisé dans le
-      workspace et repris par les tableaux des exports (PDF, CSV, feuille
-      nomenclature et chapitres ajoutés de l'Excel) ; la fenêtre 📘 s'adapte
-      à la taille de la fenêtre navigateur ;
+      renomme, **＋ Colonne** en ajoute une et un **glisser-déposer** de
+      l'en-tête change sa position — le schéma (libellés, suppression, ordre)
+      est mémorisé dans le workspace et repris par les tableaux des exports
+      (PDF, CSV, feuille nomenclature, feuille « Governance » et chapitres
+      ajoutés de l'Excel) ; la fenêtre 📘 s'adapte à la taille de la fenêtre
+      navigateur ;
+    - **Annulation Ctrl+Z** : dans la modale 📘, **Ctrl+Z** annule la dernière
+      modification (renommage/ajout de chapitre, ajout/suppression/réordon-
+      nancement de colonne, lignes de tableau, blocs d'infos, saisies de
+      champs) et **Ctrl+Shift+Z** ou **Ctrl+Y** rétablit — pile limitée à 60
+      états, réinitialisée à l'ouverture de la fenêtre ;
     - **Synchro exports** : les saisies sont enregistrées dans le workspace
       (bouton **Enregistrer**) et lues telles quelles par le **PDF** et
       l'**Excel** à chaque export ; retirer une information d'un chapitre la

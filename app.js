@@ -146,6 +146,81 @@ function lldRerenderDetail() {
   if (loc) lldRenderDetail(loc.node);
 }
 
+// ---- Annulation / rétablissement (Ctrl+Z, Ctrl+Shift+Z) dans la modale 📘 ----
+// Pile de snapshots JSON du brouillon {lld, sites, flows}. Un instantané est
+// poussé AVANT chaque mutation structurelle (colonnes, lignes, sommaire,
+// blocs d'infos) et à chaque focus sur un champ (saisies). Ctrl+Z restaure le
+// dernier état, Ctrl+Shift+Z / Ctrl+Y le rétablissent.
+let lldUndoStack = [];
+let lldRedoStack = [];
+let lldDragCol = null;        // colonne en cours de glisser-déposer {tableId, from}
+let lldUndoApplying = false;  // true pendant une restauration (pas de snapshot)
+
+function lldPushUndo(clearRedo = true) {
+  if (!lldDraft || lldUndoApplying) return;
+  lldFlushDetail();                      // saisies DOM pas encore écrites
+  const snap = JSON.stringify(lldDraft);
+  if (lldUndoStack.length && lldUndoStack[lldUndoStack.length - 1] === snap) return;
+  lldUndoStack.push(snap);
+  if (lldUndoStack.length > 60) lldUndoStack.shift();
+  if (clearRedo) lldRedoStack = [];
+}
+
+function lldApplyUndoSnap(snap) {
+  // Le panneau est vidé/caché AVANT la restauration : le flush de
+  // lldRenderDetail ne doit pas réécrire les champs DOM (état d'avant) dans
+  // le brouillon qu'on vient de restaurer.
+  const body = $('#lld-detail-body');
+  if (body) { body.innerHTML = ''; body.classList.add('hidden'); }
+  const s = JSON.parse(snap);
+  lldUndoApplying = true;
+  try {
+    lldDraft = { lld: s.lld, sites: s.sites, flows: s.flows };
+    lldRenderToc();
+    const loc = lldSelId && lldLocate(lldSelId);
+    if (loc) {
+      lldRenderDetail(loc.node);
+    } else {
+      lldSelId = null;
+      const empty = $('#lld-detail-empty');
+      if (empty) empty.classList.remove('hidden');
+    }
+  } finally {
+    lldUndoApplying = false;
+  }
+}
+
+function lldUndo() {
+  if (!lldDraft || !lldUndoStack.length) return;
+  lldFlushDetail();
+  const cur = JSON.stringify(lldDraft);
+  // Saute les doublons au sommet (focus sans édition).
+  while (lldUndoStack.length > 1 && lldUndoStack[lldUndoStack.length - 1] === cur) {
+    lldUndoStack.pop();
+  }
+  const snap = lldUndoStack[lldUndoStack.length - 1];
+  if (snap === cur) return;              // rien de plus ancien → no-op
+  lldUndoStack.pop();
+  lldRedoStack.push(cur);
+  lldApplyUndoSnap(snap);
+}
+
+function lldRedo() {
+  if (!lldDraft || !lldRedoStack.length) return;
+  lldFlushDetail();
+  const cur = JSON.stringify(lldDraft);
+  while (lldRedoStack.length > 1 && lldRedoStack[lldRedoStack.length - 1] === cur) {
+    lldRedoStack.pop();
+  }
+  const snap = lldRedoStack[lldRedoStack.length - 1];
+  if (snap === cur) return;
+  lldRedoStack.pop();
+  if (!lldUndoStack.length || lldUndoStack[lldUndoStack.length - 1] !== cur) {
+    lldUndoStack.push(cur);
+  }
+  lldApplyUndoSnap(snap);
+}
+
 // Normalise un sommaire chargé : préserve les renommages, les contenus
 // attachés et les chapitres ajoutés, re-génère les nœuds d'origine manquants
 // (rétro-compatibilité / état corrompu) pour que les exports restent cohérents.
@@ -3307,6 +3382,16 @@ document.addEventListener('keydown', e => {
     $('#device-modal').classList.add('hidden');
     $('#lld-modal').classList.add('hidden');
   }
+  // Ctrl+Z / Ctrl+Y : annuler / rétablir les éditions de la modale 📘
+  // (les inputs de renommage et les dialogs stopPropagation eux-mêmes :
+  //  l'annulation native du champ reste gérée par le navigateur là-bas)
+  const lldModal = $('#lld-modal');
+  if (lldDraft && lldModal && !lldModal.classList.contains('hidden')
+      && (e.ctrlKey || e.metaKey) && !e.altKey) {
+    const k = String(e.key || '').toLowerCase();
+    if (k === 'z' && !e.shiftKey) { e.preventDefault(); lldUndo(); }
+    else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); lldRedo(); }
+  }
 });
 /* ============================================================
    ECRAN D'ACCUEIL — lanceur de workspaces
@@ -4395,7 +4480,9 @@ function lldMakeGrid(cols, tableId, defCols) {
     const label = col[1];
     const th = document.createElement('th');
     if (typeof col[2] === 'number') th.style.width = col[2] + 'px';
-    th.title = 'Double-clic : renommer la colonne' + (tableId ? ' · ✕ : la supprimer du tableau' : '');
+    th.title = (tableId && defCols && defCols.length)
+      ? 'Glisser pour réordonner · Double-clic : renommer · ✕ : supprimer'
+      : 'Double-clic : renommer la colonne';
     const span = document.createElement('span');
     span.className = 'lld-th-label';
     span.textContent = label;
@@ -4406,7 +4493,7 @@ function lldMakeGrid(cols, tableId, defCols) {
       const del = document.createElement('button');
       del.type = 'button';
       del.className = 'lld-th-del';
-      del.textContent = '\u2715';
+      del.textContent = '✕';
       del.title = 'Supprimer cette colonne';
       del.addEventListener('click', ev => {
         ev.stopPropagation();
@@ -4416,6 +4503,7 @@ function lldMakeGrid(cols, tableId, defCols) {
           lldAlert('Le tableau doit conserver au moins une colonne.', { title: '🗑 Colonnes' });
           return;
         }
+        lldPushUndo(true);   // Ctrl+Z : état avant suppression (flush inclus)
         cur.splice(idx, 1);
         lldSetGridCols(tableId, cur);
         lldFlushDetail();
@@ -4431,9 +4519,50 @@ function lldMakeGrid(cols, tableId, defCols) {
         if (nv == null) return;
         const lab = String(nv).trim().slice(0, 60);
         if (!lab) return;
+        lldPushUndo(true);
         cur[idx][1] = lab;
         lldSetGridCols(tableId, cur);
         lldRerenderDetail();
+      });
+      // Glisser-déposer : changer l'ordre des colonnes. L'ordre est persisté
+      // dans gridCols[tableId] → PDF/Excel suivent automatiquement le schéma.
+      th.draggable = true;
+      let dragGuard = false;
+      th.addEventListener('mousedown', e => { dragGuard = !!e.target.closest('button'); });
+      th.addEventListener('dragstart', ev => {
+        if (!lldDraft || dragGuard) { ev.preventDefault(); return; }
+        lldDragCol = { tableId, from: idx };
+        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.setData('text/plain', tableId + ':' + idx);
+        th.classList.add('lld-th-dragging');
+      });
+      th.addEventListener('dragover', ev => {
+        if (!lldDragCol || lldDragCol.tableId !== tableId) return;
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = 'move';
+        th.classList.add('lld-th-over');
+      });
+      th.addEventListener('dragleave', () => th.classList.remove('lld-th-over'));
+      th.addEventListener('drop', ev => {
+        ev.preventDefault();
+        th.classList.remove('lld-th-over');
+        if (!lldDragCol || !lldDraft || lldDragCol.tableId !== tableId) return;
+        const from = lldDragCol.from, to = idx;
+        lldDragCol = null;
+        if (from === to || !Number.isFinite(from)) return;
+        lldPushUndo(true);
+        const cur = lldGridCols(tableId, defCols);
+        if (!cur[from]) return;
+        const [moved] = cur.splice(from, 1);
+        cur.splice(to, 0, moved);
+        lldSetGridCols(tableId, cur);
+        lldFlushDetail();
+        lldRerenderDetail();
+      });
+      th.addEventListener('dragend', () => {
+        lldDragCol = null;
+        document.querySelectorAll('.lld-th-dragging, .lld-th-over')
+          .forEach(el => el.classList.remove('lld-th-dragging', 'lld-th-over'));
       });
     }
     htr.appendChild(th);
@@ -4465,6 +4594,7 @@ function lldAddColBtn(tableId, defCols) {
     if (nv == null) return;
     const lab = String(nv).trim().slice(0, 60);
     if (!lab) return;
+    lldPushUndo(true);
     const cur = lldGridCols(tableId, defCols);
     let base = lab.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
       .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'col';
@@ -4486,6 +4616,7 @@ function lldRowsFrom(container) {
 }
 
 function lldAddRow(wrap, cols, data = {}) {
+  lldPushUndo(true);   // mémorise l'état avant ajout/suppression de ligne
   const tr = document.createElement('tr');
   if ('id' in data) tr.dataset.id = data.id || '';
   for (const [k, label, , extra] of cols) {
@@ -4517,7 +4648,7 @@ function lldAddRow(wrap, cols, data = {}) {
   del.className = 'lld-row-del';
   del.textContent = '\u2715';
   del.title = 'Supprimer cette ligne';
-  del.addEventListener('click', () => tr.remove());
+  del.addEventListener('click', () => { lldPushUndo(true); tr.remove(); });
   tdx.appendChild(del);
   tr.appendChild(tdx);
   wrap.querySelector('tbody').appendChild(tr);
@@ -4552,6 +4683,7 @@ function lldRenumberFais(container) {
   container.querySelectorAll('.lld-fai-num').forEach((el, i) => { el.textContent = `FAI ${i + 1}`; });
 }
 function lldAddFaiBlock(container, fai = {}) {
+  lldPushUndo(true);
   const card = document.createElement('div');
   card.className = 'lld-site lld-fai';
   card.innerHTML = `
@@ -4674,6 +4806,7 @@ function lldAddFaiBlock(container, fai = {}) {
     </label>`;
   card.querySelectorAll('[data-k]').forEach(inp => { inp.value = fai[inp.dataset.k] || ''; });
   card.querySelector('.lld-row-del').addEventListener('click', () => {
+    lldPushUndo(true);
     card.remove();
     lldRenumberFais(container);
   });
@@ -4824,7 +4957,7 @@ function lldStartRename(item, node) {
     done = true;
     if (save) {
       const t = inp.value.trim().slice(0, 120);
-      if (t) node.title = t;
+      if (t && t !== node.title) { lldPushUndo(true); node.title = t; }
     }
     lldRenderToc();
     if (lldSelId === node.id) {
@@ -5003,12 +5136,12 @@ function lldInfoRender(box, def, key) {
       ];
       if (def.extra === 'gen-nomen') {
         acts.push(lldBtn('🔎 Générer depuis les devices',
-          () => lldGenNomen(tbl),
+          () => { lldPushUndo(true); lldGenNomen(tbl); },
           'Détecte les préfixes utilisés par les devices et câbles posés et les ajoute à la nomenclature'));
       }
       if (def.extra === 'detect-vlans') {
         acts.push(lldBtn('🔎 Détecter depuis les ports',
-          () => lldDetectVlans(tbl),
+          () => { lldPushUndo(true); lldDetectVlans(tbl); },
           'Ajouter automatiquement les VLANs utilisés sur les ports mais absents du registre'));
       }
       box.appendChild(tbl);
@@ -5171,6 +5304,7 @@ function lldRenderDetail(node) {
       detach.textContent = '✕';
       detach.title = 'Retirer cette information de ce chapitre (la donnée reste stockée et utilisée ailleurs)';
       detach.addEventListener('click', () => {
+        lldPushUndo(true);
         node.blocks = (node.blocks || []).filter(k => k !== key);
         lldRenderToc();
         lldRenderDetail(node);
@@ -5207,6 +5341,7 @@ function lldRenderDetail(node) {
     const addBtn = lldBtn('＋ Ajouter cette info', () => {
       const k = sel.value;
       if (!k) return;
+      lldPushUndo(true);
       node.blocks = node.blocks || [];
       node.blocks.push(k);
       lldRenderToc();
@@ -5310,6 +5445,7 @@ $('#lld-toc-add-ch').addEventListener('click', () => {
     id: uid(), num: String(max + 1), title: 'Nouveau chapitre',
     blocks: [], subs: [], custom: true
   };
+  lldPushUndo(true);
   lldToc().push(node);
   lldSelectNode(node.id);
   const item = $('#lld-toc-tree').querySelector(`[data-id="${node.id}"]`);
@@ -5343,6 +5479,7 @@ $('#lld-toc-add-sub').addEventListener('click', () => {
     id: uid(), num, title: 'Nouveau sous-chapitre',
     blocks: [], subs: [], custom: true
   };
+  lldPushUndo(true);
   parent.subs = parent.subs || [];
   parent.subs.push(node);
   lldSelectNode(node.id);
@@ -5367,6 +5504,9 @@ function openLldModal(selectKey = null) {
   body.classList.add('hidden');
   $('#lld-detail-empty').classList.remove('hidden');
   lldRenderToc();
+  lldUndoStack = [];
+  lldRedoStack = [];
+  lldPushUndo(true);   // état initial = première cible d'annulation
   $('#lld-modal').classList.remove('hidden');
   if (selectKey) {
     const node = lldAllNodes().find(n => (n.blocks || []).includes(selectKey));
@@ -5377,6 +5517,8 @@ function openLldModal(selectKey = null) {
 function lldCloseModal() {
   lldDraft = null;
   lldSelId = null;
+  lldUndoStack = [];
+  lldRedoStack = [];
   $('#lld-modal').classList.add('hidden');
 }
 
@@ -5384,6 +5526,12 @@ $('#ws-info').addEventListener('click', () => openLldModal());
 $('#lld-cancel').addEventListener('click', lldCloseModal);
 $('#lld-modal').addEventListener('click', e => {
   if (e.target === $('#lld-modal')) lldCloseModal();
+});
+
+// Ctrl+Z : mémorise l'état juste avant qu'on commence à saisir dans un champ.
+// (clearRedo=false : simple navigation au clavier ne vide pas la pile « refaire »)
+$('#lld-modal').addEventListener('focusin', () => {
+  if (lldDraft) lldPushUndo(false);
 });
 
 // Écriture directe des champs texte/textarea dans le brouillon
@@ -7270,74 +7418,114 @@ const LLD_TPL = (() => {
     const revs = L.revs || [], approvers = L.approvers || [], reviewers = L.reviewers || [];
     const rows = [], merges = [], heights = {};
     const R = (cells, ht) => { rows.push(cells); if (ht) heights[rows.length] = ht; };
-    const banner = (styles, title, n) => {
+    const banner = (title, first, mid, last, n) => {
+      const st = n <= 1 ? [first] : [first, ...Array(n - 2).fill(mid), last];
       const r0 = rows.length + 1;
-      R(styles.map((s, i) => ({ v: i === 0 ? title : '', s })), 14.45);
-      merges.push(`A${r0}:${'ABCDE'[n - 1]}${r0}`);
+      R(st.map((s, i) => ({ v: i === 0 ? title : '', s })), 14.45);
+      merges.push(`A${r0}:${xle(n - 1)}${r0}`);
     };
-    const headers5 = () => R([141, 2, 2, 142, 143].map((s, i) =>
-      ({ v: ['Version', 'Auteur', 'Commentaires et mises à jour', 'Date', 'Statut'][i], s })), 14.45);
-
+    // Lettre de colonne Excel (index 0-based) — au-delà de E quand la modale
+    // 📘 a ajouté des colonnes au tableau.
+    const xle = i => {
+      let s = '', n = i + 1;
+      while (n > 0) {
+        const m = (n - 1) % 26;
+        s = String.fromCharCode(65 + m) + s;
+        n = (n - m - 1) / 26;
+      }
+      return s;
+    };
+    // Styles d'en-tête : 1ʳᵉ / avant-dernière / dernière, milieu paramétrable
+    // (utilisé aussi pour la ligne de bordure bas).
+    const hdrStyles = (n, first, secondLast, last, mid = 2) =>
+      Array.from({ length: n }, (_, i) =>
+        i === 0 ? first : (i === n - 1 ? last : (i === n - 2 ? secondLast : mid)));
     R([{ v: 'Governance', s: 51 }], 25.9);
     R([]);
 
-    // 1) Statut de révision du document
-    banner([177, 178, 178, 178, 179], 'Statut de révision du document', 5);
-    headers5();
+    // 1) Statut de révision du document — colonnes pilotées par la modale 📘
+    //    (gridCols.revs : suppressions / renommages / ordre pris en compte),
+    //    + la colonne calculée « Statut » toujours en dernière position.
     const approvedVers = new Set(approvers.map(a => a.approvedVersion).filter(Boolean));
+    const rc = lldExportCols(L, 'revs', LLD_REV_COLS);
+    const nR = rc.length + 1;
+    banner('Statut de révision du document', 177, 178, 179, nR);
+    const rcHdr = hdrStyles(nR, 141, 142, 143);
+    R([...rc.map((c, i) => ({ v: String(c[1]), s: rcHdr[i] })),
+       { v: 'Statut', s: 143 }], 14.45);
+    const revStyle = { rev: [144, 146], date: [145, 147], author: [8, 102], note: [150, 150] };
     revs.forEach((rv, i) => {
       const last = i === revs.length - 1;
-      const note = String(rv.note || '');
-      R([
-        { v: rv.rev || '', s: last ? 146 : 144 },
-        { v: rv.author || '', s: last ? 102 : 8 },
-        { v: note, s: 150 },
-        { v: dateSerial(rv.date), s: last ? 147 : 145 },
-        { v: (rv.rev && approvedVers.has(rv.rev)) ? 'Approuvé'
-              : (approvers.length ? 'Pas encore approuvé' : ''), s: last ? 158 : 133 }
-      ], Math.max(1, note.split('\n').length) * 15);
+      const cells = rc.map(c => {
+        const k = c[0];
+        const s = (revStyle[k] || [8, 102])[last ? 1 : 0];
+        if (k === 'date') return { v: dateSerial(rv.date), s };
+        return { v: String(rv[k] ?? ''), s };
+      });
+      cells.push({
+        v: (rv.rev && approvedVers.has(rv.rev)) ? 'Approuvé'
+          : (approvers.length ? 'Pas encore approuvé' : ''),
+        s: last ? 158 : 133
+      });
+      const lines = cells.reduce(
+        (m, c) => Math.max(m, typeof c.v === 'string' ? c.v.split('\n').length : 1), 1);
+      R(cells, lines * 15);
     });
-    R([148, 135, 135, 149, 136].map(s => ({ v: '', s })), 15.75);
+    R(hdrStyles(nR, 148, 149, 136, 135).map(s => ({ v: '', s })), 15.75);
     R([]); R([]);
 
-    // 2) Approbateurs : un bloc de 3 lignes par version cible (hors 0.x)
-    banner([174, 175, 175, 175, 176], 'Approbateurs', 5);
-    R([141, 2, 2, 142, 143].map((s, i) =>
-      ({ v: ['Nom', 'Position', 'Organisation', 'Version approuvée', 'Signature'][i], s })), 14.45);
+    // 2) Approbateurs : un bloc de 3 lignes par version cible (hors 0.x).
+    //    Colonnes pilotées par la modale 📘 (gridCols.approvers) + « Signature ».
+    const sc = lldExportCols(L, 'approvers', LLD_SIGNATORY_COLS);
+    const nA = sc.length + 1;
+    banner('Approbateurs', 174, 175, 176, nA);
+    const scHdr = hdrStyles(nA, 141, 142, 143);
+    R([...sc.map((c, i) => ({ v: String(c[1]), s: scHdr[i] })),
+       { v: 'Signature', s: 143 }], 14.45);
     let vers = revs.map(x => x.rev).filter(v => v && !/^0\./.test(v));
     if (!vers.length && L.version) vers = [L.version];
     if (!vers.length) vers = [''];
+    const apStyle = {
+      name: [144, 148], position: [8, 135],
+      organization: [8, 135], approvedVersion: [180, 182]
+    };
+    const vi = sc.findIndex(c => c[0] === 'approvedVersion');
     vers.forEach(ver => {
       const sign = approvers.filter(a => a.approvedVersion === ver);
       const r0 = rows.length + 1;
-      merges.push(`D${r0}:D${r0 + 2}`);
+      if (vi >= 0) merges.push(`${xle(vi)}${r0}:${xle(vi)}${r0 + 2}`);
       for (let k = 0; k < 3; k++) {
         const a = sign[k] || {};
         const last = k === 2;
-        R([
-          { v: a.name || '', s: last ? 148 : 144 },
-          { v: a.position || '', s: last ? 135 : 8 },
-          { v: a.organization || '', s: last ? 135 : 8 },
-          { v: k === 0 ? ver : '', s: last ? 182 : 180 },
-          { v: '', s: last ? 136 : 133 }
-        ], 14.45);
+        const cells = sc.map(c => {
+          const key = c[0];
+          const s = (apStyle[key] || [8, 135])[last ? 1 : 0];
+          if (key === 'approvedVersion') return { v: k === 0 ? ver : '', s };
+          return { v: String(a[key] ?? ''), s };
+        });
+        cells.push({ v: '', s: last ? 136 : 133 });
+        R(cells, 14.45);
       }
     });
     R([{ v: '', s: 151 }]);
     R([]);
 
-    // 3) Réviseurs : une ligne par version
-    banner([174, 175, 175, 176], 'Réviseurs', 4);
-    R([3, 2, 2, 4].map((s, i) =>
-      ({ v: ['Nom', 'Position', 'Organisation', 'Version approuvée'][i], s })), 14.45);
+    // 3) Réviseurs : une ligne par version — colonnes pilotées par la modale 📘
+    const rcv = lldExportCols(L, 'reviewers', LLD_SIGNATORY_COLS);
+    const nV = rcv.length;
+    banner('Réviseurs', 174, 175, 176, nV);
+    R(rcv.map((c, i) => ({ v: String(c[1]), s: hdrStyles(nV, 3, 2, 4)[i] })), 14.45);
     const rvVers = revs.length ? revs.map(x => x.rev || '')
       : (reviewers.length ? reviewers.map(x => x.approvedVersion || '') : ['']);
+    const rvStyle = { name: 102, position: 8, organization: 8, approvedVersion: 9 };
     rvVers.forEach(ver => {
       const rv = reviewers.find(x => x.approvedVersion === ver) || {};
-      R([{ v: rv.name || '', s: 102 }, { v: rv.position || '', s: 8 },
-         { v: rv.organization || '', s: 8 }, { v: ver, s: 9 }], 14.45);
+      R(rcv.map(c => ({
+        v: c[0] === 'approvedVersion' ? ver : String(rv[c[0]] ?? ''),
+        s: rvStyle[c[0]] ?? 8
+      })), 14.45);
     });
-    R([{ v: '', s: 10 }, { v: '', s: 11 }, { v: '', s: 11 }, { v: '', s: 12 }], 14.45);
+    R(rcv.map((c, i) => ({ v: '', s: i === 0 ? 10 : (i === nV - 1 ? 12 : 11) })), 14.45);
     return out(sheet, rows, heights, merges);
   }
 

@@ -2278,6 +2278,12 @@ body.topo-linking .topo-node { cursor: crosshair; }
 }
 .lld-grid thead th:hover .lld-th-del { display: inline-block; }
 .lld-th-del:hover { background: rgba(220, 38, 38, .12); color: #dc2626; }
+/* Réordonner les colonnes par glisser-déposer (têtes des tableaux 📘) */
+.lld-grid thead th { cursor: grab; }
+.lld-grid thead th:active { cursor: grabbing; }
+.lld-th-del { cursor: pointer; }
+.lld-th-dragging { opacity: .45; }
+.lld-th-over { outline: 2px dashed #2563eb; outline-offset: -2px; }
 /* Barre d'actions sous les grilles : ajouter une ligne / une colonne */
 .lld-grid-actions {
   display: flex;
