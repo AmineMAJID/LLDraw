@@ -2720,20 +2720,34 @@ body.mode3d .switch-wrap {
 .lld-diag-bar { display: flex; flex-wrap: wrap; gap: 8px; }
 .lld-diag-host {
   border: 1px solid var(--border-2); border-radius: 10px;
-  background: #0f172a; min-height: 160px; overflow: auto;
-  max-height: min(48vh, 420px); padding: 8px;
+  background: #0b1220; min-height: 200px; overflow: auto;
+  max-height: min(52vh, 460px); padding: 10px;
 }
 .lld-diag-empty {
   color: #94a3b8; font-size: 12.5px; text-align: center;
   padding: 40px 16px; margin: 0;
 }
-.lld-diag-svg { display: block; min-width: 560px; }
-.lld-diag-node { fill: #1e293b; stroke: #334155; stroke-width: 1.5; }
+.lld-diag-svg {
+  display: block; min-width: 640px; width: 100%; height: auto;
+  border-radius: 8px;
+}
+.lld-diag-node { fill: #1e293b; stroke-width: 2; }
 .lld-diag-fw { stroke: #f87171; }
 .lld-diag-fai { stroke: #f59e0b; }
+.lld-diag-cloud { stroke: #38bdf8; }
 .lld-diag-router { stroke: #38bdf8; }
 .lld-diag-switch { stroke: #60a5fa; }
 .lld-diag-site { stroke: #a78bfa; }
-.lld-diag-t { fill: #f1f5f9; font-size: 12.5px; font-weight: 700; font-family: inherit; }
-.lld-diag-s { fill: #94a3b8; font-size: 10.5px; font-family: inherit; }
-.lld-diag-link-label { fill: #cbd5e1; font-size: 10px; font-weight: 600; font-family: inherit; }
+.lld-diag-lan { stroke: #34d399; }
+.lld-diag-t {
+  fill: #f8fafc; font-size: 12.5px; font-weight: 700;
+  font-family: inherit; pointer-events: none;
+}
+.lld-diag-s {
+  fill: #94a3b8; font-size: 10.5px; font-family: inherit;
+  pointer-events: none;
+}
+.lld-diag-link-label {
+  fill: #e2e8f0; font-size: 11px; font-weight: 700;
+  font-family: inherit; pointer-events: none;
+}

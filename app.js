@@ -5680,11 +5680,18 @@ function lldBuildDiagData(ws, mode) {
       ic.localSubnets || '', 'site', 170, 64);
     add('sb', 520, 120, String(sites[1] ? sites[1].name : 'Site B').slice(0, 40),
       ic.remoteSubnets || '', 'site', 170, 64);
-    add('tun', 270, 130, ic.tech || 'Tunnel IPsec / SD-WAN',
-      [ic.epA, ic.epB].filter(Boolean).join(' ↔ ') || ic.encryption || '—',
-      'fai', 170, 64);
-    links.push({ a: 'sa', b: 'tun', label: ic.epA || 'Endpoint A', color: '#a78bfa' });
-    links.push({ a: 'tun', b: 'sb', label: ic.epB || 'Endpoint B', color: '#a78bfa' });
+    const tunLabel = String(ic.tech || 'Tunnel SD-WAN / IPsec').slice(0, 26);
+    // sous-titre court : algorithme d'interco si présent, sinon technique
+    let tunSub = String(ic.encryption || ic.tech || 'interco site ↔ site').trim();
+    if (tunSub.length > 28) tunSub = tunSub.split(/[\s—-]+/)[0].slice(0, 28) || 'chiffré';
+    add('tun', 270, 130, tunLabel, tunSub, 'fai', 180, 64);
+    const shortEp = (ep) => {
+      const s = String(ep || '');
+      const ip = (s.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/) || [])[0];
+      return ip ? 'WAN ' + ip : (s ? s.slice(0, 18) : 'WAN');
+    };
+    links.push({ a: 'sa', b: 'tun', label: shortEp(ic.epA) || 'Endpoint A', color: '#a78bfa' });
+    links.push({ a: 'tun', b: 'sb', label: shortEp(ic.epB) || 'Endpoint B', color: '#a78bfa' });
     // Routeurs des 2 sites
     const rtrs = byCat('router');
     if (rtrs[0]) {
@@ -5737,64 +5744,137 @@ function lldBuildDiagData(ws, mode) {
 }
 
 function lldRenderDiagSvg(diag) {
-  const NS = 'http://www.w3.org/000/svg';
+  const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
   const nodes = (diag && diag.nodes) || [];
   const links = (diag && diag.links) || [];
-  let maxX = 700, maxY = 420;
-  nodes.forEach(n => { maxX = Math.max(maxX, n.x + (n.w || 150) + 20); maxY = Math.max(maxY, n.y + (n.h || 56) + 20); });
-  svg.setAttribute('viewBox', `0 0 ${maxX} ${maxY}`);
+  let maxX = 720, maxY = 420;
+  nodes.forEach(n => {
+    maxX = Math.max(maxX, (n.x || 0) + (n.w || 150) + 24);
+    maxY = Math.max(maxY, (n.y || 0) + (n.h || 56) + 24);
+  });
+  const vbW = Math.max(maxX, 720), vbH = Math.max(maxY, 360);
+  svg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
+  svg.setAttribute('xmlns', NS);
   svg.setAttribute('class', 'lld-diag-svg');
   svg.setAttribute('width', '100%');
+  svg.setAttribute('height', String(Math.round(vbH)));
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  // fond légèrement contrasté pour que le schéma se détache
+  const bg = document.createElementNS(NS, 'rect');
+  bg.setAttribute('x', 0); bg.setAttribute('y', 0);
+  bg.setAttribute('width', vbW); bg.setAttribute('height', vbH);
+  bg.setAttribute('fill', '#0b1220');
+  bg.setAttribute('rx', 8);
+  svg.appendChild(bg);
+  // marqueurs de flèche
+  const defs = document.createElementNS(NS, 'defs');
+  const marker = document.createElementNS(NS, 'marker');
+  marker.setAttribute('id', 'lld-diag-arrow');
+  marker.setAttribute('viewBox', '0 0 10 10');
+  marker.setAttribute('refX', '9'); marker.setAttribute('refY', '5');
+  marker.setAttribute('markerWidth', '6'); marker.setAttribute('markerHeight', '6');
+  marker.setAttribute('orient', 'auto-start-reverse');
+  const mpath = document.createElementNS(NS, 'path');
+  mpath.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+  mpath.setAttribute('fill', '#94a3b9');
+  marker.appendChild(mpath);
+  defs.appendChild(marker);
+  svg.appendChild(defs);
   const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
   // liens
   links.forEach(l => {
     const a = byId[l.a], b = byId[l.b];
     if (!a || !b) return;
-    const x1 = a.x + (a.w || 150) / 2, y1 = a.y + (a.h || 56) / 2;
-    const x2 = b.x + (b.w || 150) / 2, y2 = b.y + (b.h || 56) / 2;
+    const aw = a.w || 150, ah = a.h || 56, bw = b.w || 150, bh = b.h || 56;
+    const x1 = (a.x || 0) + aw / 2, y1 = (a.y || 0) + ah / 2;
+    const x2 = (b.x || 0) + bw / 2, y2 = (b.y || 0) + bh / 2;
+    const color = l.color || '#60a5fa';
     const line = document.createElementNS(NS, 'line');
     line.setAttribute('x1', x1); line.setAttribute('y1', y1);
     line.setAttribute('x2', x2); line.setAttribute('y2', y2);
-    line.setAttribute('stroke', l.color || '#60a5fa');
+    line.setAttribute('stroke', color);           // fallback sans CSS
     line.setAttribute('stroke-width', '2.5');
+    line.setAttribute('stroke-linecap', 'round');
     if (l.dashed) line.setAttribute('stroke-dasharray', '7 5');
+    line.setAttribute('marker-end', 'url(#lld-diag-arrow)');
     svg.appendChild(line);
     if (l.label) {
       const t = document.createElementNS(NS, 'text');
       t.setAttribute('x', (x1 + x2) / 2);
-      t.setAttribute('y', (y1 + y2) / 2 - 6);
+      t.setAttribute('y', (y1 + y2) / 2 - 7);
       t.setAttribute('text-anchor', 'middle');
       t.setAttribute('class', 'lld-diag-link-label');
-      t.textContent = String(l.label).slice(0, 32);
+      t.setAttribute('fill', '#e2e8f0');
+      t.setAttribute('font-size', '11');
+      t.setAttribute('font-weight', '700');
+      t.setAttribute('stroke', '#0b1220');
+      t.setAttribute('stroke-width', '3');
+      t.setAttribute('paint-order', 'stroke');
+      t.textContent = String(l.label).slice(0, 36);
       svg.appendChild(t);
     }
   });
-  // noeuds
+  // noeuds (cartes)
   nodes.forEach(n => {
     const g = document.createElementNS(NS, 'g');
     const w = n.w || 150, h = n.h || 56;
+    const x = n.x || 0, y = n.y || 0;
+    const kind = n.kind || 'dev';
+    const accent = lldDiagColors(kind);
+    // ombre
+    const sh = document.createElementNS(NS, 'rect');
+    sh.setAttribute('x', x + 2); sh.setAttribute('y', y + 3);
+    sh.setAttribute('width', w); sh.setAttribute('height', h);
+    sh.setAttribute('rx', 10);
+    sh.setAttribute('fill', 'rgba(0,0,0,.35)');
+    g.appendChild(sh);
     const rect = document.createElementNS(NS, 'rect');
-    rect.setAttribute('x', n.x); rect.setAttribute('y', n.y);
+    rect.setAttribute('x', x); rect.setAttribute('y', y);
     rect.setAttribute('width', w); rect.setAttribute('height', h);
     rect.setAttribute('rx', 10);
-    rect.setAttribute('class', 'lld-diag-node lld-diag-' + (n.kind || 'dev'));
+    rect.setAttribute('class', 'lld-diag-node lld-diag-' + kind);
+    rect.setAttribute('fill', '#1e293b');         // fallback sans CSS
+    rect.setAttribute('stroke', accent);
+    rect.setAttribute('stroke-width', '2');
     g.appendChild(rect);
     const bar = document.createElementNS(NS, 'rect');
-    bar.setAttribute('x', n.x); bar.setAttribute('y', n.y + 10);
-    bar.setAttribute('width', 5); bar.setAttribute('height', h - 20);
-    bar.setAttribute('fill', lldDiagColors(n.kind));
+    bar.setAttribute('x', x); bar.setAttribute('y', y + 8);
+    bar.setAttribute('width', 6); bar.setAttribute('height', Math.max(8, h - 16));
+    bar.setAttribute('rx', 3);
+    bar.setAttribute('fill', accent);
     g.appendChild(bar);
+    // pastille type
+    const chip = document.createElementNS(NS, 'rect');
+    chip.setAttribute('x', x + w - 52); chip.setAttribute('y', y + 6);
+    chip.setAttribute('width', 46); chip.setAttribute('height', 16);
+    chip.setAttribute('rx', 8);
+    chip.setAttribute('fill', accent);
+    chip.setAttribute('opacity', '0.22');
+    g.appendChild(chip);
+    const chipT = document.createElementNS(NS, 'text');
+    chipT.setAttribute('x', x + w - 29); chipT.setAttribute('y', y + 17);
+    chipT.setAttribute('text-anchor', 'middle');
+    chipT.setAttribute('font-size', '9');
+    chipT.setAttribute('font-weight', '700');
+    chipT.setAttribute('fill', accent);
+    chipT.textContent = ({ fai: 'FAI', cloud: 'WAN', router: 'RTR', fw: 'FW', switch: 'SW', site: 'SITE', lan: 'LAN', internet: 'NET' })[kind] || 'DEV';
+    g.appendChild(chipT);
     const t1 = document.createElementNS(NS, 'text');
-    t1.setAttribute('x', n.x + 14); t1.setAttribute('y', n.y + 22);
+    t1.setAttribute('x', x + 14); t1.setAttribute('y', y + 24);
     t1.setAttribute('class', 'lld-diag-t');
-    t1.textContent = String(n.label || '').slice(0, 22);
+    t1.setAttribute('fill', '#f8fafc');
+    t1.setAttribute('font-size', '12.5');
+    t1.setAttribute('font-weight', '700');
+    t1.textContent = String(n.label || '').slice(0, 24);
     g.appendChild(t1);
     if (n.sub) {
       const t2 = document.createElementNS(NS, 'text');
-      t2.setAttribute('x', n.x + 14); t2.setAttribute('y', n.y + 40);
+      t2.setAttribute('x', x + 14); t2.setAttribute('y', y + 42);
       t2.setAttribute('class', 'lld-diag-s');
-      t2.textContent = String(n.sub).slice(0, 28);
+      t2.setAttribute('fill', '#94a3b8');
+      t2.setAttribute('font-size', '10.5');
+      t2.textContent = String(n.sub).slice(0, 30);
       g.appendChild(t2);
     }
     svg.appendChild(g);
