@@ -267,6 +267,12 @@ via localStorage, en secours).
       chapitre une information déjà présente ailleurs — le stockage est
       unique, un badge **🔄 Synchronisé avec 7. …** liste les autres
       chapitres concernés et toute modification est reprise partout ;
+    - **Colonnes personnalisables** : sur chaque tableau éditable, **✕** dans
+      l'en-tête supprime la colonne, un **double-clic** sur l'en-tête la
+      renomme et **＋ Colonne** en ajoute une — le schéma est mémorisé dans le
+      workspace et repris par les tableaux des exports (PDF, CSV, feuille
+      nomenclature et chapitres ajoutés de l'Excel) ; la fenêtre 📘 s'adapte
+      à la taille de la fenêtre navigateur ;
     - **Synchro exports** : les saisies sont enregistrées dans le workspace
       (bouton **Enregistrer**) et lues telles quelles par le **PDF** et
       l'**Excel** à chaque export ; retirer une information d'un chapitre la

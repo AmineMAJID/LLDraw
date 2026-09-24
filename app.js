@@ -119,6 +119,33 @@ function defaultLldToc() {
   ];
 }
 
+// Colonnes effectives d'un tableau du dossier : surcharge éventuelle
+// `L.gridCols[id]` (ajouts / suppressions faits dans la modale 📘), sinon
+// les colonnes par défaut. Utilisé par l'éditeur ET tous les exports.
+function lldExportCols(L, id, defCols) {
+  const g = L && L.gridCols;
+  if (g && Object.prototype.hasOwnProperty.call(g, id)
+      && Array.isArray(g[id]) && g[id].length) return g[id];
+  return defCols;
+}
+
+// Schéma de colonnes d'une grille (copie indépendante des défauts).
+function lldGridCols(tableId, defCols) {
+  const L = (lldDraft && lldDraft.lld) || {};
+  return lldExportCols(L, tableId, defCols).map(c => (Array.isArray(c) ? c.slice() : c));
+}
+function lldSetGridCols(tableId, cols) {
+  const L = lldDraft.lld;
+  L.gridCols = (L.gridCols && typeof L.gridCols === 'object' && !Array.isArray(L.gridCols)) ? L.gridCols : {};
+  L.gridCols[tableId] = cols;
+}
+// Re-rendu du panneau courant (après ajout/suppression/renommage d'une colonne).
+function lldRerenderDetail() {
+  if (!lldSelId) return;
+  const loc = lldLocate(lldSelId);
+  if (loc) lldRenderDetail(loc.node);
+}
+
 // Normalise un sommaire chargé : préserve les renommages, les contenus
 // attachés et les chapitres ajoutés, re-génère les nœuds d'origine manquants
 // (rétro-compatibilité / état corrompu) pour que les exports restent cohérents.
@@ -203,37 +230,44 @@ function normLldInfo(w) {
     L[k] = L[k].slice(0, 4000);
   }
   // Nomenclature (ch. 4) : type d'objet -> préfixe -> exemple -> règle de nommage
-  L.nomen = Array.isArray(L.nomen) ? L.nomen.filter(r => r && typeof r === 'object').map(r => ({
+  // Conserve les clés hors schéma (colonnes ajoutées dans la modale 📘).
+  const keepExtras = (o, r) => {
+    for (const k of Object.keys(r)) {
+      if (!(k in o) && typeof r[k] === 'string') o[k] = r[k].slice(0, 120);
+    }
+    return o;
+  };
+  L.nomen = Array.isArray(L.nomen) ? L.nomen.filter(r => r && typeof r === 'object').map(r => keepExtras({
     type:    String(r.type ?? '').slice(0, 40),
     prefix:  String(r.prefix ?? '').slice(0, 20),
     example: String(r.example ?? '').slice(0, 60),
     rule:    String(r.rule ?? '').slice(0, 100)
-  })) : [];
+  }, r)) : [];
   // Approbateurs et réviseurs affichés sur la page de garde du PDF.
   const normSignatories = rows => Array.isArray(rows) ? rows
     .filter(r => r && typeof r === 'object')
-    .map(r => ({
+    .map(r => keepExtras({
       name: String(r.name ?? '').slice(0, 80),
       position: String(r.position ?? '').slice(0, 80),
       organization: String(r.organization ?? '').slice(0, 80),
       approvedVersion: String(r.approvedVersion ?? '').slice(0, 30)
-    })) : [];
+    }, r)) : [];
   L.approvers = normSignatories(L.approvers);
   L.reviewers = normSignatories(L.reviewers);
-  L.revs = Array.isArray(L.revs) ? L.revs.filter(r => r && typeof r === 'object').map(r => ({
+  L.revs = Array.isArray(L.revs) ? L.revs.filter(r => r && typeof r === 'object').map(r => keepExtras({
     rev: String(r.rev ?? '').slice(0, 10),
     date: String(r.date ?? '').slice(0, 10),
     author: String(r.author ?? '').slice(0, 60),
     note: String(r.note ?? '').slice(0, 120)
-  })) : [];
-  L.vlans = Array.isArray(L.vlans) ? L.vlans.filter(v => v && typeof v === 'object').map(v => ({
+  }, r)) : [];
+  L.vlans = Array.isArray(L.vlans) ? L.vlans.filter(v => v && typeof v === 'object').map(v => keepExtras({
     vid: String(v.vid ?? '').slice(0, 6),
     name: String(v.name ?? '').slice(0, 40),
     site: String(v.site ?? '').slice(0, 60),
     subnet: String(v.subnet ?? '').slice(0, 50),
     gw: String(v.gw ?? '').slice(0, 50),
     purpose: String(v.purpose ?? '').slice(0, 60)
-  })) : [];
+  }, v)) : [];
   // FAI (ch. 5.1) et interconnexion site à site (ch. 6.1)
   if (!L.fai || typeof L.fai !== 'object') L.fai = {};
   for (const k of ['operator', 'offer', 'linkType', 'down', 'up', 'publicBlock', 'cpe', 'cpeIp']) {
@@ -272,6 +306,10 @@ function normLldInfo(w) {
     ? arr.filter(r => r && typeof r === 'object').map(r => {
         const o = {};
         for (const [k, n] of spec) o[k] = String(r[k] ?? '').slice(0, n);
+        // + colonnes ajoutées dans la modale (clés hors schéma)
+        for (const k of Object.keys(r)) {
+          if (!(k in o) && typeof r[k] === 'string') o[k] = r[k].slice(0, 120);
+        }
         return o;
       })
     : [];
@@ -300,17 +338,41 @@ function normLldInfo(w) {
     L.catNotes[k] = L.catNotes[k].slice(0, 2000);
   }
   // Zones de Switching (sous-chapitres 8.1, 8.2…) — par défaut : structure cible
-  L.swZones = Array.isArray(L.swZones) ? L.swZones.filter(z => z && typeof z === 'object').map(z => ({
-    id: String(z.id || uid()),
-    name: String(z.name ?? '').slice(0, 40).trim() || 'Zone',
-    vlans: String(z.vlans ?? '').slice(0, 100)
-  })) : [
+  L.swZones = Array.isArray(L.swZones) ? L.swZones.filter(z => z && typeof z === 'object').map(z => {
+    const o = {
+      id: String(z.id || uid()),
+      name: String(z.name ?? '').slice(0, 40).trim() || 'Zone',
+      vlans: String(z.vlans ?? '').slice(0, 100)
+    };
+    for (const k of Object.keys(z)) {
+      if (!(k in o) && typeof z[k] === 'string') o[k] = z[k].slice(0, 120);
+    }
+    return o;
+  }) : [
     { id: uid(), name: 'INFRA' },
     { id: uid(), name: 'LAN Site B' },
     { id: uid(), name: 'Aruba AP Site A' },
     { id: uid(), name: 'Aruba AP Site B' },
     { id: uid(), name: 'LAN Site A' }
   ];
+  // Colonnes personnalisées des tableaux (ajouts/suppressions dans la modale)
+  if (L.gridCols && typeof L.gridCols === 'object' && !Array.isArray(L.gridCols)) {
+    const out = {};
+    Object.entries(L.gridCols).forEach(([id, cols]) => {
+      if (typeof id !== 'string' || id.length > 40 || !Array.isArray(cols)) return;
+      const clean = cols.map(c => {
+        const a = Array.isArray(c) ? c : null;
+        if (!a || typeof a[0] !== 'string' || !a[0] || typeof a[1] !== 'string') return null;
+        const k = a[0].slice(0, 40), label = a[1].slice(0, 60);
+        const w = typeof a[2] === 'number' && a[2] > 0 ? a[2] : null;
+        return (a[3] && typeof a[3] === 'object') ? [k, label, w, a[3]] : [k, label, w];
+      }).filter(Boolean);
+      if (clean.length) out[id] = clean;
+    });
+    L.gridCols = out;
+  } else if (L.gridCols !== undefined && (L.gridCols === null || typeof L.gridCols !== 'object')) {
+    delete L.gridCols;
+  }
   // Sommaire du dossier (chapitres + sous-chapitres + contenus attachés)
   L.toc = normLldToc(L.toc);
   return L;
@@ -544,16 +606,22 @@ function defaultSites() {
 // un workspace sans sites obtient Site A + Site B par défaut)
 function normSites(w) {
   const arr = Array.isArray(w.sites) ? w.sites : null;
-  w.sites = (arr ?? defaultSites()).filter(s => s && typeof s === 'object').map(s => ({
-    id: String(s.id || uid()),
-    name: String(s.name ?? '').slice(0, 40).trim() || 'Site',
-    type: String(s.type ?? '').slice(0, 40),
-    country: String(s.country ?? '').slice(0, 40),
-    users: String(s.users ?? '').slice(0, 20),
-    address: String(s.address ?? '').slice(0, 80),
-    contact: String(s.contact ?? '').slice(0, 80),
-    desc: String(s.desc ?? '').slice(0, 200)
-  }));
+  w.sites = (arr ?? defaultSites()).filter(s => s && typeof s === 'object').map(s => {
+    const o = {
+      id: String(s.id || uid()),
+      name: String(s.name ?? '').slice(0, 40).trim() || 'Site',
+      type: String(s.type ?? '').slice(0, 40),
+      country: String(s.country ?? '').slice(0, 40),
+      users: String(s.users ?? '').slice(0, 20),
+      address: String(s.address ?? '').slice(0, 80),
+      contact: String(s.contact ?? '').slice(0, 80),
+      desc: String(s.desc ?? '').slice(0, 200)
+    };
+    for (const k of Object.keys(s)) {   // colonnes ajoutées dans la modale 📘
+      if (!(k in o) && typeof s[k] === 'string') o[k] = s[k].slice(0, 120);
+    }
+    return o;
+  });
   return w.sites;
 }
 
@@ -638,15 +706,21 @@ function normalizeState(s) {
     });
     // Matrice des flux réseau (ch. 14)
     if (!Array.isArray(w.flows)) w.flows = [];
-    w.flows = w.flows.filter(f => f && typeof f === 'object').map(f => ({
-      id: String(f.id || uid()),
-      name: String(f.name ?? '').slice(0, 60),
-      src: String(f.src ?? '').slice(0, 80),
-      dst: String(f.dst ?? '').slice(0, 80),
-      proto: String(f.proto ?? '').slice(0, 60),
-      sens: f.sens === 'uni' ? 'uni' : 'bi',
-      usage: String(f.usage ?? '').slice(0, 120)
-    }));
+    w.flows = w.flows.filter(f => f && typeof f === 'object').map(f => {
+      const o = {
+        id: String(f.id || uid()),
+        name: String(f.name ?? '').slice(0, 60),
+        src: String(f.src ?? '').slice(0, 80),
+        dst: String(f.dst ?? '').slice(0, 80),
+        proto: String(f.proto ?? '').slice(0, 60),
+        sens: f.sens === 'uni' ? 'uni' : 'bi',
+        usage: String(f.usage ?? '').slice(0, 120)
+      };
+      for (const k of Object.keys(f)) {   // colonnes ajoutées dans la modale 📘
+        if (!(k in o) && typeof f[k] === 'string') o[k] = f[k].slice(0, 120);
+      }
+      return o;
+    });
     // Sites du workspace + nettoyage des racks pointant vers un site disparu
     normSites(w);
     const siteIds = new Set(w.sites.map(x => x.id));
@@ -3278,6 +3352,7 @@ function lldDialog(opts) {
     okBtn.addEventListener('click', () => done(o.input !== null ? inp.value : true));
     ov.addEventListener('mousedown', e => { if (e.target === ov) done(o.input !== null ? null : false); });
     ov.addEventListener('keydown', e => {
+      e.stopPropagation();   // Échap/Entrée gérés par le dialog SEUL (ne pas fermer la modale 📘 dessous)
       if (e.key === 'Escape') done(o.input !== null ? null : false);
       if (e.key === 'Enter' && inp) done(inp.value);
     });
@@ -4107,6 +4182,33 @@ const LLD_ADMIN_COLS = [['user', 'Admin user/pwd', 150], ['auth', 'Authentificat
 const LLD_VOL_COLS = [['name', 'Volume / LUN', 'flex'], ['size', 'Capacité', 90], ['type', 'Type', 90], ['srv', 'Serveur', 120]];
 const LLD_CAM_COLS = [['name', 'Caméra', 110], ['loc', 'Emplacement', 'flex'], ['model', 'Modèle', 120], ['ip', 'IP', 100]];
 
+// Colonnes « sites » alignées sur le tableau 2.1 du PDF / Excel
+const LLD_SITE_COLS = [
+  ['name', 'Nom', 110, { ph: 'Ex : Site A' }],
+  ['type', 'Type', 90, { ph: 'Ex : Siège' }],
+  ['country', 'Pays', 80, { ph: 'Ex : Maroc' }],
+  ['users', 'Utilisateurs', 90, { ph: 'Ex : 45' }],
+  ['address', 'Adresse', null, { ph: 'Ex : 12, bd Mohammed V, Casablanca' }],
+  ['contact', 'Contacts', 130, { ph: 'Ex : NOC — +212…' }],
+  ['desc', 'Description / notes', null, { ph: 'Rôle du site, contraintes…' }]
+];
+
+// Colonnes « flux réseau » (ch. 14)
+const LLD_FLOW_COLS = [
+  ['name', 'Flux', 140, { ph: 'Ex : DMZ \u2192 SQL' }],
+  ['src', 'Source', null, { ph: 'Ex : LAN Site A, SRV-01…' }],
+  ['dst', 'Destination', null, { ph: 'Ex : Internet, FW-01…' }],
+  ['proto', 'Protocole / ports', 130, { ph: 'Ex : TCP 443' }],
+  ['sens', 'Sens', 155, { opts: [['bi', '\u21c4 Bidirectionnel'], ['uni', '\u2192 Unidirectionnel']] }],
+  ['usage', 'Usage / description', null, { ph: 'Ex : accès \u00e0 la base de facturation' }]
+];
+
+// ---- Lignes « zone de switching » (nom + réordonnancement) ----
+const LLD_ZONE_COLS = [
+  ['name', 'Zone', null, { ph: 'Ex : LAN Site A' }],
+  ['vlans', 'VLANs', 200, { ph: 'Ex : 10,20,30-40' }]
+];
+
 // ============================================================
 // Registre des INFORMATION INSERTIBLES par chapitre
 // ------------------------------------------------------------
@@ -4129,7 +4231,7 @@ const LLD_INFOS = {
     ph: "Ex : Ce document décrit la conception bas niveau (LLD) de l'infrastructure réseau et système des sites A et B…"
   },
   sites: {
-    label: 'Sites du dossier', kind: 'sites', addLabel: '＋ Ajouter un site',
+    label: 'Sites du dossier', kind: 'sites', cols: LLD_SITE_COLS, addLabel: '＋ Ajouter un site',
     hint: 'Mêmes colonnes que le tableau des sites du ch. 2.1 (PDF & Excel) : Nom, Adresse, Contacts, Description… '      + 'Les sites structurent aussi le board (rattachement des racks, pastille colorée).'
   },
   existant: {
@@ -4187,7 +4289,7 @@ const LLD_INFOS = {
     addLabel: '＋ Ajouter une règle / NAT', filter: r => r.name.trim(), def: { type: 'Règle' }
   },
   zones: {
-    label: 'Zones de Switching (ch. 8)', kind: 'zones', addLabel: '＋ Ajouter une zone',
+    label: 'Zones de Switching (ch. 8)', kind: 'zones', cols: LLD_ZONE_COLS, addLabel: '＋ Ajouter une zone',
     hint: 'Les zones découpent le chapitre 8 (8.1, 8.2…) dans le PDF : rattachez chaque switch / borne WiFi à sa zone depuis sa fiche (double-clic sur « Zone »).'
   },
   vms: {
@@ -4231,7 +4333,7 @@ const LLD_INFOS = {
     rows: 3, max: 2000, ph: 'Ex : badges, terminaux, serveur SPO…'
   },
   flows: {
-    label: 'Matrice des flux réseau (ch. 14)', kind: 'flows', addLabel: '＋ Ajouter un flux',
+    label: 'Matrice des flux réseau (ch. 14)', kind: 'flows', cols: LLD_FLOW_COLS, addLabel: '＋ Ajouter un flux',
     hint: 'Source, destination, protocole/ports, sens et usage de chaque flux — repris dans le PDF (ch. 14) et en surbrillance depuis la vue Topologie (sélecteur 🔄).'
   }
 };
@@ -4278,17 +4380,58 @@ const NOMEN_GUESS = {
 // ---- Grilles éditables : vraies tables dont les en-têtes sont les
 // ---- mêmes colonnes que les tableaux PDF / Excel de l'export. ----
 // Colonne : [clé, en-tête, largeur px|null, { ph, opts }]
-function lldMakeGrid(cols, dataset) {
+function lldMakeGrid(cols, tableId, defCols) {
   const wrap = document.createElement('div');
   wrap.className = 'lld-grid-wrap';
-  if (dataset) wrap.dataset.g = dataset;
+  if (tableId) wrap.dataset.g = tableId;
   const t = document.createElement('table');
   t.className = 'lld-grid';
   const htr = document.createElement('tr');
-  cols.forEach(([, label, w]) => {
+  cols.forEach((col, idx) => {
+    const label = col[1];
     const th = document.createElement('th');
-    th.textContent = label;
-    if (typeof w === 'number') th.style.width = w + 'px';
+    if (typeof col[2] === 'number') th.style.width = col[2] + 'px';
+    th.title = 'Double-clic : renommer la colonne' + (tableId ? ' · ✕ : la supprimer du tableau' : '');
+    const span = document.createElement('span');
+    span.className = 'lld-th-label';
+    span.textContent = label;
+    th.appendChild(span);
+    if (tableId && defCols && defCols.length) {
+      // Suppression de la colonne (les valeurs sortent des lignes au prochain
+      // enregistrement ; les exports lisent le schéma via lldExportCols).
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'lld-th-del';
+      del.textContent = '\u2715';
+      del.title = 'Supprimer cette colonne';
+      del.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (!lldDraft) return;
+        const cur = lldGridCols(tableId, defCols);
+        if (cur.length <= 1) {
+          lldAlert('Le tableau doit conserver au moins une colonne.', { title: '🗑 Colonnes' });
+          return;
+        }
+        cur.splice(idx, 1);
+        lldSetGridCols(tableId, cur);
+        lldFlushDetail();
+        lldRerenderDetail();
+      });
+      th.appendChild(del);
+      th.addEventListener('dblclick', async ev => {
+        if (ev.target.closest('.lld-th-del') || !lldDraft) return;
+        const cur = lldGridCols(tableId, defCols);
+        const nv = await lldPrompt('Nom de la colonne :', String(cur[idx][1] ?? ''), {
+          title: '✏️ Renommer la colonne', okLabel: 'Renommer'
+        });
+        if (nv == null) return;
+        const lab = String(nv).trim().slice(0, 60);
+        if (!lab) return;
+        cur[idx][1] = lab;
+        lldSetGridCols(tableId, cur);
+        lldRerenderDetail();
+      });
+    }
     htr.appendChild(th);
   });
   const thx = document.createElement('th');
@@ -4300,6 +4443,34 @@ function lldMakeGrid(cols, dataset) {
   t.appendChild(document.createElement('tbody'));
   wrap.appendChild(t);
   return wrap;
+}
+
+// Barre d'actions sous une grille : « ajouter une ligne » + « ajouter une colonne ».
+function lldGridActions(...btns) {
+  const d = document.createElement('div');
+  d.className = 'lld-grid-actions';
+  btns.forEach(b => d.appendChild(b));
+  return d;
+}
+function lldAddColBtn(tableId, defCols) {
+  return lldBtn('＋ Colonne', async () => {
+    if (!lldDraft || !tableId || !defCols) return;
+    const nv = await lldPrompt('Nom de la nouvelle colonne :', '', {
+      title: '＋ Ajouter une colonne', okLabel: 'Ajouter'
+    });
+    if (nv == null) return;
+    const lab = String(nv).trim().slice(0, 60);
+    if (!lab) return;
+    const cur = lldGridCols(tableId, defCols);
+    let base = lab.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'col';
+    let k = base, n = 2;
+    while (cur.some(c => c[0] === k)) { k = base + '_' + n; n++; }
+    cur.push([k, lab, null]);
+    lldSetGridCols(tableId, cur);
+    lldFlushDetail();
+    lldRerenderDetail();
+  }, 'Ajouter une colonne à ce tableau (repris dans les tableaux des exports)');
 }
 
 function lldRowsFrom(container) {
@@ -4349,16 +4520,6 @@ function lldAddRow(wrap, cols, data = {}) {
   return tr;
 }
 
-// Colonnes « sites » alignées sur le tableau 2.1 du PDF / Excel
-const LLD_SITE_COLS = [
-  ['name', 'Nom', 110, { ph: 'Ex : Site A' }],
-  ['type', 'Type', 90, { ph: 'Ex : Siège' }],
-  ['country', 'Pays', 80, { ph: 'Ex : Maroc' }],
-  ['users', 'Utilisateurs', 90, { ph: 'Ex : 45' }],
-  ['address', 'Adresse', null, { ph: 'Ex : 12, bd Mohammed V, Casablanca' }],
-  ['contact', 'Contacts', 130, { ph: 'Ex : NOC — +212…' }],
-  ['desc', 'Description / notes', null, { ph: 'Rôle du site, contraintes…' }]
-];
 
 function lldSitesFrom(container) {
   return [...container.querySelectorAll('tbody tr')].map(tr => {
@@ -4370,15 +4531,6 @@ function lldSitesFrom(container) {
   });
 }
 
-// Colonnes « flux réseau » (ch. 14)
-const LLD_FLOW_COLS = [
-  ['name', 'Flux', 140, { ph: 'Ex : DMZ \u2192 SQL' }],
-  ['src', 'Source', null, { ph: 'Ex : LAN Site A, SRV-01…' }],
-  ['dst', 'Destination', null, { ph: 'Ex : Internet, FW-01…' }],
-  ['proto', 'Protocole / ports', 130, { ph: 'Ex : TCP 443' }],
-  ['sens', 'Sens', 155, { opts: [['bi', '\u21c4 Bidirectionnel'], ['uni', '\u2192 Unidirectionnel']] }],
-  ['usage', 'Usage / description', null, { ph: 'Ex : accès \u00e0 la base de facturation' }]
-];
 
 function lldFlowsFrom(container) {
   return [...container.querySelectorAll('tbody tr')].map(tr => {
@@ -4533,12 +4685,9 @@ function lldFaisFrom(container) {
 }
 
 // ---- Lignes « zone de switching » (nom + réordonnancement) ----
-const LLD_ZONE_COLS = [
-  ['name', 'Zone', null, { ph: 'Ex : LAN Site A' }],
-  ['vlans', 'VLANs', 200, { ph: 'Ex : 10,20,30-40' }]
-];
 function lldAddZoneRow(wrap, zone = {}) {
-  const tr = lldAddRow(wrap, LLD_ZONE_COLS, zone);
+  const cols = lldExportCols((lldDraft && lldDraft.lld) || {}, 'zones', LLD_ZONE_COLS);
+  const tr = lldAddRow(wrap, cols, zone);
   tr.classList.add('lld-zone-row');
   const tdx = tr.querySelector('.lld-grid-x');
   const up = document.createElement('button');
@@ -4837,35 +4986,45 @@ function lldInfoRender(box, def, key) {
       break;
     }
     case 'table': {
-      const tbl = lldMakeGrid(def.cols);
-      (L[key] || []).forEach(r => lldAddRow(tbl, def.cols, r));
-      box.appendChild(tbl);
-      box.appendChild(lldBtn(def.addLabel || '＋ Ajouter une ligne', () => {
-        const tr = lldAddRow(tbl, def.cols, Object.assign({}, def.def));
-        const f = tr.querySelector('input, select');
-        if (f) f.focus();
-      }));
+      const cols = lldExportCols(L, key, def.cols);
+      const tbl = lldMakeGrid(cols, key, def.cols);
+      (L[key] || []).forEach(r => lldAddRow(tbl, cols, r));
+      const acts = [
+        lldBtn(def.addLabel || '＋ Ajouter une ligne', () => {
+          const tr = lldAddRow(tbl, cols, Object.assign({}, def.def));
+          const f = tr.querySelector('input, select');
+          if (f) f.focus();
+        }),
+        lldAddColBtn(key, def.cols)
+      ];
       if (def.extra === 'gen-nomen') {
-        box.appendChild(lldBtn('🔎 Générer depuis les devices',
+        acts.push(lldBtn('🔎 Générer depuis les devices',
           () => lldGenNomen(tbl),
           'Détecte les préfixes utilisés par les devices et câbles posés et les ajoute à la nomenclature'));
       }
       if (def.extra === 'detect-vlans') {
-        box.appendChild(lldBtn('🔎 Détecter depuis les ports',
+        acts.push(lldBtn('🔎 Détecter depuis les ports',
           () => lldDetectVlans(tbl),
           'Ajouter automatiquement les VLANs utilisés sur les ports mais absents du registre'));
       }
+      box.appendChild(tbl);
+      box.appendChild(lldGridActions(...acts));
       break;
     }
     case 'sites': {
-      const wrap = lldMakeGrid(LLD_SITE_COLS);
+      const cols = lldExportCols(L, 'sites', def.cols);
+      const wrap = lldMakeGrid(cols, 'sites', def.cols);
       wrap.classList.add('lld-sites-wrap');
-      (lldDraft.sites || []).forEach(s => lldAddRow(wrap, LLD_SITE_COLS, s));
+      (lldDraft.sites || []).forEach(s => lldAddRow(wrap, cols, s));
       box.appendChild(wrap);
-      box.appendChild(lldBtn(def.addLabel || '＋ Ajouter un site', () => {
-        const tr = lldAddRow(wrap, LLD_SITE_COLS, {});
-        tr.querySelector('input').focus();
-      }));
+      box.appendChild(lldGridActions(
+        lldBtn(def.addLabel || '＋ Ajouter un site', () => {
+          const tr = lldAddRow(wrap, cols, {});
+          const f = tr.querySelector('input');
+          if (f) f.focus();
+        }),
+        lldAddColBtn('sites', def.cols)
+      ));
       break;
     }
     case 'fais': {
@@ -4882,25 +5041,34 @@ function lldInfoRender(box, def, key) {
       break;
     }
     case 'zones': {
-      const tbl = lldMakeGrid(LLD_ZONE_COLS);
+      const cols = lldExportCols(L, 'zones', def.cols);
+      const tbl = lldMakeGrid(cols, 'zones', def.cols);
       (L.swZones || []).forEach(z => lldAddZoneRow(tbl, z));
       box.appendChild(tbl);
-      box.appendChild(lldBtn(def.addLabel || '＋ Ajouter une zone', () => {
-        const tr = lldAddZoneRow(tbl, {});
-        const f = tr.querySelector('input');
-        if (f) f.focus();
-      }));
+      box.appendChild(lldGridActions(
+        lldBtn(def.addLabel || '＋ Ajouter une zone', () => {
+          const tr = lldAddZoneRow(tbl, {});
+          const f = tr.querySelector('input');
+          if (f) f.focus();
+        }),
+        lldAddColBtn('zones', def.cols)
+      ));
       break;
     }
     case 'flows': {
-      const wrap = lldMakeGrid(LLD_FLOW_COLS);
+      const cols = lldExportCols(L, 'flows', def.cols);
+      const wrap = lldMakeGrid(cols, 'flows', def.cols);
       wrap.classList.add('lld-flows-wrap');
-      (lldDraft.flows || []).forEach(f => lldAddRow(wrap, LLD_FLOW_COLS, f));
+      (lldDraft.flows || []).forEach(f => lldAddRow(wrap, cols, f));
       box.appendChild(wrap);
-      box.appendChild(lldBtn(def.addLabel || '＋ Ajouter un flux', () => {
-        const tr = lldAddRow(wrap, LLD_FLOW_COLS, {});
-        tr.querySelector('input').focus();
-      }));
+      box.appendChild(lldGridActions(
+        lldBtn(def.addLabel || '＋ Ajouter un flux', () => {
+          const tr = lldAddRow(wrap, cols, {});
+          const f = tr.querySelector('input');
+          if (f) f.focus();
+        }),
+        lldAddColBtn('flows', def.cols)
+      ));
       break;
     }
     case 'governance': {
@@ -4908,23 +5076,27 @@ function lldInfoRender(box, def, key) {
         ['revs', 'Historique des révisions — tableau de la page de garde (PDF/Excel)', LLD_REV_COLS, '＋ Ajouter une révision', true],
         ['approvers', 'Approbateurs — tableau de la page de garde (PDF/Excel)', LLD_SIGNATORY_COLS, '＋ Ajouter un approbateur', false],
         ['reviewers', 'Réviseurs — tableau de la page de garde (PDF/Excel)', LLD_SIGNATORY_COLS, '＋ Ajouter un réviseur', false]
-      ].forEach(([k, title, cols, addLabel, isRevs]) => {
+      ].forEach(([k, title, cols0, addLabel, isRevs]) => {
         const t = document.createElement('div');
         t.className = 'd-inv-title';
         t.textContent = title;
         box.appendChild(t);
-        const tbl = lldMakeGrid(cols, k);
+        const cols = lldExportCols(L, k, cols0);
+        const tbl = lldMakeGrid(cols, k, cols0);
         (L[k] || []).forEach(r => lldAddRow(tbl, cols, r));
         box.appendChild(tbl);
-        box.appendChild(lldBtn(addLabel, () => {
-          const n = tbl.querySelectorAll('tbody tr').length;
-          const data = isRevs
-            ? { rev: String(n + 1), date: new Date().toISOString().slice(0, 10) }
-            : {};
-          const tr = lldAddRow(tbl, cols, data);
-          const f = tr.querySelector('input');
-          if (f) f.focus();
-        }));
+        box.appendChild(lldGridActions(
+          lldBtn(addLabel, () => {
+            const n = tbl.querySelectorAll('tbody tr').length;
+            const data = isRevs
+              ? { rev: String(n + 1), date: new Date().toISOString().slice(0, 10) }
+              : {};
+            const tr = lldAddRow(tbl, cols, data);
+            const f = tr.querySelector('input');
+            if (f) f.focus();
+          }),
+          lldAddColBtn(k, cols0)
+        ));
       });
       break;
     }
@@ -6305,10 +6477,13 @@ function portsRowsByCat(ws, cats) {
 // ---------- Flux réseau (ch. 14) ----------
 // Tableau de la matrice des flux (PDF / exports)
 function flowsRows(ws) {
-  const rows = [['Flux', 'Source', 'Destination', 'Protocole / ports', 'Sens', 'Usage']];
+  const L = normLldInfo(ws || {});
+  const cols = lldExportCols(L, 'flows', LLD_FLOW_COLS);
+  const rows = [cols.map(c => String(c[1]))];
   for (const f of (ws?.flows || [])) {
-    rows.push([f.name || '', f.src || '', f.dst || '', f.proto || '',
-               f.sens === 'uni' ? 'Unidirectionnel' : 'Bidirectionnel', f.usage || '']);
+    rows.push(cols.map(c => (c[0] === 'sens'
+      ? (f.sens === 'uni' ? 'Unidirectionnel' : 'Bidirectionnel')
+      : String(f[c[0]] ?? ''))));
   }
   return rows;
 }
@@ -6324,10 +6499,12 @@ function flowMatchesInst(flow, inst) {
 
 // Sites (feuille Excel / CSV)
 function sitesRows(ws) {
-  const rows = [['Site', 'Adresse', 'Contacts', 'Description', 'Racks']];
+  const L = normLldInfo(ws || {});
+  const cols = lldExportCols(L, 'sites', LLD_SITE_COLS);
+  const rows = [[...cols.map(c => String(c[1])), 'Racks']];
   for (const s of (ws?.sites || [])) {
     const nb = (ws?.racks || []).filter(r => r.siteId === s.id).length;
-    rows.push([s.name, s.address || '', s.contact || '', s.desc || '', nb]);
+    rows.push([...cols.map(c => String(s[c[0]] ?? '')), nb]);
   }
   return rows;
 }
@@ -6335,16 +6512,18 @@ function sitesRows(ws) {
 // Nomenclature (feuille Excel / CSV)
 function nomenRows(ws) {
   const L = normLldInfo(ws || {});
-  const rows = [["Type d'objet", 'Préfixe', 'Exemple', 'Règle de nommage']];
-  L.nomen.forEach(r => rows.push([r.type, r.prefix, r.example, r.rule]));
+  const cols = lldExportCols(L, 'nomen', LLD_NOMEN_COLS);
+  const rows = [cols.map(c => String(c[1]))];
+  L.nomen.forEach(r => rows.push(cols.map(c => String(r[c[0]] ?? ''))));
   return rows;
 }
 
 // Adressage IP global : registre VLANs & subnets (feuille Excel / CSV)
 function addressingRows(ws) {
   const L = normLldInfo(ws || {});
-  const rows = [['VLAN', 'Nom', 'Site', 'Subnet', 'Passerelle', 'Usage']];
-  L.vlans.forEach(v => rows.push([v.vid, v.name, v.site, v.subnet, v.gw, v.purpose]));
+  const cols = lldExportCols(L, 'vlans', LLD_VLAN_COLS);
+  const rows = [cols.map(c => String(c[1]))];
+  L.vlans.forEach(v => rows.push(cols.map(c => String(v[c[0]] ?? ''))));
   return rows;
 }
 
@@ -6873,12 +7052,13 @@ const LLD_TPL = (() => {
     }
     const fw = hasB('7', 'fw') ? ((ws.lld && ws.lld.fw) || []) : [];
     if (fw.length) {
+      const Lw = ws.lld || {};
+      const dyn = lldExportCols(Lw, 'fw', LLD_FW_COLS);
       rows.push([]); rows.push([]);
       rows.push(SEC('7.3. Règles et NAT'));
       rows.push([]);
-      rows.push(H(['Type', 'Nom', 'Source', 'Destination', 'Service / Ports', 'Action']));
-      fw.forEach((r0, i) => rows.push(D([
-        r0.type || '', r0.name || '', r0.src || '', r0.dst || '', r0.service || '', r0.action || ''], i % 2)));
+      rows.push(H(dyn.map(c => String(c[1]))));
+      fw.forEach((r0, i) => rows.push(D(dyn.map(c => String(r0[c[0]] ?? '')), i % 2)));
     }
     /* Note dynamique : ne mentionner QUE ce qui manque vraiment */
     const L7 = ws.lld || {};
@@ -6958,11 +7138,13 @@ const LLD_TPL = (() => {
       if (list.length) equipTable(rows, list, { titre, cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
       const tbl = hasB(sheet.name, key) ? ((ws.lld && ws.lld[key]) || []) : [];
       if (tbl.length) {
+        const Lw = ws.lld || {};
+        const dyn = lldExportCols(Lw, key, cols2.map(([lbl, k]) => [k, lbl, null]));
         rows.push([]); rows.push([]);
         rows.push(SEC(titre2));
         rows.push([]);
-        rows.push(H(cols2.map(([lbl]) => lbl)));
-        tbl.forEach((r0, i) => rows.push(D(cols2.map(([, k]) => r0[k] || ''), i % 2)));
+        rows.push(H(dyn.map(c => String(c[1]))));
+        tbl.forEach((r0, i) => rows.push(D(dyn.map(c => String(r0[c[0]] ?? '')), i % 2)));
       }
       if (!list.length && !tbl.length) pushNote(rows, "Aucun équipement de cette catégorie dans l'inventaire actuel.");
       else if (note && !tbl.length) pushNote(rows, note);
@@ -6977,13 +7159,14 @@ const LLD_TPL = (() => {
   /* — 14. Flux réseau — */
   function ch14(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
-    const flows = hasB('14', 'flows') ? flowsRows(ws).slice(1) : [];
+    const allF = hasB('14', 'flows') ? flowsRows(ws) : [];
+    const flows = allF.slice(1);
     if (flows.length) {
       rows.push([]); rows.push([]);
       rows.push(SEC('Flux applicatifs'));
       rows.push([]);
-      rows.push(H(['Flux', 'Source', 'Destination', 'Protocole / ports', 'Sens', 'Usage']));
-      flows.forEach((f, i) => rows.push(D([f[0], f[1], f[2], f[3], f[4], f[5]], i % 2)));
+      rows.push(H(allF[0]));
+      flows.forEach((f, i) => rows.push(D(f, i % 2)));
     }
     pushNote(rows, "Le diagramme de flux reste à insérer (capture d'écran) — non généré par l'application.");
     return out(sheet, rows, heights, null, [4, 26, 26, 26, 22, 16, 44]);
@@ -7443,13 +7626,15 @@ const LLD_TPL = (() => {
         while (rows.length < r) rows.push([]);
         rows[r - 1][col] = { v, s };
       };
+      const ncols = lldExportCols(L, 'nomen', LLD_NOMEN_COLS);
       put(171, 1, "Nomenclature — registre de l'application", 50);
-      put(172, 1, "Type d'objet", 141); put(172, 2, 'Préfixe', 2);
-      put(172, 3, 'Exemple', 2); put(172, 4, 'Règle de nommage', 143);
+      ncols.forEach((c, ci) => {
+        const hs = ci === 0 ? 141 : (ci === ncols.length - 1 ? 143 : 2);
+        put(172, 1 + ci, String(c[1]), hs);
+      });
       nomen.slice(0, 25).forEach((nm, i) => {
         const st = i % 2 ? 197 : 8;
-        put(173 + i, 1, nm.type || '', st); put(173 + i, 2, nm.prefix || '', st);
-        put(173 + i, 3, nm.example || '', st); put(173 + i, 4, nm.rule || '', st);
+        ncols.forEach((c, ci) => put(173 + i, 1 + ci, String(nm[c[0]] ?? ''), st));
       });
     }
     /* Lignes « Equipment Firewall 1/2 » (r19/20) : le template les fusionne
@@ -7668,43 +7853,48 @@ const LLD_TPL = (() => {
       return out;
     }
     if (BLOCK_TABLES[key]) {
-      const [titre, cols, ks] = BLOCK_TABLES[key];
+      const [titre, labels, ks] = BLOCK_TABLES[key];
+      const defCols = ks.map((k, i) => [k, labels[i], null]);
+      const cols = lldExportCols(L, key, defCols);
       const tbl = L[key] || [];
       out.push([]);
       if (tbl.length) {
         out.push(SEC(titre)); out.push([]);
-        out.push(H(cols));
-        tbl.forEach((r, i) => out.push(D(ks.map(k => r[k] || ''), i % 2)));
+        out.push(H(cols.map(c => String(c[1]))));
+        tbl.forEach((r, i) => out.push(D(cols.map(c => String(r[c[0]] ?? '')), i % 2)));
       } else out.push(NOTE(`${titre} : aucune ligne renseignée.`));
       return out;
     }
     if (key === 'sites') {
       const sites = ws.sites || [];
+      const cols = lldExportCols(L, 'sites', LLD_SITE_COLS);
       out.push([]);
       if (sites.length) {
         out.push(SEC('Sites')); out.push([]);
-        out.push(H(['Site', 'Adresse', 'Contacts', 'Description']));
-        sites.forEach((s, i) => out.push(D([s.name, s.address, s.contact, s.desc], i % 2)));
+        out.push(H(cols.map(c => String(c[1]))));
+        sites.forEach((s, i) => out.push(D(cols.map(c => String(s[c[0]] ?? '')), i % 2)));
       } else out.push(NOTE('Aucun site déclaré.'));
       return out;
     }
     if (key === 'zones') {
       const zs = L.swZones || [];
+      const cols = lldExportCols(L, 'zones', LLD_ZONE_COLS);
       out.push([]);
       if (zs.length) {
         out.push(SEC('Zones de Switching')); out.push([]);
-        out.push(H(['Zone', 'VLANs']));
-        zs.forEach((z, i) => out.push(D([z.name, z.vlans || ''], i % 2)));
+        out.push(H(cols.map(c => String(c[1]))));
+        zs.forEach((z, i) => out.push(D(cols.map(c => String(z[c[0]] ?? '')), i % 2)));
       } else out.push(NOTE('Aucune zone de switching.'));
       return out;
     }
     if (key === 'flows') {
-      const fr = flowsRows(ws).slice(1);
+      const all = flowsRows(ws);
+      const fr = all.slice(1);
       out.push([]);
       if (fr.length) {
         out.push(SEC('Matrice des flux')); out.push([]);
-        out.push(H(['Flux', 'Source', 'Destination', 'Protocole / ports', 'Sens', 'Usage']));
-        fr.forEach((f, i) => out.push(D(f.slice(0, 6), i % 2)));
+        out.push(H(all[0]));
+        fr.forEach((f, i) => out.push(D(f, i % 2)));
       } else out.push(NOTE('Aucun flux réseau.'));
       return out;
     }
@@ -8038,6 +8228,9 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     y -= 8;
   }
 
+  // Largeurs de colonnes issues du schéma (px) — drawTable les normalise.
+  const pdfColW = cols => cols.map(c => (typeof c[2] === 'number' && c[2]) || 140);
+
   const dateStr = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
   const dateShort = new Date().toLocaleDateString('fr-FR');
 
@@ -8048,7 +8241,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     '1': ['objectif'], '2.1': ['sites'], '2.2': ['existant'],
     '3': ['architecture'], '4': ['nomen', 'vlans'],
     '5.1': ['fais'], '6.1': ['interco'],
-    '7': ['fw', 'note:firewall'], '8': ['zones', 'note:switching'],
+    '7': ['note:firewall'], '8': ['zones', 'note:switching'],
     '9': ['note:server'], '10': ['note:storage'], '11': ['note:ids'],
     '12': ['note:cctv'], '13': ['note:pointage'], '14': ['flows']
   };
@@ -8065,9 +8258,9 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     } else if (def.kind === 'table') {
       const rows = L[key] || [];
       if (rows.length) {
-        const widths = def.cols.map(c => (typeof c[2] === 'number' && c[2]) || 2);
-        drawTable([def.cols.map(c => c[1]),
-          ...rows.map(r => def.cols.map(c => r[c[0]] || ''))], widths, 7.5);
+        const cols = lldExportCols(L, key, def.cols);
+        drawTable([cols.map(c => String(c[1])),
+          ...rows.map(r => cols.map(c => String(r[c[0]] ?? '')))], pdfColW(cols), 7.5);
       } else placeholder();
     } else if (def.kind === 'fields') {
       const tgt = def.path ? (L[def.path] || {}) : L;
@@ -8082,14 +8275,18 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     } else if (def.kind === 'sites') {
       const sites = ws.sites || [];
       if (sites.length) {
-        const sr = [['Site', 'Adresse', 'Contacts', 'Description']];
-        sites.forEach(s => sr.push([s.name, s.address, s.contact, s.desc]));
-        drawTable(sr, [1.5, 2.7, 2.1, 3.7], 8);
+        const scols = lldExportCols(L, 'sites', LLD_SITE_COLS);
+        const sr = [scols.map(c => String(c[1]))];
+        sites.forEach(s => sr.push(scols.map(c => String(s[c[0]] ?? ''))));
+        drawTable(sr, pdfColW(scols), 8);
       } else placeholder();
     } else if (def.kind === 'zones') {
       const zs = L.swZones || [];
-      if (zs.length) drawTable([['Zone', 'VLANs'], ...zs.map(z => [z.name, z.vlans])], [1.5, 3.5], 8);
-      else placeholder();
+      if (zs.length) {
+        const zcols = lldExportCols(L, 'zones', LLD_ZONE_COLS);
+        drawTable([zcols.map(c => String(c[1])),
+          ...zs.map(z => zcols.map(c => String(z[c[0]] ?? '')))], pdfColW(zcols), 8);
+      } else placeholder();
     } else if (def.kind === 'fais') {
       const F = (L.fais && L.fais[0]) || L.fai || {};
       const fr2 = [['Opérateur', F.operator], ['Offre', F.offer], ['Type de lien', F.linkType],
@@ -8104,16 +8301,19 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
         note(`${L.fais.length} FAI(s) déclaré(s) — détail complet dans le chapitre FAI.`);
     } else if (def.kind === 'flows') {
       const fr3 = flowsRows(ws);
-      if (fr3.length > 1) drawTable(fr3, [1.7, 2.3, 2.3, 1.6, 1.4, 2.7]);
-      else placeholder();
+      if (fr3.length > 1) {
+        const fwW = [1.7, 2.3, 2.3, 1.6, 1.4, 2.7];
+        drawTable(fr3, fr3[0].map((_, i) => fwW[i] ?? 1.6));
+      } else placeholder();
     } else if (def.kind === 'governance') {
       if ((L.revs || []).length) {
-        const revRows = [['Rév', 'Date', 'Auteur', 'Modifications']];
-        L.revs.forEach(r => revRows.push([r.rev, r.date, r.author, r.note]));
-        drawTable(revRows, [0.8, 1.6, 2.4, 5.2], 8);
+        const rc = lldExportCols(L, 'revs', LLD_REV_COLS);
+        const revRows = [rc.map(c => String(c[1]))];
+        L.revs.forEach(r => revRows.push(rc.map(c => String(r[c[0]] ?? ''))));
+        drawTable(revRows, pdfColW(rc), 8);
       }
-      signatoryTable('Approbateurs', L.approvers);
-      signatoryTable('Réviseurs', L.reviewers);
+      signatoryTable('Approbateurs', L.approvers, 'approvers');
+      signatoryTable('Réviseurs', L.reviewers, 'reviewers');
     } else if (def.kind === 'meta') {
       const pairs = [['Client', L.client], ['Auteur', L.author], ['Version', L.version]]
         .filter(([, v]) => v && String(v).trim());
@@ -8200,23 +8400,25 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   if (L.revs.length && hasB('cover', 'governance')) {
     y -= 16;
     txt(M, y, 'Historique des r\u00e9visions', 12, true, [0.12, 0.31, 0.47]); y -= 8;
-    const revRows = [['R\u00e9v', 'Date', 'Auteur', 'Modifications']];
-    L.revs.forEach(r => revRows.push([r.rev, r.date, r.author, r.note]));
-    drawTable(revRows, [0.8, 1.6, 2.4, 5.2], 8);
+    const rc0 = lldExportCols(L, 'revs', LLD_REV_COLS);
+    const revRows = [rc0.map(c => String(c[1]))];
+    L.revs.forEach(r => revRows.push(rc0.map(c => String(r[c[0]] ?? ''))));
+    drawTable(revRows, pdfColW(rc0), 8);
   }
 
   // Gouvernance documentaire, placée après l'historique des révisions.
-  const signatoryTable = (title, rows) => {
+  const signatoryTable = (title, rows, tableId) => {
     if (y < M + 55) newPage();
     txt(M, y, title, 11.5, true, [0.12, 0.31, 0.47]);
     y -= 8;
-    const data = [['Nom', 'Position', 'Organisation', 'Version approuvée']];
-    rows.forEach(r => data.push([r.name, r.position, r.organization, r.approvedVersion]));
-    drawTable(data, [2.2, 2.2, 2.7, 1.9], 7.5);
+    const sc = lldExportCols(L, tableId, LLD_SIGNATORY_COLS);
+    const data = [sc.map(c => String(c[1]))];
+    rows.forEach(r => data.push(sc.map(c => String(r[c[0]] ?? ''))));
+    drawTable(data, pdfColW(sc), 7.5);
   };
   if (hasB('cover', 'governance')) {
-    signatoryTable('Approbateurs', L.approvers);
-    signatoryTable('Réviseurs', L.reviewers);
+    signatoryTable('Approbateurs', L.approvers, 'approvers');
+    signatoryTable('Réviseurs', L.reviewers, 'reviewers');
   }
   // Infos supplémentaires éventuellement rattachées à la page de garde
   drawNodeExtras('cover');
@@ -8240,9 +8442,10 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   const sites = ws.sites || [];
   if (hasB('2.1', 'sites')) {
     if (sites.length) {
-      const sr = [['Site', 'Adresse', 'Contacts', 'Description']];
-      sites.forEach(s => sr.push([s.name, s.address, s.contact, s.desc]));
-      drawTable(sr, [1.5, 2.7, 2.1, 3.7], 8);
+      const sc = lldExportCols(L, 'sites', LLD_SITE_COLS);
+      const sr = [sc.map(c => String(c[1]))];
+      sites.forEach(s => sr.push(sc.map(c => String(s[c[0]] ?? ''))));
+      drawTable(sr, pdfColW(sc), 8);
     } else {
       note('Aucun site d\u00e9clar\u00e9 (info « Sites » du sommaire).');
     }
@@ -8321,17 +8524,19 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   if (hasB('4', 'nomen')) {
     miniTitle('Nomenclature');
     if (L.nomen.length) {
-      const nr = [['Type d\u2019objet', 'Préfixe', 'Exemple', 'Règle de nommage']];
-      L.nomen.forEach(r => nr.push([r.type, r.prefix, r.example, r.rule]));
-      drawTable(nr, [2.4, 1.1, 2.6, 3.9], 8);
+      const nc = lldExportCols(L, 'nomen', LLD_NOMEN_COLS);
+      const nr = [nc.map(c => String(c[1]))];
+      L.nomen.forEach(r => nr.push(nc.map(c => String(r[c[0]] ?? ''))));
+      drawTable(nr, pdfColW(nc), 8);
     } else note('Nomenclature non renseignée (info « Nomenclature » du sommaire).');
   }
   if (hasB('4', 'vlans')) {
     miniTitle('Registre VLANs & subnets');
     if (L.vlans.length) {
-      const vr = [['VLAN', 'Nom', 'Site', 'Subnet', 'Passerelle', 'Usage']];
-      L.vlans.forEach(v => vr.push([v.vid, v.name, v.site, v.subnet, v.gw, v.purpose]));
-      drawTable(vr, [0.8, 2.1, 1.4, 2.6, 2.2, 2.9], 8);
+      const vc = lldExportCols(L, 'vlans', LLD_VLAN_COLS);
+      const vr = [vc.map(c => String(c[1]))];
+      L.vlans.forEach(v => vr.push(vc.map(c => String(v[c[0]] ?? ''))));
+      drawTable(vr, pdfColW(vc), 8);
     } else note('Aucun VLAN enregistré (info « Adressage IP global » du sommaire).');
   }
   miniTitle('Plan d\u2019adressage & ports');
@@ -8440,8 +8645,10 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   if (hasB('14', 'flows')) {
     miniTitle('Matrice des flux');
     const fr = flowsRows(ws);
-    if (fr.length > 1) drawTable(fr, [1.7, 2.3, 2.3, 1.6, 1.4, 2.7]);
-    else note('Aucun flux défini (info « Matrice des flux » du sommaire).');
+    if (fr.length > 1) {
+      const fwW = [1.7, 2.3, 2.3, 1.6, 1.4, 2.7];
+      drawTable(fr, fr[0].map((_, i) => fwW[i] ?? 1.6));
+    } else note('Aucun flux défini (info « Matrice des flux » du sommaire).');
   }
   miniTitle('Diagramme de topologie');
   if (topoJpeg && topoW && topoH) {

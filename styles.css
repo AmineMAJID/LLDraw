@@ -1936,10 +1936,12 @@ body.topo-linking .topo-node { cursor: crosshair; }
 
 /* ---------- Modale Infos dossier LLD (sommaire + chapitres) ---------- */
 .modal-box-lg {
-  /* Sommaire à gauche + détail du chapitre à droite */
-  width: 960px;
+  /* Sommaire à gauche + détail du chapitre à droite.
+     Largeur adaptable à la fenêtre navigateur : suit la taille de
+     l'écran jusqu'à 1120px, puis se cale sur les marges. */
+  width: min(1120px, calc(100vw - 36px));
   max-width: calc(100vw - 36px);
-  max-height: calc(100vh - 48px);
+  max-height: calc(100vh - 40px);
   overflow-y: auto;
 }
 .lld-split {
@@ -1949,12 +1951,12 @@ body.topo-linking .topo-node { cursor: crosshair; }
   border-radius: 10px;
   overflow: hidden;
   min-height: 380px;
-  max-height: calc(100vh - 220px);
+  max-height: calc(100vh - clamp(140px, 22vh, 220px));
   background: #fff;
 }
 /* — Colonne sommaire — */
 .lld-toc {
-  width: 268px;
+  width: clamp(200px, 24vw, 300px);   /* suit la largeur de la fenêtre */
   flex: none;
   display: flex;
   flex-direction: column;
@@ -2256,6 +2258,32 @@ body.topo-linking .topo-node { cursor: crosshair; }
   color: var(--accent);
   background: rgba(37, 99, 235, .07);
 }
+/* En-têtes de colonnes : double-clic = renommer, ✕ = supprimer */
+.lld-grid thead th { position: relative; user-select: none; }
+.lld-th-label { cursor: help; }
+.lld-th-del {
+  display: none;
+  margin-left: 5px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.lld-grid thead th:hover .lld-th-del { display: inline-block; }
+.lld-th-del:hover { background: rgba(220, 38, 38, .12); color: #dc2626; }
+/* Barre d'actions sous les grilles : ajouter une ligne / une colonne */
+.lld-grid-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.lld-grid-actions .btn { margin-top: 0; white-space: nowrap; }
 .btn-sm {
   padding: 6px 12px;
   font-size: 12px;

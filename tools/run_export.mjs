@@ -50,6 +50,9 @@ const helpers = [
   fn('defaultLldToc'),
   fn('normLldToc'),
   fn('normLldInfo'),
+  fn('lldExportCols'),
+  // toutes les constantes de colonnes (REV…ZONE) utilisées par les exports
+  between(/const LLD_REV_COLS = /, /const LLD_INFOS = \{/),
   fn('slotLabel'),
   fn('sortedRackInstances'),
   fn('sortedRacks'),
