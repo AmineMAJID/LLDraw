@@ -99,7 +99,7 @@ function defaultLldToc() {
        ['addrMatrix', 'vlans', 'nomen']),
     ch('5', 'Conception et Configuration FAI', ['diag5', 'shots5'], [
       sub('5.1', 'Informations & Configuration', ['fais']),
-      sub('5.2', 'Câblage', [])
+      sub('5.2', 'Câblage', ['faiCab'])
     ]),
     ch('6', 'Conception et Configuration Interconnexion site 2 site', ['diag6', 'shots6'], [
       sub('6.1', 'Informations & Configuration', ['interco', 'adminSec']),
@@ -460,6 +460,36 @@ function normLldInfo(w) {
       h: Number(s.h) > 0 ? Math.min(Number(s.h), 4000) : 0
     }));
   for (const k of ['shots5', 'shots6', 'shots7']) L[k] = normShots(L[k]);
+  // 5.1 : lignes du tableau Excel (aperçu {cat,desc,…}) — fusionne les anciennes
+  // cartes FAI (operator/offer/…) pour ne rien perdre à la migration.
+  L.fais = Array.isArray(L.fais) ? L.fais.filter(r => r && typeof r === 'object').map(r => {
+    const o = {};
+    o.cat = String(r.cat ?? 'FAI').slice(0, 20) || 'FAI';
+    o.desc = String(r.desc ?? '').slice(0, 120)
+      || (r.operator ? `${r.operator}${r.offer ? ' — ' + r.offer : ''}` : '');
+    for (const k of ['down', 'lanIp', 'lanMask', 'lanGw', 'lanDns', 'ipv6', 'dhcp',
+                     'pf', 'pfPortWan', 'pfPortLan', 'pfClient', 'pfProto',
+                     'dmz', 'firewall', 'wlanStat', 'wlan', 'notes']) {
+      o[k] = String(r[k] ?? '').slice(0, 200);
+    }
+    for (const k of ['id', 'operator', 'offer', 'linkType', 'up', 'publicBlock',
+                     'cpe', 'cpeIp', 'wanLabel', 'ipMode', 'wanIp', 'wanMask',
+                     'wanGw', 'wanDns']) {
+      if (r[k] !== undefined && r[k] !== null) o[k] = typeof r[k] === 'string' ? r[k].slice(0, 160) : r[k];
+    }
+    if (!o.operator && o.desc) {
+      const parts = String(o.desc).split(' — ');
+      o.operator = parts[0].slice(0, 60);
+      o.offer = (parts[1] || '').slice(0, 60);
+    }
+    return o;
+  }) : [];
+  // 5.2 câblage FAI
+  L.faiCab = Array.isArray(L.faiCab) ? L.faiCab.filter(r => r && typeof r === 'object').map(r => ({
+    cat: String(r.cat ?? 'FAI').slice(0, 20) || 'FAI',
+    desc: String(r.desc ?? '').slice(0, 120),
+    conn: String(r.conn ?? '').slice(0, 160)
+  })) : [];
   if (!L.diagrams || typeof L.diagrams !== 'object' || Array.isArray(L.diagrams)) L.diagrams = {};
   else {
     const cleanD = {};
@@ -4411,6 +4441,34 @@ const LLD_CH4_CATS = [
 // branchés). La même clé rattachée à N chapitres = une seule valeur
 // partagée → synchronisation automatique + badge dans l'interface.
 // ============================================================
+/* Colonnes 5.1 — miroir exact de la feuille Excel « 5 » (tableau FAI). */
+const LLD_FAI51_COLS = [
+  ['cat', 'Categorie', 78],
+  ['desc', 'Description', 150],
+  ['down', 'Débit', 85],
+  ['lanIp', 'IP', 100],
+  ['lanMask', 'Mask', 100],
+  ['lanGw', 'GW', 100],
+  ['lanDns', 'DNS', 100],
+  ['ipv6', 'IP v6', 110],
+  ['dhcp', 'DHCP', 60],
+  ['pf', 'Profile WAN', 100],
+  ['pfPortWan', 'Port WAN', 75],
+  ['pfPortLan', 'Port LAN', 75],
+  ['pfClient', 'Client interne', 95],
+  ['pfProto', 'Protocol', 70],
+  ['dmz', 'DMZ', 80],
+  ['firewall', 'Firewall', 100],
+  ['wlanStat', 'Statu', 80],
+  ['wlan', 'SSID', 90],
+  ['notes', 'Commentaire', 140]
+];
+/* Colonnes 5.2 — câblage FAI (feuille Excel « 5 », section 5.2). */
+const LLD_FAI_CAB_COLS = [
+  ['cat', 'Categorie', 90],
+  ['desc', 'Description', 160],
+  ['conn', 'Connecté a', 200]
+];
 const LLD_INFOS = {
   meta: {
     label: 'Client, auteur & version', kind: 'fields', path: '',
@@ -4502,10 +4560,22 @@ const LLD_INFOS = {
     hint: 'Glissez-déposez des captures (policies, NAT, dashboard FW…) — exportées dans le PDF.'
   },
   fais: {
-    label: 'FAI — accès Internet (ch. 5)', kind: 'fais', addLabel: '＋ Ajouter un FAI',
-    hint: 'Chaque FAI alimente le ch. 5 du PDF et la feuille Excel « 5 » (infos + réglages WAN/LAN avancés), '      + 'ainsi que le tableau de dispositifs du ch. 2.2.',
-    filter: f => (f.operator || '').trim() || (f.offer || '').trim() || (f.down || '').trim() ||
-                 (f.publicBlock || '').trim() || (f.notes || '').trim()
+    label: '5.1 — Informations & Configuration (FAI)',
+    kind: 'table', cols: LLD_FAI51_COLS, def: { cat: 'FAI' },
+    addLabel: '＋ Ajouter une ligne',
+    hint: 'Même tableau que la section 5.1 de la feuille Excel « 5 » : modifiez ici, l’export reprend ces valeurs. '
+      + '🔎 Générer depuis l’élévation pré-remplit ce qui existe (FAI, routeurs WAN, topologie) ; le reste reste vide à saisir.',
+    filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
+    extra: 'gen-fai51'
+  },
+  faiCab: {
+    label: '5.2 — Câblage FAI',
+    kind: 'table', cols: LLD_FAI_CAB_COLS, def: { cat: 'FAI' },
+    addLabel: '＋ Ajouter une liaison',
+    hint: 'Section 5.2 de la feuille Excel « 5 » (Categorie / Description / Connecté a). '
+      + '🔎 Générer depuis l’élévation : liaisons WAN des routeurs, CPE et câbles FAI. Généré ici d’abord, puis repris dans l’XLSX.',
+    filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
+    extra: 'gen-fai-cab'
   },
   interco: {
     label: 'Interconnexion site 2 site (ch. 6)', kind: 'fields', path: 'interco',
@@ -5167,7 +5237,24 @@ function lldInfoFlush(box, def, key) {
     }
     case 'table': {
       const tbl = box.querySelector('.lld-grid-wrap');
-      if (tbl) L[key] = lldRowsFrom(tbl);   // lignes vides filtrées à l'enregistrement
+      if (tbl) {
+        const rows = lldRowsFrom(tbl);
+        if (key === 'fais' && Array.isArray(L.fais)) {
+          L.fais = rows.map((r, i) => Object.assign({}, L.fais[i] || {}, r, {
+            desc: String(r.desc || '').slice(0, 120),
+            cat: r.cat || 'FAI'
+          }));
+          L.fais.forEach(f => {
+            if (!f.operator && f.desc) {
+              const p = String(f.desc).split(' — ');
+              f.operator = p[0].slice(0, 60);
+              f.offer = (p[1] || '').slice(0, 60);
+            }
+          });
+        } else {
+          L[key] = rows;
+        }
+      }
       break;
     }
     case 'sites': {
@@ -5990,6 +6077,16 @@ function lldInfoRender(box, def, key) {
           () => { lldPushUndo(true); lldGenEquip(tbl, cols); },
           'Ajoute une ligne par modèle des devices posés dans les racks (sans écraser les lignes existantes) — ces lignes alimentent le tableau 3.1 de l\'Excel'));
       }
+      if (def.extra === 'gen-fai51') {
+        acts.push(lldBtn("🔎 Générer depuis l'élévation",
+          () => { lldPushUndo(true); lldGenFai51(tbl, cols); },
+          'Pré-remplit le tableau 5.1 depuis l’élévation et les FAI déjà connus ; les colonnes sans source restent vides'));
+      }
+      if (def.extra === 'gen-fai-cab') {
+        acts.push(lldBtn("🔎 Générer depuis l'élévation",
+          () => { lldPushUndo(true); lldGenFaiCab(tbl, cols); },
+          'Construit les lignes 5.2 (CPE → port WAN) depuis les FAI, routeurs et câbles posés'));
+      }
       box.appendChild(tbl);
       box.appendChild(lldGridActions(...acts));
       break;
@@ -6509,6 +6606,169 @@ $('#lld-toc-add-sub').addEventListener('click', () => {
 });
 
 // ---- Ouverture / fermeture de la modale ----
+/* ---- 5.1 : pré-remplissage du tableau FAI depuis l'élévation ---- */
+function lldGenFai51(tbl, cols) {
+  const ws = active();
+  if (!ws || !lldDraft || !tbl) return;
+  const C = cols || LLD_FAI51_COLS;
+  const existing = lldRowsFrom(tbl);
+  const byDesc = new Map(existing.map(r => [String(r.desc || '').trim().toLowerCase(), r]));
+  let added = 0, filled = 0;
+
+  (lldDraft.lld.fais || []).forEach(srcF => {
+    const op = String(srcF.operator || '').trim();
+    const off = String(srcF.offer || '').trim();
+    const desc = String(srcF.desc || (op ? `${op}${off ? ' — ' + off : ''}` : '')).trim();
+    if (!desc) return;
+    const row = {
+      cat: 'FAI',
+      desc,
+      down: srcF.down || '',
+      lanIp: srcF.lanIp || '', lanMask: srcF.lanMask || '',
+      lanGw: srcF.lanGw || '', lanDns: srcF.lanDns || '',
+      ipv6: srcF.ipv6 || '', dhcp: srcF.dhcp || '',
+      pf: srcF.pf || '', pfPortWan: srcF.pfPortWan || '',
+      pfPortLan: srcF.pfPortLan || '', pfClient: srcF.pfClient || '',
+      pfProto: srcF.pfProto || '', dmz: srcF.dmz || '',
+      firewall: srcF.firewall || '', wlanStat: srcF.wlanStat || '',
+      wlan: srcF.wlan || '', notes: String(srcF.notes || '').split('\n')[0]
+    };
+    const key = desc.toLowerCase();
+    if (byDesc.has(key)) {
+      const cur = byDesc.get(key);
+      let touched = false;
+      Object.keys(row).forEach(k => {
+        if (k === 'desc' || k === 'cat') return;
+        if (!String(cur[k] || '').trim() && row[k]) { cur[k] = row[k]; touched = true; }
+      });
+      if (touched) filled++;
+    } else {
+      lldAddRow(tbl, C, row);
+      byDesc.set(key, row);
+      added++;
+    }
+  });
+
+  const siteOf = rackId => {
+    const r = (ws.racks || []).find(x => x.id === rackId);
+    const st = (ws.sites || []).find(s => s && s.id === (r && r.siteId));
+    return (st && st.name) || (r && r.name) || '';
+  };
+  sortedRackInstances(ws).forEach(({ rack, inst }) => {
+    if (!/router/i.test(String(inst.cat || ''))) return;
+    const wanPorts = (inst.ports || []).filter(p =>
+      /wan/i.test(String(p.name || '') + ' ' + String(p.label || '')));
+    if (!wanPorts.length) return;
+    const site = siteOf(rack.id);
+    const desc = `${inst.name || 'Routeur'}${site ? ' — ' + site : ''} (WAN ×${wanPorts.length})`;
+    if (byDesc.has(desc.toLowerCase())) return;
+    const row = {
+      cat: 'FAI', desc, down: '',
+      lanIp: inst.ipMgmt || '',
+      lanMask: '', lanGw: '', lanDns: '',
+      ipv6: '', dhcp: '',
+      pf: '', pfPortWan: '', pfPortLan: '', pfClient: '', pfProto: '',
+      dmz: '', firewall: '', wlanStat: '', wlan: '',
+      notes: wanPorts.map(p => p.label || p.name).filter(Boolean).join(' · ').slice(0, 200)
+    };
+    lldAddRow(tbl, C, row);
+    byDesc.set(desc.toLowerCase(), row);
+    added++;
+  });
+
+  try {
+    const nodes = (ws.topology && ws.topology.nodes) || [];
+    const nodeById = Object.fromEntries(nodes.map(n => [n.id, n]));
+    ((ws.topology && ws.topology.links) || []).forEach(l => {
+      if (!/fai|transit|isp|internet/i.test(String(l.label || ''))) return;
+      const a = nodeById[l.a];
+      const lbl = String(l.label || 'Accès FAI').slice(0, 60);
+      const desc = a && a.instId ? `${lbl} (${a.instId})` : lbl;
+      if (byDesc.has(desc.toLowerCase())) return;
+      lldAddRow(tbl, C, {
+        cat: 'FAI', desc, down: String(l.speed || '').slice(0, 40),
+        notes: 'Source : topologie (élévation)'
+      });
+      byDesc.set(desc.toLowerCase(), { desc });
+      added++;
+    });
+  } catch (_) { /* topo absente */ }
+
+  lldAlert((added || filled)
+    ? `Tableau 5.1 mis à jour : ${added} ligne(s) ajoutée(s), ${filled} fiche(s) complétée(s) sur les cellules vides.\n`
+      + 'Les colonnes sans équivalent dans l’élévation restent vides (saisie manuelle).'
+    : 'Rien de nouveau dans l’élévation — lignes 5.1 déjà à jour.',
+    { title: '🔎 Générer 5.1' });
+}
+
+/* ---- 5.2 : câblage FAI (CPE / port WAN) depuis l'élévation ---- */
+function lldGenFaiCab(tbl, cols) {
+  const ws = active();
+  if (!ws || !lldDraft || !tbl) return;
+  const C = cols || LLD_FAI_CAB_COLS;
+  const have = new Set(lldRowsFrom(tbl)
+    .map(r => `${(r.desc || '').toLowerCase()}|${(r.conn || '').toLowerCase()}`));
+  let added = 0;
+  const push = (desc, conn) => {
+    const d = String(desc || '').trim().slice(0, 120);
+    const c = String(conn || '').trim().slice(0, 160);
+    if (!d && !c) return;
+    const key = `${d.toLowerCase()}|${c.toLowerCase()}`;
+    if (have.has(key)) return;
+    lldAddRow(tbl, C, { cat: 'FAI', desc: d, conn: c });
+    have.add(key);
+    added++;
+  };
+
+  (lldDraft.lld.fais || []).forEach(f => {
+    const desc = String(f.desc || (f.operator ? `${f.operator}${f.offer ? ' — ' + f.offer : ''}` : '')).trim()
+      || String(f.cpe || '').trim();
+    if (f.cpe || f.wanLabel) push(desc || f.cpe, f.wanLabel || f.cpe);
+    else if (desc) push(desc, '');
+  });
+
+  const cables = ws.cables || [];
+  const endInfo = (rackId, instId, portId) => {
+    const r = (ws.racks || []).find(x => x.id === rackId);
+    const inst = r && (r.instances || []).find(x => x.id === instId);
+    const port = inst && (inst.ports || []).find(x => x.id === portId);
+    return { dev: (inst && inst.name) || '', port: (port && (port.label || port.name)) || '' };
+  };
+  sortedRackInstances(ws).forEach(({ inst }) => {
+    if (!/router|firewall/i.test(String(inst.cat || ''))) return;
+    (inst.ports || [])
+      .filter(pt => /wan/i.test(String(pt.name || '') + ' ' + String(pt.label || '')))
+      .forEach(pt => {
+        const cab = cables.find(c =>
+          (c.a && c.a.instId === inst.id && c.a.portId === pt.id) ||
+          (c.b && c.b.instId === inst.id && c.b.portId === pt.id));
+        if (!cab) return;
+        const otherEnd = (cab.a && cab.a.instId === inst.id) ? cab.b : cab.a;
+        const o = otherEnd ? endInfo(otherEnd.rackId, otherEnd.instId, otherEnd.portId) : { dev: '', port: '' };
+        const conn = [pt.label || pt.name,
+          o.dev && o.port ? `${o.dev} (${o.port})` : o.dev].filter(Boolean).join(' → ');
+        push(cab.name || `${inst.name} — ${pt.name}`, conn);
+      });
+  });
+
+  try {
+    if (typeof cablingRowsByDomain === 'function') {
+      const rowsC = cablingRowsByDomain(ws, 'fai');
+      (Array.isArray(rowsC) ? rowsC : []).slice(1).forEach(r => {
+        const cells = Array.isArray(r) ? r.map(x => String(x ?? '')) : [];
+        if (!cells.length) return;
+        if (cells.length >= 3) push(cells[1] || cells[0], cells[cells.length - 1]);
+        else push(cells[0], cells.slice(1).join(' '));
+      });
+    }
+  } catch (_) { /* hors harnais */ }
+
+  lldAlert(added
+    ? `${added} ligne(s) de câblage 5.2 ajoutée(s) (reprises dans la feuille Excel « 5 »).`
+    : 'Rien de nouveau — câblage 5.2 déjà à jour.',
+    { title: '🔎 Générer 5.2' });
+}
+
 function openLldModal(selectKey = null) {
   const ws = active();
   if (!ws) return;
@@ -9037,7 +9297,8 @@ const LLD_TPL = (() => {
     const L = ws.lld || {};
     const fais = (L.fais && L.fais.length) ? L.fais
       : (L.fai && (L.fai.operator || L.fai.offer || L.fai.down) ? [L.fai] : []);
-    const lblFai = f => f.operator ? `${f.operator}${f.offer ? ' — ' + f.offer : ''}` : '';
+    const lblFai = f => String(f.desc || '').trim()
+      || (f.operator ? `${f.operator}${f.offer ? ' — ' + f.offer : ''}` : '');
     const COLS5 = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'];
     fais.slice(0, 4).forEach((f, i) => {
       const r = 35 + i;
@@ -9062,17 +9323,26 @@ const LLD_TPL = (() => {
     });
     for (let r = 35 + Math.min(fais.length, 4); r <= 38; r++)
       COLS5.forEach(c2 => set(rows, `${c2}${r}`, ''));
-    // 5.2 câblage : boîtier (CPE) + liaison physique saisie sur le FAI
-    fais.slice(0, 4).forEach((f, i) => {
-      set(rows, `C${46 + i * 2}`, f.cpe ? f.cpe : lblFai(f));
-      set(rows, `D${46 + i * 2}`, f.wanLabel || '');
-      set(rows, `D${47 + i * 2}`, '');
-    });
-    for (let i = Math.min(fais.length, 4); i < 4; i++) {
-      set(rows, `C${46 + i * 2}`, '');
-      set(rows, `D${46 + i * 2}`, '');
-      set(rows, `D${47 + i * 2}`, '');
+    // 5.2 câblage : source prioritaire = tableau du sommaire L.faiCab
+    // (généré/enregistré dans la modale) ; sinon dérivé des FAI (CPE → WAN).
+    const cab5 = (Array.isArray(L.faiCab) && L.faiCab.length)
+      ? L.faiCab.filter(r => r && ((r.desc || '').trim() || (r.conn || '').trim()))
+      : fais.slice(0, 4).map(f => ({
+        cat: 'FAI',
+        desc: f.cpe || lblFai(f),
+        conn: f.wanLabel || ''
+      }));
+    for (let r = 46; r <= 53; r++) {
+      set(rows, `B${r}`, r === 46 ? 'FAI' : '');
+      set(rows, `C${r}`, '');
+      set(rows, `D${r}`, '');
     }
+    cab5.slice(0, 8).forEach((c, i) => {
+      const r = 46 + i;
+      set(rows, `B${r}`, c.cat || (i === 0 ? 'FAI' : ''));
+      set(rows, `C${r}`, String(c.desc || ''));
+      set(rows, `D${r}`, String(c.conn || ''));
+    });
     /* Le template fusionne L36:O36 (sous-colonnes « Port Forwarding » de la
        ligne FAI 2) : on défusionne pour écrire chaque champ séparément. */
     const merges5 = (sheet.merges || []).filter(m => !/^L3[6-8]:O3[6-8]$/.test(m));
@@ -9255,6 +9525,18 @@ const LLD_TPL = (() => {
       const lines = proseLines(val, 40);
       if (lines.length) lines.forEach(t => out.push(NOTE(t)));
       else out.push(NOTE('Section à compléter.'));
+      return out;
+    }
+    if (key === 'faiCab' || key === 'fais') {
+      const cols = key === 'faiCab' ? LLD_FAI_CAB_COLS : LLD_FAI51_COLS;
+      const titre = key === 'faiCab' ? '5.2. Câblage FAI' : '5.1. Informations & Configuration';
+      const tbl = (L[key] || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim()));
+      out.push([]);
+      if (tbl.length) {
+        out.push(SEC(titre)); out.push([]);
+        out.push(H(cols.map(c => String(c[1]))));
+        tbl.forEach((r, i) => out.push(D(cols.map(c => String(r[c[0]] ?? '')), i % 2)));
+      } else out.push(NOTE(`${titre} : aucune ligne (🔎 Générer depuis l’élévation).`));
       return out;
     }
     if (BLOCK_TABLES[key]) {
@@ -10194,21 +10476,31 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   drawNodeExtras('5');          // diagramme + captures AVANT 5.1
   sub('5.1', 'Informations & Configuration');
   if (hasB('5.1', 'fais')) {
-    const F = L.fai;
-    const fr = [['Opérateur', F.operator], ['Offre', F.offer], ['Type de lien', F.linkType],
-                ['Débit descendant', F.down], ['Débit montant', F.up],
-                ['Bloc IP publiques', F.publicBlock], ['CPE (modèle)', F.cpe], ['CPE (IP)', F.cpeIp]]
-      .filter(([, v]) => v && v.trim());
-    if (fr.length) {
-      drawTable([['Élément', 'Valeur'], ...fr], [1.5, 3.5], 8.5);
-      if (F.notes.trim()) { miniTitle('Notes de configuration'); paragraph(F.notes); }
+    const rows51 = (L.fais || []).filter(f =>
+      f && Object.values(f).some(v => String(v ?? '').trim()));
+    if (rows51.length) {
+      const hdr = LLD_FAI51_COLS.map(c => String(c[1]));
+      drawTable([
+        hdr,
+        ...rows51.map(f => LLD_FAI51_COLS.map(c => String(f[c[0]] ?? '')))
+      ], pdfColW(LLD_FAI51_COLS), 6.5);
     } else placeholder();
   }
   endNode('5.1');
   sub('5.2', 'Câblage');
-  const cabFai = cablingRowsByDomain(ws, 'fai');
-  if (cabFai.length > 1) drawTable(cabFai, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
-  else note('Aucun câble classé « FAI » (mode Câblage : domaine du câble).');
+  const cabTable5 = (Array.isArray(L.faiCab) && L.faiCab.length)
+    ? L.faiCab.filter(r => r && ((r.desc || '').trim() || (r.conn || '').trim()))
+    : [];
+  if (cabTable5.length) {
+    drawTable([
+      ['Categorie', 'Description', 'Connecté a'],
+      ...cabTable5.map(r => [String(r.cat || 'FAI'), String(r.desc || ''), String(r.conn || '')])
+    ], [1.0, 2.2, 2.4], 8);
+  } else {
+    const cabFai = cablingRowsByDomain(ws, 'fai');
+    if (cabFai.length > 1) drawTable(cabFai, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
+    else note('Aucun câble classé « FAI » (mode Câblage : domaine du câble).');
+  }
   endNode('5.2');
   drawCustomSubs('5');          // extras déjà imprimés avant 5.1
 
