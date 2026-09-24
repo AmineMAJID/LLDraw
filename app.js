@@ -6093,6 +6093,7 @@ function lldInfoRender(box, def, key) {
             lldPushUndo(true);
             list.splice(idx, 1);
             if (lldDraft) lldDraft.lld[key] = list;
+            { const aws = active(); if (aws) { aws.lld = aws.lld || {}; aws.lld[key] = list; touchWorkspace(aws); saveState(); } }
             paint();
           });
           fig.appendChild(im);
@@ -6114,6 +6115,7 @@ function lldInfoRender(box, def, key) {
           n++;
         }
         if (lldDraft) lldDraft.lld[key] = list.slice();
+        { const aws = active(); if (aws) { aws.lld = aws.lld || {}; aws.lld[key] = list.slice(); touchWorkspace(aws); saveState(); } }
         paint();
         if (!n) lldAlert('Aucune image lisible (PNG/JPG/WebP uniquement).', { title: '🖼 Captures' });
       };
@@ -6170,6 +6172,11 @@ function lldInfoRender(box, def, key) {
         }
         lldDraft.lld.diagrams = lldDraft.lld.diagrams || {};
         lldDraft.lld.diagrams[mode] = lldBuildDiagData(ws, mode);
+        ws.lld = ws.lld || {};
+        ws.lld.diagrams = ws.lld.diagrams || {};
+        ws.lld.diagrams[mode] = lldDraft.lld.diagrams[mode];
+        touchWorkspace(ws);
+        saveState();
         // le rack FAI éventuellement créé doit survivre à l'enregistrement
         paint();
         lldAlert('Diagramme généré depuis l’élévation (pensez à Enregistrer).'
@@ -9534,9 +9541,24 @@ const LLD_TPL = (() => {
   return { buildAll };
 })();
 
+/* Miroir export : si la modale 📘 est ouverte, partir du brouillon (lldDraft)
+   — diagrammes/captures doivent partir dans le XLSX/PDF même sans clic
+   « Enregistrer » oublié. */
+function lldWorkspaceForExport() {
+  const ws = active();
+  if (!ws) return null;
+  if (!lldDraft) return ws;
+  try { lldFlushDetail(); } catch (_) {}
+  return Object.assign({}, ws, {
+    lld: lldDraft.lld || ws.lld,
+    sites: lldDraft.sites || ws.sites,
+    flows: lldDraft.flows || ws.flows
+  });
+}
+
 $('#export-xlsx').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
-  const ws = active();
+  const ws = lldWorkspaceForExport();
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Export Excel' }); return; }
   try {
     const [layout, stylesXml, themeXml] = await Promise.all([
@@ -10459,7 +10481,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
 
 $('#export-lld').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
-  const ws = active();
+  const ws = lldWorkspaceForExport();
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📄 Export LLD (PDF)' }); return; }
   const c = await renderPlanCanvas();
   let jpeg = null, w = 0, h = 0;
