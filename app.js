@@ -434,6 +434,15 @@ function normLldInfo(w) {
   L.cams = normTable(L.cams, [['name', 40], ['loc', 60], ['model', 40], ['ip', 40]]);
   if (typeof L.interco.notes !== 'string') L.interco.notes = '';
   L.interco.notes = L.interco.notes.slice(0, 2000);
+  // Surcharges libres de la matrice ch. 4 (« C19 » → texte exporté dans l'Excel)
+  if (!L.ch4ov || typeof L.ch4ov !== 'object' || Array.isArray(L.ch4ov)) L.ch4ov = {};
+  else {
+    const clean = {};
+    for (const [k, v] of Object.entries(L.ch4ov)) {
+      if (/^[C-H]\d{1,3}$/.test(k) && typeof v === 'string') clean[k] = v.slice(0, 80);
+    }
+    L.ch4ov = clean;
+  }
   // Notes de configuration par chapitre (ch. 7 à 13)
   if (!L.catNotes || typeof L.catNotes !== 'object') L.catNotes = {};
   for (const k of ['firewall', 'switching', 'server', 'storage', 'ids', 'cctv', 'pointage']) {
@@ -4386,8 +4395,9 @@ const LLD_INFOS = {
   addrMatrix: {
     label: 'Matrice d’adressage IP (feuille Excel « 4 »)', kind: 'ch4matrix',
     hint: 'Même disposition que l\'Excel : Catégorie / Description / Nomenclature / Adressage IP / Commentaire. '
-      + 'Cellules bleues = saisies de l\'app (VPN, alias, profils) ; cellules grises = générées depuis les devices, '
-      + 'le FAI et l\'interconnexion. Sous la matrice : le registre VLANs puis la nomenclature, comme dans le classeur.'
+      + 'Toutes les cellules de valeurs sont modifiables — les liens structurés (VPN, alias, profils) alimentent '
+      + 'aussi le PDF ; les autres écritures deviennent des surcharges appliquées à la feuille Excel « 4 ». '
+      + 'Sous la matrice : le registre VLANs puis la nomenclature, comme dans le classeur.'
   },
   nomen: {
     label: 'Nomenclature — registre (bas de la feuille Excel « 4 »)', kind: 'table', cols: LLD_NOMEN_COLS,
@@ -5114,14 +5124,16 @@ function lldInfoFlush(box, def, key) {
       break;
     }
     case 'ch4matrix': {
-      // Cellules éditables de la matrice : data-mx="vpns.0.name" | "aliases.2.value"
-      // | "fwProfiles.vpnSsl" — les tableaux vpns/aliases sont recréés à taille
-      // Excel (4 tunnels, 9 alias) pour que la disposition reste stable.
+      // Toutes les cellules de valeurs sont éditables :
+      //  - data-mx  → champs structurés (vpns / aliases / fwProfiles) ;
+      //  - data-ch4 → surcharge libre « C19 », « D6 »… appliquée à l'export Excel.
+      // Une valeur revenue à sa base auto est retirée de ch4ov (le recalcul suit).
       L.vpns = L.vpns && Array.isArray(L.vpns) ? L.vpns : [];
       L.aliases = L.aliases && Array.isArray(L.aliases) ? L.aliases : [];
       L.fwProfiles = L.fwProfiles && typeof L.fwProfiles === 'object' ? L.fwProfiles : {};
       while (L.vpns.length < 4) L.vpns.push({ name: '', peer: '' });
       while (L.aliases.length < 9) L.aliases.push({ name: '', value: '' });
+      if (!L.ch4ov || typeof L.ch4ov !== 'object' || Array.isArray(L.ch4ov)) L.ch4ov = {};
       box.querySelectorAll('[data-mx]').forEach(el => {
         const path = String(el.dataset.mx || '');
         const v = String(el.value || '').slice(0, 80);
@@ -5137,6 +5149,14 @@ function lldInfoFlush(box, def, key) {
         }
         const mf = /^fwProfiles\.(vpnSsl|appCtrl|webBlocker|httpProxy)$/.exec(path);
         if (mf) L.fwProfiles[mf[1]] = v.slice(0, 60);
+      });
+      box.querySelectorAll('[data-ch4]').forEach(el => {
+        const ref = String(el.dataset.ch4 || '');
+        if (!/^[C-H]\d{1,3}$/.test(ref)) return;
+        const v = String(el.value || '').slice(0, 80);
+        const base = String(el.dataset.base || '');
+        if (v !== base) L.ch4ov[ref] = v;
+        else delete L.ch4ov[ref];
       });
       break;
     }
@@ -5286,14 +5306,31 @@ function lldBuildCh4Matrix(L) {
     if (text != null) el.textContent = text;
     return el;
   };
-  const mkEdit = (path, val, ph) => {
+  const ch4ov = (L.ch4ov && typeof L.ch4ov === 'object' && !Array.isArray(L.ch4ov)) ? L.ch4ov : {};
+  // Une cellule de valeur : input unique. path = champ structuré (mx),
+  // sinon ref Excel (ch4) + valeur de base pour détecter une surcharge.
+  const fillCell = (td, ref, { path, auto, val, ph } = {}) => {
     const inp = document.createElement('input');
     inp.type = 'text';
-    inp.dataset.mx = path;
-    inp.value = val || '';
-    inp.placeholder = ph || '';
     inp.maxLength = 80;
-    return inp;
+    inp.placeholder = ph || '';
+    if (path) {
+      // Champ structuré (VPN / alias / profil) : exporté aussi dans le PDF
+      inp.dataset.mx = path;
+      inp.value = String(val || '');
+    } else {
+      // Cellule libre : surcharge ch4ov si présente, sinon valeur auto.
+      // data-base garde l'auto pour que le flush retire la surcharge si on
+      // revient à l'original (le recalcul devices/FAI reprend la main).
+      inp.dataset.ch4 = ref;
+      const autoS = String(auto || '');
+      inp.dataset.base = autoS;
+      inp.value = Object.prototype.hasOwnProperty.call(ch4ov, ref)
+        ? String(ch4ov[ref] || '') : autoS;
+    }
+    td.className = 'lld-mx-edit';
+    td.appendChild(inp);
+    return td;
   };
 
   // --- Rendu segmenté par catégories (rowspan identique aux fusions A de l'Excel) ---
@@ -5314,85 +5351,71 @@ function lldBuildCh4Matrix(L) {
         const row = idx;   // 0 = ligne Excel 6
         const excelR = 6 + idx;
 
-        // — Nomenclature (col C) —
+        // Valeurs auto (miroir ch4) — servent de base aux cellules libres
+        let autoN = lldCh4Auto(ws, L, row, 'nomen');
+        let autoIP = lldCh4Auto(ws, L, row, 'ip');
+        const autoMask = lldCh4Auto(ws, L, row, 'mask');
+        const autoGw = lldCh4Auto(ws, L, row, 'gw');
+        const autoDns = lldCh4Auto(ws, L, row, 'dns');
+        if (excelR >= 38 && excelR <= 63) autoN = vlanNomen(desc, excelR - 38);
+        if (excelR >= 76 && excelR <= 99) {
+          const off = excelR < 88 ? excelR - 76 : excelR - 88;
+          const list = excelR < 88 ? VLAN_DESCS_A : VLAN_DESCS_B;
+          autoN = vlanNomen(list[off] || desc, excelR < 88 ? off : off + 12)
+            || (vlans[off] ? `VLAN ${vlans[off].vid}` : '');
+        }
+        if (excelR >= 70 && excelR <= 75) {
+          const sws = (ws.racks || []).flatMap(r => r.instances).filter(x => x.cat === 'switch');
+          const sw = sws[excelR - 70];
+          autoN = sw ? (sw.name || '') : `SW-${excelR - 69}`;
+          autoIP = sw ? (sw.ipMgmt || '') : autoIP;
+        }
+        if (excelR === 100) {
+          const srvs = (ws.racks || []).flatMap(r => r.instances).filter(x => x.cat === 'server');
+          if (srvs[0]) { autoN = srvs[0].name || ''; autoIP = srvs[0].ipMgmt || ''; }
+        }
+        if (excelR === 108) {
+          const stos = (ws.racks || []).flatMap(r => r.instances).filter(x => x.cat === 'storage');
+          if (stos[0]) { autoN = stos[0].name || ''; autoIP = stos[0].ipMgmt || ''; }
+        }
+        if (excelR >= 121 && excelR <= 126) {
+          const aps = (ws.racks || []).flatMap(r => r.instances).filter(x => x.cat === 'ap');
+          const x = aps[excelR - 121];
+          if (x) { autoN = x.name || ''; autoIP = x.ipMgmt || ''; }
+        }
+
         const tdN = document.createElement('td');
         const tdI = document.createElement('td');
-        const tdM = mkCell('td', 'lld-mx-auto', '');
-        const tdG = mkCell('td', 'lld-mx-auto', '');
-        const tdD = mkCell('td', 'lld-mx-auto', '');
-        const tdCmt = mkCell('td', 'lld-mx-auto', '');
+        const tdM = document.createElement('td');
+        const tdG = document.createElement('td');
+        const tdD = document.createElement('td');
+        const tdCmt = document.createElement('td');
 
-        const autoN = lldCh4Auto(ws, L, row, 'nomen');
-        const autoIP = lldCh4Auto(ws, L, row, 'ip');
-
-        let editable = false;
-        // VPN S2S 1-4 : Excel r15-18
+        // — liens structurés (toujours exportés tels quels) —
+        let pathN = null, pathI = null, valN = null, valI = null;
         if (excelR >= 15 && excelR <= 18) {
-          editable = true;
           const v = vpns[excelR - 15] || {};
-          tdN.appendChild(mkEdit(`vpns.${excelR - 15}.name`, v.name, 'Nom du tunnel'));
-          tdI.appendChild(mkEdit(`vpns.${excelR - 15}.peer`, v.peer, 'Pair / subnet distant'));
-          tdN.className = 'lld-mx-edit';
-          tdI.className = 'lld-mx-edit';
+          pathN = `vpns.${excelR - 15}.name`; valN = v.name;
+          pathI = `vpns.${excelR - 15}.peer`; valI = v.peer;
+          autoN = ''; autoIP = '';   // base = champ structuré
         } else if (excelR >= 24 && excelR <= 32) {
-          // Alias Firewall ×9
-          editable = true;
           const a = aliases[excelR - 24] || {};
-          tdN.appendChild(mkEdit(`aliases.${excelR - 24}.name`, a.name, 'Alias'));
-          tdI.appendChild(mkEdit(`aliases.${excelR - 24}.value`, a.value, 'hosts / subnet…'));
-          tdN.className = 'lld-mx-edit';
-          tdI.className = 'lld-mx-edit';
+          pathN = `aliases.${excelR - 24}.name`; valN = a.name;
+          pathI = `aliases.${excelR - 24}.value`; valI = a.value;
+          autoN = ''; autoIP = '';
         } else if (excelR >= 34 && excelR <= 37) {
-          // Profils firewall ×4
-          editable = true;
           const keys = ['vpnSsl', 'appCtrl', 'webBlocker', 'httpProxy'];
           const k = keys[excelR - 34];
-          tdN.appendChild(mkEdit(`fwProfiles.${k}`, fp[k], ''));
-          tdN.className = 'lld-mx-edit';
-          tdI.textContent = autoIP;
-          tdI.className = 'lld-mx-auto';
-        } else {
-          // Cellules auto (lecture seule) — valeurs miroir de la feuille Excel
-          tdN.textContent = autoN;
-          tdI.textContent = autoIP;
-          if (excelR >= 38 && excelR <= 63) {
-            // VLANs firewall : nomenclature depuis le registre
-            const n = vlanNomen(desc, excelR - 38);
-            tdN.textContent = n;
-          }
-          if (excelR >= 76 && excelR <= 99) {
-            // VLANs par switch : 76-87 site A, 88-99 site B (12+12)
-            const off = excelR < 88 ? excelR - 76 : excelR - 88;
-            const list = excelR < 88 ? VLAN_DESCS_A : VLAN_DESCS_B;
-            const n = vlanNomen(list[off] || desc, excelR < 88 ? off : off + 12);
-            tdN.textContent = n || (desc.trim() ? '' : '');
-            // fallback : valeur VLAN du registre par index de catégorie
-            if (!tdN.textContent && vlans[off]) tdN.textContent = `VLAN ${vlans[off].vid}`;
-          }
-          if (excelR >= 70 && excelR <= 75) {
-            const sws = (ws.racks || []).flatMap(r => r.instances).filter(x => x.cat === 'switch');
-            const sw = sws[excelR - 70];
-            if (sw) { tdN.textContent = sw.name || ''; tdI.textContent = sw.ipMgmt || ''; }
-            else tdN.textContent = `SW-${excelR - 69}`;
-          }
-          if (excelR >= 100 && excelR <= 107) {
-            const srvs = (ws.racks || []).flatMap(r => r.instances).filter(x => x.cat === 'server');
-            const x = excelR === 100 ? srvs[0] : null;
-            if (excelR === 100 && x) { tdN.textContent = x.name || ''; tdI.textContent = x.ipMgmt || ''; }
-          }
-          if (excelR === 108) {
-            const stos = (ws.racks || []).flatMap(r => r.instances).filter(x => x.cat === 'storage');
-            const x = stos[0];
-            if (x) { tdN.textContent = x.name || ''; tdI.textContent = x.ipMgmt || ''; }
-          }
-          if (excelR >= 121 && excelR <= 126) {
-            const aps = (ws.racks || []).flatMap(r => r.instances).filter(x => x.cat === 'ap');
-            const x = aps[excelR - 121];
-            if (x) { tdN.textContent = x.name || ''; tdI.textContent = x.ipMgmt || ''; }
-          }
-          tdN.className = 'lld-mx-auto';
-          tdI.className = 'lld-mx-auto';
+          pathN = `fwProfiles.${k}`; valN = fp[k];
+          autoN = '';
         }
+
+        fillCell(tdN, `C${excelR}`, pathN ? { path: pathN, val: valN } : { auto: autoN });
+        fillCell(tdI, `D${excelR}`, pathI ? { path: pathI, val: valI } : { auto: autoIP });
+        fillCell(tdM, `E${excelR}`, { auto: autoMask });
+        fillCell(tdG, `F${excelR}`, { auto: autoGw });
+        fillCell(tdD, `G${excelR}`, { auto: autoDns });
+        fillCell(tdCmt, `H${excelR}`, { auto: '' });
 
         tr.appendChild(tdN);
         tr.appendChild(tdI);
@@ -5409,8 +5432,8 @@ function lldBuildCh4Matrix(L) {
   wrap.appendChild(t);
   const note = document.createElement('p');
   note.className = 'lld-hint lld-mx-note';
-  note.textContent = 'Cellules soulignées = saisies de l’app (enregistrées avec « Enregistrer »). '
-    + 'Le reste est recalculé à l’export depuis devices / FAI / interconnexion — mêmes lignes que l’Excel.';
+  note.textContent = 'Toutes les cellules de valeurs sont modifiables (Enregistrer pour valider). '
+    + 'Valeur modifiée = surcharge appliquée à l’export Excel ; revenue à l’original = recalcul auto depuis devices / FAI.';
   wrap.appendChild(note);
   return wrap;
 }
@@ -8289,6 +8312,10 @@ const LLD_TPL = (() => {
        (cluster) — on défusionne pour écrire chaque équipement séparément.
        B156:D156 : ligne de séparation du registre VLAN, défusionnée car le
        registre de l'app y écrit une entrée (viDRAC). */
+    // Surcharges saisies librement dans la matrice de la modale (toutes colonnes C-H)
+    Object.entries(L.ch4ov || {}).forEach(([ref, v]) => {
+      if (/^[C-H]\d{1,3}$/.test(ref)) set(rows, ref, String(v || '').slice(0, 80));
+    });
     const merges4 = (sheet.merges || [])
       .filter(m => !/^[C-H]19:[C-H]20$/.test(m) && !/^B156:D156$/.test(m));
     return out(sheet, rows, heights, merges4);

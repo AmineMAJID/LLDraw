@@ -294,11 +294,13 @@ via localStorage, en secours).
       (suppression persiste, colonnes du schéma dynamique comprises).
     - **Ch. 4 = feuille Excel « 4 »** : la fiche « Matrice d'adressage IP »
       reprend la disposition exacte du classeur (catégories fusionnées FAI →
-      Clime, mêmes descriptions, en-tête IP / Mask / GW / DNS) — cellules
-      bleues éditables pour **VPN S2S**, **alias** et **profils firewall**
-      (rangées Excel 15-18 / 24-32 / 34-37), le reste en lecture seule
-      (devices, FAI, interconnexion) ; sous la matrice, le **registre VLANs**
-      puis la **nomenclature**, comme en bas de la feuille.
+      Clime, mêmes descriptions, en-tête IP / Mask / GW / DNS) — **toutes les
+      cellules de valeurs sont modifiables** : les liens structurés (VPN S2S,
+      alias, profils) alimentent aussi le PDF, les autres écritures deviennent
+      des **surcharges appliquées à la feuille Excel « 4 »** (revenir à la
+      valeur d'origine réactive le recalcul auto depuis devices / FAI) ;
+      sous la matrice, le **registre VLANs** puis la **nomenclature**, comme
+      en bas de la feuille.
     - **Synchro exports** : les saisies sont enregistrées dans le workspace
       (bouton **Enregistrer**) et lues telles quelles par le **PDF** et
       l'**Excel** à chaque export ; retirer une information d'un chapitre la
