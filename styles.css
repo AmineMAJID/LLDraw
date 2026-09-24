@@ -1937,11 +1937,12 @@ body.topo-linking .topo-node { cursor: crosshair; }
 /* ---------- Modale Infos dossier LLD (sommaire + chapitres) ---------- */
 .modal-box-lg {
   /* Sommaire à gauche + détail du chapitre à droite.
-     Largeur adaptable à la fenêtre navigateur : suit la taille de
-     l'écran jusqu'à 1120px, puis se cale sur les marges. */
-  width: min(1120px, calc(100vw - 36px));
-  max-width: calc(100vw - 36px);
-  max-height: calc(100vh - 40px);
+     LARGEUR 100 % fluide : egale a la fenetre navigateur moins les
+     marges — aucun plafond fixe, du petit ecran a l'ultrawide.
+     HAUTEUR : grandit avec la fenetre aussi (contenu interne scroll). */
+  width: calc(100vw - 48px);
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
   overflow-y: auto;
 }
 .lld-split {
@@ -1950,8 +1951,10 @@ body.topo-linking .topo-node { cursor: crosshair; }
   border: 1px solid var(--border-2);
   border-radius: 10px;
   overflow: hidden;
+  /* Hauteur suivant la fenetre : au minimum 380px, au maximum la place
+     restante sous le titre + les boutons, bornée a 960px de confort. */
+  height: clamp(380px, calc(100vh - 210px), 960px);
   min-height: 380px;
-  max-height: calc(100vh - clamp(140px, 22vh, 220px));
   background: #fff;
 }
 /* — Colonne sommaire — */
