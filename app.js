@@ -102,7 +102,7 @@ function defaultLldToc() {
       sub('5.2', 'Câblage', ['faiCab'])
     ]),
     ch('6', 'Conception et Configuration Interconnexion site 2 site', ['diag6', 'shots6'], [
-      sub('6.1', 'Informations & Configuration', ['ic61', 'interco', 'adminSec']),
+      sub('6.1', 'Informations & Configuration', ['ic61', 'adminSec', 'icWan', 'icLan', 'interco']),
       sub('6.2', 'Câblage', ['icCab'])
     ]),
     ch('7', 'Conception et Configuration Firewall', ['diag7', 'shots7', 'fw', 'note:firewall']),
@@ -267,6 +267,7 @@ function normLldToc(raw) {
     // (l'ancien sommaire n'avait rien avant 5.1 / 6.1 ; blocksSeeded évite
     // de ressusciter un bloc détaché par l'utilisateur).
     let blocksSeeded = r.blocksSeeded === 1 || r.blocksSeeded === true;
+    let blocksSeeded2 = r.blocksSeeded2 === 1 || r.blocksSeeded2 === true;
     const seedNum = String(d.num);
     // Injection unique (blocksSeeded) — ne ressuscite pas un bloc détaché :
     //  - ch. 5/6/7 : diagramme + captures en tête
@@ -279,13 +280,24 @@ function normLldToc(raw) {
         '7': ['diag7', 'shots7'],
         '5.1': ['fais'],
         '5.2': ['faiCab'],
-        '6.1': ['ic61'],
+        '6.1': ['ic61', 'icWan', 'icLan'],
         '6.2': ['icCab']
       };
       const pref = SEED[seedNum] || [];
       const need = pref.filter(k => !blocks.includes(k));
       if (need.length) blocks = [...need, ...blocks];
-      if (pref.length) blocksSeeded = true;
+      if (pref.length) { blocksSeeded = true; blocksSeeded2 = true; }
+    } else if (!blocksSeeded2 && seedNum === '6.1') {
+      // Migration 18g : les sommaires déjà seedés (ic61 seul) reçoivent
+      // WAN/LAN une seule fois — un détachement reste détaché ensuite.
+      // Insertion après ic61 (ordre visuel de la feuille Excel « 6 »).
+      const need = ['icWan', 'icLan'].filter(k => !blocks.includes(k));
+      if (need.length) {
+        const at = blocks.indexOf('ic61');
+        if (at >= 0) blocks = [...blocks.slice(0, at + 1), ...need, ...blocks.slice(at + 1)];
+        else blocks = [...need, ...blocks];
+      }
+      blocksSeeded2 = true;
     }
     return {
       id: String(r.id || d.id || uid()),
@@ -296,7 +308,8 @@ function normLldToc(raw) {
       ...(d.cover ? { cover: true } : {}),
       ...(d.noSubs ? { noSubs: true } : {}),
       ...(r.custom || d.custom ? { custom: true } : {}),
-      ...(blocksSeeded ? { blocksSeeded: true } : {})
+      ...(blocksSeeded ? { blocksSeeded: true } : {}),
+      ...(blocksSeeded2 ? { blocksSeeded2: true } : {})
     };
   };
   if (!Array.isArray(raw) || !raw.length) return def;
@@ -554,6 +567,61 @@ function normLldInfo(w) {
     port: String(r.port ?? '').slice(0, 40),
     conn: String(r.conn ?? '').slice(0, 160)
   })) : [];
+  // 6.1 WAN / LAN (sections Excel) — migration depuis FAI + interco si vides
+  const icSan = (arr, keys) => (Array.isArray(arr) ? arr : [])
+    .filter(r => r && typeof r === 'object')
+    .map(r => {
+      const o = {};
+      for (const [k, max] of keys) o[k] = String(r[k] ?? '').slice(0, max);
+      return o;
+    });
+  if (!L.icWan || !L.icWan.some(r => Object.values(r).some(v => String(v ?? '').trim()))) {
+    const faiRows = (L.fais || []).filter(f => f && (f.operator || f.wanIp || f.ipMode || f.wanLabel));
+    const seed = faiRows.slice(0, 3).map((f, i) => ({
+      name: `WAN ${i + 1}${f.operator ? ' — ' + f.operator : ''}`,
+      enable: 'Oui',
+      connMethod: String(f.ipMode || '').slice(0, 30),
+      routingMode: 'NAT',
+      ip: String(f.wanIp || '').slice(0, 45),
+      mask: String(f.wanMask || '').slice(0, 45),
+      gw: String(f.wanGw || '').slice(0, 45),
+      dns: String(f.wanDns || '').slice(0, 60),
+      priority: '',
+      up: String(f.up || '').slice(0, 40),
+      down: String(f.down || '').slice(0, 40),
+      portSpeed: '', mtu: '', mss: '', macClone: '', vlan: '',
+      hcMethod: '', hcDns: '', hcTimeout: '', hcInterval: '',
+      hcRetries: '', hcRecovery: '',
+      provider: String(f.operator || '').slice(0, 60),
+      dynDns: '', ipv6: '', doh: '', qos: ''
+    })).filter(r => Object.values(r).some(v => String(v ?? '').trim()));
+    L.icWan = (Array.isArray(L.icWan) ? L.icWan : []).slice();
+    if (!L.icWan.length && seed.length) L.icWan = seed;
+  }
+  L.icWan = icSan(Array.isArray(L.icWan) ? L.icWan : [], LLD_IC_WAN_COLS.map(c => [c[0],
+    c[0] === 'name' ? 140 : c[0] === 'provider' ? 60 : 45]));
+  if (!L.icLan || !L.icLan.some(r => Object.values(r).some(v => String(v ?? '').trim()))) {
+    const ic = L.interco || {};
+    const nv = (L.vlans || []).length;
+    const seed = [];
+    if (ic.localSubnets || ic.routing || nv) {
+      seed.push({
+        lan: String(ic.localSubnets ? `LAN — ${ic.localSubnets}` : 'LAN').slice(0, 120),
+        routing: String(ic.routing || '').slice(0, 120),
+        network: String(nv ? `x${nv} VLANs routés` : '').slice(0, 120)
+      });
+    }
+    if (ic.remoteSubnets) {
+      seed.push({
+        lan: 'LAN — distant',
+        routing: '',
+        network: String(ic.remoteSubnets).slice(0, 120)
+      });
+    }
+    L.icLan = (Array.isArray(L.icLan) ? L.icLan : []).slice();
+    if (!L.icLan.length && seed.length) L.icLan = seed;
+  }
+  L.icLan = icSan(Array.isArray(L.icLan) ? L.icLan : [], [['lan', 120], ['routing', 120], ['network', 120]]);
   if (!L.diagrams || typeof L.diagrams !== 'object' || Array.isArray(L.diagrams)) L.diagrams = {};
   else {
     const cleanD = {};
@@ -4559,6 +4627,42 @@ const LLD_IC_CAB_COLS = [
   ['port', 'Port', 90],
   ['conn', 'Connecté a', 180]
 ];
+/* Colonnes WAN — miroir de la feuille Excel « 6 » (WAN Connection Settings r44). */
+const LLD_IC_WAN_COLS = [
+  ['name', 'WAN Connection Settings', 150],
+  ['enable', 'Enable', 55],
+  ['connMethod', 'Connection Method', 90],
+  ['routingMode', 'Routing Mode', 80],
+  ['ip', 'IP Address', 100],
+  ['mask', 'Mask', 100],
+  ['gw', 'GW', 100],
+  ['dns', 'DNS', 100],
+  ['priority', 'Connection Priority', 85],
+  ['up', 'Upload Bandwidth', 90],
+  ['down', 'Download Bandwidth', 95],
+  ['portSpeed', 'Port Speed', 75],
+  ['mtu', 'MTU', 55],
+  ['mss', 'MSS', 55],
+  ['macClone', 'MAC Address Clone', 95],
+  ['vlan', 'VLAN', 55],
+  ['hcMethod', 'Health Check Method', 95],
+  ['hcDns', 'Health Check DNS Servers', 110],
+  ['hcTimeout', 'Timeout', 60],
+  ['hcInterval', 'Health Check Interval', 95],
+  ['hcRetries', 'Health Check Retries', 95],
+  ['hcRecovery', 'Recovery Retries', 85],
+  ['provider', 'Service Provider', 90],
+  ['dynDns', 'Dynamic DNS Settings', 95],
+  ['ipv6', 'WAN / IP v6', 85],
+  ['doh', 'WAN / DNS over HTTPS', 95],
+  ['qos', 'WAN / Quality Monitoring', 105]
+];
+/* Colonnes LAN — en-têtes de la section LAN (feuille « 6 », r52). */
+const LLD_IC_LAN_COLS = [
+  ['lan', 'LAN', 160],
+  ['routing', 'Inter-VLAN routing', 160],
+  ['network', 'Network', 180]
+];
 const LLD_INFOS = {
   meta: {
     label: 'Client, auteur & version', kind: 'fields', path: '',
@@ -4693,6 +4797,25 @@ const LLD_INFOS = {
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
     extra: 'gen-ic-cab'
   },
+  icWan: {
+    label: '6.1 — WAN Connection Settings (feuille Excel « 6 »)',
+    kind: 'table', cols: LLD_IC_WAN_COLS, def: { enable: 'Oui', routingMode: 'NAT' },
+    addLabel: '＋ Ajouter une connexion WAN',
+    hint: 'Même tableau que la section WAN de la feuille Excel « 6 » (lignes WAN 1…3). '
+      + '🔎 Générer depuis l’élévation pré-remplit depuis les FAI ; le reste reste vide à saisir. '
+      + 'L’export XLSX/PDF reprend exactement ces lignes.',
+    filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
+    extra: 'gen-ic-wan'
+  },
+  icLan: {
+    label: '6.1 — LAN / Network settings (feuille Excel « 6 »)',
+    kind: 'table', cols: LLD_IC_LAN_COLS, def: {},
+    addLabel: '＋ Ajouter une ligne LAN',
+    hint: 'Section LAN de la feuille Excel « 6 » (LAN / Inter-VLAN routing / Network). '
+      + '🔎 Générer depuis l’élévation pré-remplit depuis interco et le registre VLANs.',
+    filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
+    extra: 'gen-ic-lan'
+  },
   fw: {
     label: 'Règles & NAT Firewall (ch. 7)', kind: 'table', cols: LLD_FW_COLS,
     addLabel: '＋ Ajouter une règle / NAT', filter: r => r.name.trim(), def: { type: 'Règle' }
@@ -4757,6 +4880,7 @@ const LLD_TOC_AUTO = {
   '5': 'Diagramme d’accès FAI + captures (si renseignées) avant 5.1',
   '5.2': 'Tableau 5.2 (Categorie / Description / Connecté a) — éditable ici, + câbles FAI si absents du tableau',
   '6': 'Diagramme d’interconnexion + captures (si renseignées) avant 6.1',
+  '6.1': 'Tableaux 6.1 extrémités/HA, WAN Connection Settings et LAN — éditables ici, export XLSX/PDF identiques',
   '6.2': 'Tableau 6.2 (Categorie / Description / Port / Connecté a) — éditable ici, + câbles interco si absents',
   '7': 'Diagramme Firewall + captures, puis équipements firewall, interfaces VLAN, ports & câblage',
   '8': 'Sous-chapitres 8.1… = zones de Switching ; équipements, ports & câblage',
@@ -6205,6 +6329,16 @@ function lldInfoRender(box, def, key) {
           () => { lldPushUndo(true); lldGenIcCab(tbl, cols); },
           'Construit les lignes 6.2 (WAN/LAN interco) depuis les équipements et câbles posés'));
       }
+      if (def.extra === 'gen-ic-wan') {
+        acts.push(lldBtn("🔎 Générer depuis l'élévation",
+          () => { lldPushUndo(true); lldGenIcWan(tbl, cols); },
+          'Pré-remplit le tableau WAN (feuille Excel « 6 ») depuis les FAI du dossier'));
+      }
+      if (def.extra === 'gen-ic-lan') {
+        acts.push(lldBtn("🔎 Générer depuis l'élévation",
+          () => { lldPushUndo(true); lldGenIcLan(tbl, cols); },
+          'Pré-remplit le tableau LAN (feuille Excel « 6 ») depuis interco et le registre VLANs'));
+      }
       box.appendChild(tbl);
       box.appendChild(lldGridActions(...acts));
       break;
@@ -7051,6 +7185,95 @@ function lldGenIcCab(tbl, cols) {
     ? `${added} ligne(s) de câblage 6.2 ajoutée(s) (reprises dans la feuille Excel « 6 »).`
     : 'Rien de nouveau — câblage 6.2 déjà à jour.',
     { title: '🔎 Générer 6.2' });
+}
+
+/* ---- 6.1 WAN : pré-remplissage depuis les FAI ---- */
+function lldGenIcWan(tbl, cols) {
+  const ws = active();
+  if (!ws || !lldDraft || !tbl) return;
+  const C = cols || LLD_IC_WAN_COLS;
+  const fais = lldDraft.lld.fais || [];
+  const rows = lldRowsFrom(tbl);
+  let added = 0, filled = 0;
+  const ensureName = (name) => {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key) return null;
+    let hit = rows.find(r => String(r.name || '').trim().toLowerCase() === key);
+    if (!hit) { lldAddRow(tbl, C, { name: String(name).slice(0, 140) }); added++; hit = lldRowsFrom(tbl).slice(-1)[0]; }
+    return hit;
+  };
+  const fill = (row, patch) => {
+    if (!row) return;
+    let t = false;
+    for (const [k, v] of Object.entries(patch)) {
+      if (!v) continue;
+      if (!String(row[k] || '').trim()) { row[k] = v; t = true; }
+    }
+    if (t) filled++;
+  };
+  fais.slice(0, 3).forEach((f, i) => {
+    const name = `WAN ${i + 1}${f.operator ? ' — ' + f.operator : ''}`;
+    const row = ensureName(name);
+    fill(row, {
+      enable: 'Oui',
+      connMethod: String(f.ipMode || '').slice(0, 45),
+      routingMode: 'NAT',
+      ip: String(f.wanIp || '').slice(0, 45),
+      mask: String(f.wanMask || '').slice(0, 45),
+      gw: String(f.wanGw || '').slice(0, 45),
+      dns: String(f.wanDns || '').slice(0, 60),
+      up: String(f.up || '').slice(0, 45),
+      down: String(f.down || '').slice(0, 45),
+      provider: String(f.operator || '').slice(0, 60)
+    });
+  });
+  lldAlert(
+    added || filled
+      ? `Tableau WAN : ${added} ligne(s) ajoutée(s), ${filled} champ(s) complété(s) sur les cellules vides.\n`
+        + 'Complétez MTU, health-check… si besoin — l’export reprend ces lignes.'
+      : 'Rien de nouveau — tableau WAN déjà à jour.',
+    { title: '🔎 Générer WAN' });
+}
+
+/* ---- 6.1 LAN : pré-remplissage depuis interco + VLANs ---- */
+function lldGenIcLan(tbl, cols) {
+  const ws = active();
+  if (!ws || !lldDraft || !tbl) return;
+  const C = cols || LLD_IC_LAN_COLS;
+  const ic = lldDraft.lld.interco || {};
+  const nv = (lldDraft.lld.vlans || []).length;
+  const rows = lldRowsFrom(tbl);
+  let added = 0, filled = 0;
+  const ensureLan = (lan) => {
+    const key = String(lan || '').trim().toLowerCase();
+    if (!key) return null;
+    let hit = rows.find(r => String(r.lan || '').trim().toLowerCase() === key);
+    if (!hit) { lldAddRow(tbl, C, { lan: String(lan).slice(0, 120) }); added++; hit = lldRowsFrom(tbl).slice(-1)[0]; }
+    return hit;
+  };
+  const fill = (row, patch) => {
+    if (!row) return;
+    let t = false;
+    for (const [k, v] of Object.entries(patch)) {
+      if (!v) continue;
+      if (!String(row[k] || '').trim()) { row[k] = v; t = true; }
+    }
+    if (t) filled++;
+  };
+  const main = ensureLan(ic.localSubnets ? `LAN — ${ic.localSubnets}` : 'LAN');
+  fill(main, {
+    routing: String(ic.routing || '').slice(0, 120),
+    network: String(nv ? `x${nv} VLANs routés` : '').slice(0, 120)
+  });
+  if (ic.remoteSubnets) {
+    const dist = ensureLan('LAN — distant');
+    fill(dist, { network: String(ic.remoteSubnets).slice(0, 120) });
+  }
+  lldAlert(
+    added || filled
+      ? `Tableau LAN : ${added} ligne(s) ajoutée(s), ${filled} champ(s) complété(s) sur les cellules vides.`
+      : 'Rien de nouveau — tableau LAN déjà à jour.',
+    { title: '🔎 Générer LAN' });
 }
 
 function openLldModal(selectKey = null) {
@@ -9738,29 +9961,71 @@ const LLD_TPL = (() => {
     });
     for (let r = 37 + Math.min((L.adminSec || []).length, 2); r <= 38; r++)
       ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'M'].forEach(c2 => set(rows, `${c2}${r}`, ''));
-    // WAN Connection Settings (r45-47) : alimenté par les FAI
-    fais.slice(0, 3).forEach((f, i) => {
-      const r = 45 + i;
-      set(rows, `B${r}`, f.operator ? `WAN ${i + 1} — ${f.operator}` : `WAN ${i + 1}`);
-      set(rows, `C${r}`, 'Oui');
-      set(rows, `D${r}`, f.ipMode || '');
-      set(rows, `E${r}`, 'NAT');
-      set(rows, `F${r}`, f.wanIp || '');
-      set(rows, `G${r}`, f.wanMask || '');
-      set(rows, `H${r}`, f.wanGw || '');
-      set(rows, `I${r}`, f.wanDns || '');
-      set(rows, `K${r}`, f.up || '');
-      set(rows, `L${r}`, f.down || '');
-      set(rows, `M${r}`, f.down || '');
-      set(rows, `X${r}`, f.operator || '');
-    });
-    for (let r = 45 + Math.min(fais.length, 3); r <= 47; r++)
-      ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'X'].forEach(c2 => set(rows, `${c2}${r}`, ''));
-    // LAN (r52-53)
-    if (ic.routing) set(rows, 'C52', ic.routing);
-    const nv = (L.vlans || []).length;
-    set(rows, 'D52', nv ? `x${nv} VLANs routés` : '');
-    if (ic.localSubnets) set(rows, 'B53', `LAN — ${ic.localSubnets}`);
+    // WAN Connection Settings (r45-47) — source prioritaire : tableau L.icWan
+    // du sommaire ; sinon dérivation FAI (comportement historique).
+    const icWan = (Array.isArray(L.icWan) && L.icWan.length)
+      ? L.icWan.filter(r => r && ((r.name || '').trim() || (r.ip || '').trim()
+          || (r.provider || '').trim() || (r.enable || '').trim()))
+      : [];
+    const wanCols = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+                     'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+                     'Y', 'Z', 'AA', 'AB'];
+    const wanKeys = ['name', 'enable', 'connMethod', 'routingMode', 'ip', 'mask',
+                     'gw', 'dns', 'priority', 'up', 'down', 'portSpeed',
+                     'mtu', 'mss', 'macClone', 'vlan', 'hcMethod', 'hcDns',
+                     'hcTimeout', 'hcInterval', 'hcRetries', 'hcRecovery',
+                     'provider', 'dynDns', 'ipv6', 'doh', 'qos'];
+    if (icWan.length) {
+      for (let i = 0; i < 3; i++) {
+        const r = 45 + i;
+        const row = icWan[i] || {};
+        wanCols.forEach((col, ci) => set(rows, `${col}${r}`, String(row[wanKeys[ci]] ?? '')));
+      }
+    } else {
+      fais.slice(0, 3).forEach((f, i) => {
+        const r = 45 + i;
+        set(rows, `B${r}`, f.operator ? `WAN ${i + 1} — ${f.operator}` : `WAN ${i + 1}`);
+        set(rows, `C${r}`, 'Oui');
+        set(rows, `D${r}`, f.ipMode || '');
+        set(rows, `E${r}`, 'NAT');
+        set(rows, `F${r}`, f.wanIp || '');
+        set(rows, `G${r}`, f.wanMask || '');
+        set(rows, `H${r}`, f.wanGw || '');
+        set(rows, `I${r}`, f.wanDns || '');
+        set(rows, `K${r}`, f.up || '');
+        set(rows, `L${r}`, f.down || '');
+        set(rows, `M${r}`, f.down || '');
+        set(rows, `X${r}`, f.operator || '');
+      });
+      for (let r = 45 + Math.min(fais.length, 3); r <= 47; r++)
+        ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'X'].forEach(c2 => set(rows, `${c2}${r}`, ''));
+    }
+    // LAN (r52 = en-têtes ; r53-55 = données) — source prioritaire : L.icLan
+    const icLan = (Array.isArray(L.icLan) && L.icLan.length)
+      ? L.icLan.filter(r => r && ((r.lan || '').trim() || (r.routing || '').trim() || (r.network || '').trim()))
+      : [];
+    if (icLan.length) {
+      for (let i = 0; i < 3; i++) {
+        const r = 53 + i;
+        const row = icLan[i] || {};
+        set(rows, `B${r}`, String(row.lan ?? ''));
+        set(rows, `C${r}`, String(row.routing ?? ''));
+        set(rows, `D${r}`, String(row.network ?? ''));
+      }
+      // défusionner B/C/D 53:55 si plusieurs lignes (merges verticaux du template)
+      if (icLan.length > 1) {
+        // no-op sur merges : out() gère via merges6 — voir filtre plus bas
+      }
+    } else {
+      if (ic.routing) set(rows, 'C53', ic.routing);
+      const nv = (L.vlans || []).length;
+      set(rows, 'D53', nv ? `x${nv} VLANs routés` : '');
+      if (ic.localSubnets) set(rows, 'B53', `LAN — ${ic.localSubnets}`);
+      if (ic.remoteSubnets) {
+        set(rows, 'B54', 'LAN — distant');
+        set(rows, 'D54', ic.remoteSubnets);
+      }
+    }
     // 6.2 câblage — source prioritaire : tableau L.icCab (sommaire) ;
     // sinon dérivation FAI/interco sur les lignes du template (62-71).
     const icCab = (Array.isArray(L.icCab) && L.icCab.length)
@@ -9797,7 +10062,9 @@ const LLD_TPL = (() => {
     }
     // VIP (N30/31) et masque admin (P30/31) : le template fusionne N30:N31 et
     // P30:P31 alors que chaque extrémité a ses propres valeurs -> on défusionne.
-    const merges6 = (sheet.merges || []).filter(m => !/^(N30:N31|P30:P31)$/.test(m));
+    const merges6 = (sheet.merges || []).filter(m =>
+      !/^(N30:N31|P30:P31)$/.test(m)
+      && !(icLan.length > 1 && /^(B53:B55|C53:C55|D53:D55)$/.test(m)));
     const s6 = out(sheet, rows, heights, merges6);
     const im6 = insertChapterExtras(s6.rows, ws, '6');
     if (im6) s6.opts.images = im6;
@@ -9871,12 +10138,15 @@ const LLD_TPL = (() => {
       else out.push(NOTE('Section à compléter.'));
       return out;
     }
-    if (key === 'faiCab' || key === 'fais' || key === 'ic61' || key === 'icCab') {
+    if (key === 'faiCab' || key === 'fais' || key === 'ic61' || key === 'icCab'
+        || key === 'icWan' || key === 'icLan') {
       const META = {
         faiCab: [LLD_FAI_CAB_COLS, '5.2. Câblage FAI'],
         fais: [LLD_FAI51_COLS, '5.1. Informations & Configuration'],
         ic61: [LLD_IC61_COLS, '6.1. Informations & Configuration'],
-        icCab: [LLD_IC_CAB_COLS, '6.2. Câblage interconnexion']
+        icCab: [LLD_IC_CAB_COLS, '6.2. Câblage interconnexion'],
+        icWan: [LLD_IC_WAN_COLS, '6.1. WAN Connection Settings'],
+        icLan: [LLD_IC_LAN_COLS, '6.1. LAN / Network settings']
       };
       const [cols, titre] = META[key];
       const tbl = (L[key] || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim()));
@@ -10412,7 +10682,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     'cover': ['meta', 'governance'],
     '1': ['objectif'], '2.1': ['sites'], '2.2': ['existant'],
     '3': ['architecture'], '4': ['nomen', 'vlans'],
-    '5.1': ['fais'], '6.1': ['interco', 'ic61'],
+    '5.1': ['fais'], '6.1': ['interco', 'ic61', 'icWan', 'icLan'],
     '7': ['note:firewall'], '8': ['zones', 'note:switching'],
     '9': ['note:server'], '10': ['note:storage'], '11': ['note:ids'],
     '12': ['note:cctv'], '13': ['note:pointage'], '14': ['flows']
@@ -10878,6 +11148,32 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
       drawTable([['Élément', 'Valeur'], ...icr], [1.9, 3.1], 8.5);
       if (I.notes.trim()) { miniTitle('Notes de configuration'); paragraph(I.notes); }
     }
+  }
+  if (hasB('6.1', 'icWan')) {
+    const rowsW = (L.icWan || []).filter(r =>
+      r && Object.values(r).some(v => String(v ?? '').trim()));
+    if (rowsW.length) {
+      miniTitle('WAN Connection Settings');
+      // Colonnes principales (largeur PDF) — mêmes en-têtes que l’Excel / sommaire
+      const wc = ['name', 'enable', 'connMethod', 'routingMode', 'ip', 'mask',
+                  'gw', 'dns', 'up', 'down', 'provider'];
+      const hdr = LLD_IC_WAN_COLS.filter(c => wc.includes(c[0]));
+      drawTable([
+        hdr.map(c => String(c[1])),
+        ...rowsW.map(r => hdr.map(c => String(r[c[0]] ?? '')))
+      ], hdr.map(c => c[2] || 90), 6.5);
+    } else placeholder();
+  }
+  if (hasB('6.1', 'icLan')) {
+    const rowsL = (L.icLan || []).filter(r =>
+      r && Object.values(r).some(v => String(v ?? '').trim()));
+    if (rowsL.length) {
+      miniTitle('LAN / Network settings');
+      drawTable([
+        LLD_IC_LAN_COLS.map(c => String(c[1])),
+        ...rowsL.map(r => LLD_IC_LAN_COLS.map(c => String(r[c[0]] ?? '')))
+      ], [1.6, 1.6, 1.8], 8);
+    } else placeholder();
   }
   endNode('6.1');   // extras : comptes Admin Security (et toute info ajoutée)
   sub('6.2', 'Câblage');
