@@ -4345,7 +4345,10 @@ const LLD_INFOS = {
   },
   equip: {
     label: 'Équipements & licences hors baie (ch. 3)', kind: 'table', cols: LLD_EQUIP_COLS,
-    addLabel: '＋ Ajouter un élément', filter: r => r.model.trim()
+    addLabel: '＋ Ajouter un élément', filter: r => r.model.trim(),
+    hint: 'Ces lignes alimentent seules le tableau 3.1 de l\'Excel (et le PDF) : '
+      + 'bouton 🔎 pour les pré-remplir depuis l\'élévation, puis éditez/supprimez librement.',
+    extra: 'gen-equip'
   },
   nomen: {
     label: 'Nomenclature (ch. 4)', kind: 'table', cols: LLD_NOMEN_COLS,
@@ -5156,6 +5159,11 @@ function lldInfoRender(box, def, key) {
           () => { lldPushUndo(true); lldDetectVlans(tbl); },
           'Ajouter automatiquement les VLANs utilisés sur les ports mais absents du registre'));
       }
+      if (def.extra === 'gen-equip') {
+        acts.push(lldBtn("🔎 Générer depuis l'élévation",
+          () => { lldPushUndo(true); lldGenEquip(tbl, cols); },
+          'Ajoute une ligne par modèle des devices posés dans les racks (sans écraser les lignes existantes) — ces lignes alimentent le tableau 3.1 de l\'Excel'));
+      }
       box.appendChild(tbl);
       box.appendChild(lldGridActions(...acts));
       break;
@@ -5430,6 +5438,40 @@ function lldDetectVlans(tbl) {
   lldAlert(`${missing.length} VLAN(s) ajouté(s) au registre : ${missing.join(', ')}\n`
     + 'Renseignez leur nom, subnet et passerelle.',
     { title: '🔍 Détection des VLANs' });
+}
+
+// Pré-remplit le tableau « Équipements » (ch. 3.1) avec un regroupement par
+// modèle des devices posés dans l'élévation — mêmes règles d'ordre que
+// invGroups() des exports. Les lignes déjà présentes (modèle connu) sont
+// conservées telles quelles ; le résultat est le sommaire → Excel/PDF.
+function lldGenEquip(tbl, cols) {
+  const ws = active();
+  if (!ws || !lldDraft) return;
+  const known = new Set(lldRowsFrom(tbl)
+    .map(r => String(r.model || '').trim().toLowerCase()).filter(Boolean));
+  const info = new Map();
+  for (const { inst } of sortedRackInstances(ws)) {
+    const model = `${inst.brand || ''} ${inst.model || ''}`.trim()
+      || String(inst.name || '').trim();
+    if (!model) continue;
+    const g = info.get(model) || { n: 0, cat: inst.cat };
+    g.n++;
+    info.set(model, g);
+  }
+  const rank = c => DEV_CATEGORIES.findIndex(([id]) => id === normCat(c));
+  const ordered = [...info.entries()].sort((a, b) =>
+    rank(a[1].cat) - rank(b[1].cat) || b[1].n - a[1].n || a[0].localeCompare(b[0], 'fr'));
+  const missing = ordered.filter(([m]) => !known.has(m.toLowerCase()));
+  if (!missing.length) {
+    lldAlert("Tous les modèles de l'élévation sont déjà dans le tableau des équipements.",
+      { title: "🔎 Générer depuis l'élévation" });
+    return;
+  }
+  missing.forEach(([model, n]) => lldAddRow(tbl, cols || LLD_EQUIP_COLS, { model, qty: `x${n}` }));
+  lldAlert(`${missing.length} ligne(s) ajoutée(s) au sommaire (reprises dans l'Excel 3.1 et le PDF) :\n`
+    + missing.slice(0, 12).map(([m, n]) => `• ${m} ×${n}`).join('\n')
+    + (missing.length > 12 ? `\n… et ${missing.length - 12} autre(s)` : ''),
+    { title: "🔎 Générer depuis l'élévation" });
 }
 
 // Renommage : dblclick délégué sur l'arbre (fonctionne même après un
@@ -7629,48 +7671,68 @@ const LLD_TPL = (() => {
   /* — Feuille « 3 » : architecture cible + équipements — */
   function ch3(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
-    if (hasB('3', 'architecture')) proseLines(ws.lld && ws.lld.architecture, 33).forEach((t, i) => {
-      rows[1 + i][0] = { v: t, s: 129 };
-    });
-    // 3.1 : équipements (r41-76) — inventaire groupé par modèle, puis
-    // éléments hors baie (licences, liens, câbles…) saisis dans la fiche LLD
-    const { byModel } = invGroups(ws);
-    const groups = [...byModel.entries()];
-    const equip = hasB('3.1', 'equip') ? ((ws.lld && ws.lld.equip) || []) : [];
-    const matchEquip = model => {
-      const m = equip.find(e => e.model && model &&
-        model.toLowerCase().includes(e.model.toLowerCase().split(' ')[0]) &&
-        e.model.split(' ')[0].length > 3);
-      return m;
-    };
-    const put = (r, col, v, s) => { rows[r - 1][col] = { v, s }; };
-    groups.slice(0, 36).forEach(([model, n], i) => {
-      const r = 41 + i, alt = i % 2;
-      put(r, 1, model, alt ? 197 : 190);
-      put(r, 3, `x${n}`, alt ? 198 : 195);
-      const e = matchEquip(model);
-      if (e) {
-        if (e.qty) put(r, 3, e.qty, alt ? 198 : 195);
-        put(r, 5, e.remark || '', alt ? 190 : 116);   // colonne F (Remarques)
-        put(r, 6, e.status || '', alt ? 195 : 117);   // colonne G (Statut)
-      }
-    });
-    const rest = equip.filter(e => e.model && !groups.some(([m]) => matchEquip(m) === e));
-    let nr = 41 + Math.min(groups.length, 36);
-    rest.slice(0, 76 - nr + 1).forEach((e, i) => {
-      const alt = (nr - 41) % 2;
-      put(nr, 1, e.model, alt ? 197 : 190);
-      put(nr, 3, e.qty || '', alt ? 198 : 195);
-      put(nr, 5, e.remark || '', alt ? 190 : 116);
-      put(nr, 6, e.status || '', alt ? 195 : 117);
-      nr++;
-    });
-    for (let r = nr; r <= 76; r++) {
-      set(rows, `B${r}`, '', rows[r - 1][1] ? rows[r - 1][1].s : 190);
-      set(rows, `D${r}`, '', rows[r - 1][3] ? rows[r - 1][3].s : 195);
-      if (rows[r - 1][5] !== undefined) { set(rows, `F${r}`, '', rows[r - 1][5].s); set(rows, `G${r}`, '', rows[r - 1][6].s); }
+    // Reconstruit sous le titre (ligne 1) : architecture puis 3.1 collé juste
+    // après (plus de bloc vide jusqu'à la ligne 37 du template). Le tableau
+    // 3.1 n'affiche QUE les lignes du sommaire (info « equip ») — l'inventaire
+    // de l'élévation se génère dans la modale 📘 (bouton 🔎), jamais ici.
+    for (let r = 2; r <= sheet.maxrow; r++) {
+      rows[r - 1] = [];
+      delete heights[r];
     }
-    return out(sheet, rows, heights);
+    let r = 2;
+    if (hasB('3', 'architecture')) proseLines(ws.lld && ws.lld.architecture, 40).forEach(t => {
+      rows[r - 1][0] = { v: t, s: 129 };
+      r++;
+    });
+    r++;                                   // ligne vide avant 3.1
+    const n31 = BUILD_TOC.get('3.1');
+    while (rows.length < r) rows.push([]);
+    rows[r - 1][1] = { v: n31 ? `${n31.num}. ${n31.title}` : '3.1. Equipments', s: 47 };
+    heights[r] = 15.75;
+    r += 2;                                // ligne vide (comme 38-39 du template)
+    const merges = [];
+    const Lw = ws.lld || {};
+    const dyn = lldExportCols(Lw, 'equip', LLD_EQUIP_COLS);
+    // En-tête : mêmes colonnes que le sommaire (schéma dynamique), à partir de B
+    while (rows.length < r) rows.push([]);
+    rows[r - 1][1] = { v: 'Datacenter / Comms room devices', s: 199 };
+    for (let c = 2; c < 1 + dyn.length; c++) rows[r - 1][c] = { v: '', s: 200 };
+    // libellés réels de colonnes sur la ligne d'en-tête (2e ligne du tableau)
+    // -> non : le template fusionne B:E pour le titre. On écrit les libellés
+    // sur UNE ligne d'en-tête dédiée juste après, style 116/117 comme le template.
+    merges.push(`B${r}:E${r}`);
+    r++;
+    while (rows.length < r) rows.push([]);
+    dyn.forEach((c, ci) => {
+      rows[r - 1][1 + ci] = { v: String(c[1]), s: ci === 0 ? 116 : 117 };
+    });
+    r++;
+    const equip = (hasB('3.1', 'equip') ? ((ws.lld && ws.lld.equip) || []) : [])
+      .filter(e => e && String(e.model || '').trim());
+    if (equip.length) {
+      equip.forEach((e, i) => {
+        while (rows.length < r) rows.push([]);
+        const alt = i % 2;
+        dyn.forEach((c, ci) => {
+          const col = 1 + ci;
+          const v = String(e[c[0]] ?? '');
+          if (ci === 0) rows[r - 1][col] = { v, s: alt ? 197 : 190 };
+          else if (ci === 1) rows[r - 1][col] = { v, s: alt ? 198 : 195 };
+          else rows[r - 1][col] = { v, s: alt ? 190 : 114 };
+        });
+        r++;
+      });
+    } else {
+      while (rows.length < r) rows.push([]);
+      rows[r - 1][1] = {
+        v: hasB('3.1', 'equip')
+          ? "Aucun élément — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘."
+          : 'Section à compléter.',
+        s: 129
+      };
+    }
+    // Fusions recalculées : celles du template (lignes 40-76) sont remplacées
+    return out(sheet, rows, heights, merges);
   }
 
   /* — Feuille « 4 » : matrice d'adressage globale + registre VLAN + nomenclature — */

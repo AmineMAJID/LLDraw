@@ -286,6 +286,12 @@ via localStorage, en secours).
       saisie de l'app ; le bloc « Information sur le site » de l'Excel est un
       vrai tableau aux mêmes colonnes que l'app (Contacts, Description… et
       colonnes personnalisées compris), un site par ligne.
+    - **Ch. 3 sans vide ni double source** : dans l'Excel, le sous-chapitre
+      3.1 est collé juste après le texte d'architecture (plus de bloc vide
+      jusqu'à la ligne 37) et son tableau n'affiche **que les lignes du
+      sommaire** — bouton **🔎 Générer depuis l'élévation** dans la fiche
+      « Équipements » pour pré-remplir depuis les racks, puis édition libre
+      (suppression persiste, colonnes du schéma dynamique comprises).
     - **Synchro exports** : les saisies sont enregistrées dans le workspace
       (bouton **Enregistrer**) et lues telles quelles par le **PDF** et
       l'**Excel** à chaque export ; retirer une information d'un chapitre la
