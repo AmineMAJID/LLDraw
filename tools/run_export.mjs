@@ -47,6 +47,8 @@ const helpers = [
   fn('normInvFields'),
   fn('normalizeRack'),
   between(/\/\/ ---------- Sites ----------/, /\/\/ ---------- État ----------/), // defaultSites/normSites/siteById/siteName/siteColor
+  fn('defaultLldToc'),
+  fn('normLldToc'),
   fn('normLldInfo'),
   fn('slotLabel'),
   fn('sortedRackInstances'),

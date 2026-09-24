@@ -1934,58 +1934,333 @@ body.topo-linking .topo-node { cursor: crosshair; }
   font-family: inherit;
 }
 
-/* ---------- Modale Infos dossier LLD ---------- */
+/* ---------- Modale Infos dossier LLD (sommaire + chapitres) ---------- */
 .modal-box-lg {
-  /* Largeur effective : la règle de base .modal-box { width: 384px } s'appliquait
-     toujours (le max-width seul ne l'écrasait pas) — la barre d'onglets
-     (Document / Réseau / Sites / Chapitres / Flux) débordait et l'onglet Flux
-     exigeait un scroll horizontal. */
-  width: 640px;
+  /* Sommaire à gauche + détail du chapitre à droite */
+  width: 960px;
   max-width: calc(100vw - 36px);
   max-height: calc(100vh - 48px);
   overflow-y: auto;
+}
+.lld-split {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 380px;
+  max-height: calc(100vh - 220px);
+  background: #fff;
+}
+/* — Colonne sommaire — */
+.lld-toc {
+  width: 268px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-2);
+  background: rgba(248, 250, 252, .85);
+  min-height: 0;
+}
+.lld-toc-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border-2);
+}
+.lld-toc-head-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.lld-toc-head-hint { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.lld-toc-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  min-height: 120px;
+}
+.lld-toc-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text);
+  border: 1px solid transparent;
+  user-select: none;
+}
+.lld-toc-item:hover { background: rgba(37, 99, 235, .06); }
+.lld-toc-item.active {
+  background: rgba(37, 99, 235, .12);
+  border-color: rgba(37, 99, 235, .35);
+}
+.lld-toc-item.lld-toc-sub { margin-left: 16px; font-size: 12px; }
+.lld-toc-num {
+  flex: none;
+  min-width: 24px;
+  text-align: center;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(15, 23, 42, .07);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.lld-toc-item.active .lld-toc-num { background: rgba(37, 99, 235, .2); color: var(--accent); }
+.lld-toc-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.lld-toc-item.lld-toc-sub .lld-toc-title { font-weight: 500; }
+.lld-toc-title[title] { cursor: text; }
+.lld-toc-count {
+  flex: none;
+  min-width: 17px;
+  text-align: center;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, .14);
+  color: #059669;
+  font-size: 10px;
+  font-weight: 700;
+}
+.lld-toc-edit {
+  flex: 1;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 3px 6px !important;
+  font-size: 12px !important;
+  font-weight: 600;
+}
+.lld-toc-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--border-2);
+}
+.lld-toc-actions .btn { flex: 1; margin-top: 0; }
+/* — Colonne détail — */
+.lld-detail {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+.lld-detail-empty {
+  height: 100%;
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+  gap: 4px;
+}
+.lld-detail-empty-ico { font-size: 34px; opacity: .7; }
+.lld-detail-empty p { margin: 0; font-size: 13px; line-height: 1.5; }
+.lld-detail-empty-sub { font-size: 11.5px !important; opacity: .85; margin-top: 8px !important; }
+.lld-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.lld-detail-num {
+  flex: none;
+  min-width: 34px;
+  text-align: center;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+.lld-detail-titles { min-width: 0; }
+.lld-detail-title { margin: 0; font-size: 15px; font-weight: 700; color: var(--text); }
+.lld-detail-sub { font-size: 11px; color: var(--muted); }
+/* — Blocs d'information — */
+.lld-info {
+  border: 1px solid var(--border-2);
+  border-radius: 9px;
+  padding: 9px 11px 11px;
+  margin-top: 10px;
+  background: #fff;
+}
+.lld-info-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 7px;
+}
+.lld-info-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.lld-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, .13);
+  border: 1px solid rgba(16, 185, 129, .35);
+  color: #047857;
+  font-size: 10.5px;
+  font-weight: 700;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lld-info-detach {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 5px;
+  flex: none;
+}
+.lld-info-detach:hover { background: rgba(220, 38, 38, .1); color: #dc2626; }
+.lld-info-body { display: flex; flex-direction: column; gap: 6px; }
+.lld-info-body .lld-hint { margin-bottom: 2px; }
+.lld-info-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 9px 11px;
+  border: 1px dashed var(--border-2);
+  border-radius: 9px;
+  background: rgba(248, 250, 252, .7);
+}
+.lld-info-add select {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0 !important;
+  padding: 7px 8px !important;
+  font-size: 12px !important;
+}
+.lld-info-add .btn { margin-top: 0; white-space: nowrap; }
+.lld-auto {
+  margin-top: 10px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  background: rgba(148, 163, 184, .12);
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.lld-auto strong { color: var(--ink); }
+.lld-sites-wrap, .lld-fais-wrap, .lld-flows-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* l'info « zones » : réordonnable + cible de scroll */
+.lld-grid .lld-zone-row { scroll-margin-top: 8px; }
+
+/* ---- Grilles éditables (mêmes colonnes que les tableaux d'export) ---- */
+.lld-grid-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-2);
+  border-radius: 9px;
+  background: #fff;
+}
+.lld-grid {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.lld-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(248, 250, 252, .97);
+  padding: 8px 8px 7px;
+  border-bottom: 1px solid var(--border-2);
+  white-space: nowrap;
+}
+.lld-grid td {
+  padding: 4px 5px;
+  border-bottom: 1px solid rgba(148, 163, 184, .16);
+  vertical-align: middle;
+}
+.lld-grid tbody tr:last-child td { border-bottom: none; }
+.lld-grid tbody tr:hover td { background: rgba(37, 99, 235, .04); }
+.lld-grid input,
+.lld-grid select {
+  display: block;
+  width: 100%;
+  min-width: 58px;
+  margin: 0 !important;
+  padding: 5px 7px !important;
+  font-size: 12px !important;
+  font-family: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+.lld-grid input::placeholder { color: rgba(148, 163, 184, .85); }
+.lld-grid input:hover,
+.lld-grid select:hover { border-color: var(--border-2); background: #fff; }
+.lld-grid input:focus,
+.lld-grid select:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .13);
+}
+.lld-grid .lld-grid-x {
+  width: 1%;
+  min-width: 34px;
+  padding-left: 2px;
+  padding-right: 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+.lld-grid .lld-grid-x .lld-row-del,
+.lld-grid .lld-grid-x .lld-zone-up,
+.lld-grid .lld-grid-x .lld-zone-down {
+  margin-top: 0;
+  padding: 3px 5px;
+  font-size: 10px;
+}
+.lld-grid .lld-grid-x .lld-zone-up,
+.lld-grid .lld-grid-x .lld-zone-down {
+  display: inline-block;
+  border: 1px solid var(--border-2);
+  background: #fff;
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1.2;
+}
+.lld-grid .lld-grid-x .lld-zone-up:hover,
+.lld-grid .lld-grid-x .lld-zone-down:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(37, 99, 235, .07);
 }
 .btn-sm {
   padding: 6px 12px;
   font-size: 12px;
   margin-top: 6px;
 }
-/* Onglets de la modale LLD (Document / Réseau / Sites / Chapitres) */
-.lld-tabs {
-  display: flex;
-  flex-wrap: wrap;   /* écran étroit : 2e ligne plutôt qu'un scroll horizontal */
-  gap: 4px;
-  border-bottom: 1px solid var(--border-2);
-  margin: 0 0 14px;
-}
-.lld-tab {
-  flex: 1;
-  padding: 9px 6px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 7px 7px 0 0;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.lld-tab:hover:not(:disabled):not(.active) {
-  color: var(--text);
-  background: rgba(37, 99, 235, .07);
-}
-.lld-tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-.lld-tab:disabled {
-  opacity: .4;
-  cursor: not-allowed;
-}
-.lld-pane { display: flex; flex-direction: column; gap: 4px; }
-.lld-pane .d-inv-title { margin-top: 6px; }
 .modal-box textarea {
   display: block;
   width: 100%;
