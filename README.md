@@ -280,6 +280,12 @@ via localStorage, en secours).
       nancement de colonne, lignes de tableau, blocs d'infos, saisies de
       champs) et **Ctrl+Shift+Z** ou **Ctrl+Y** rétablit — pile limitée à 60
       états, réinitialisée à l'ouverture de la fenêtre ;
+    - **Ch. 1 & 2.1 fidèles à l'app** : l'objectif du document est pré-rempli
+      avec le paragraphe de présentation du template (modifiable et
+      supprimable — la suppression persiste) et l'Excel n'affiche que la
+      saisie de l'app ; le bloc « Information sur le site » de l'Excel est un
+      vrai tableau aux mêmes colonnes que l'app (Contacts, Description… et
+      colonnes personnalisées compris), un site par ligne.
     - **Synchro exports** : les saisies sont enregistrées dans le workspace
       (bouton **Enregistrer**) et lues telles quelles par le **PDF** et
       l'**Excel** à chaque export ; retirer une information d'un chapitre la

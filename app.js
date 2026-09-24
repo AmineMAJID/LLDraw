@@ -308,6 +308,18 @@ function normLldInfo(w) {
     if (typeof L[k] !== 'string') L[k] = '';
     L[k] = L[k].slice(0, 4000);
   }
+  // Ch. 1 : paragraphe de présentation (texte autrefois gravé dans le
+  // template Excel) pré-rempli UNE seule fois — modifiable et supprimable ;
+  // objectifSeeded évite que la suppression soit ressuscitée au rechargement.
+  if (L.objectifSeeded !== 1) {
+    if (!L.objectif.trim()) {
+      L.objectif = 'La conception de bas niveau est une description détaillée de chaque module.\n'
+        + 'Il décrit chaque module en détail en incorporant la logique derrière chaque composant du système.\n'
+        + 'Il approfondit chaque spécification de chaque système, offrant une conception au niveau micro.\n'
+        + 'Cette conception décompose les solutions de haut niveau dans les moindres détails.';
+    }
+    L.objectifSeeded = 1;
+  }
   // Nomenclature (ch. 4) : type d'objet -> préfixe -> exemple -> règle de nommage
   // Conserve les clés hors schéma (colonnes ajoutées dans la modale 📘).
   const keepExtras = (o, r) => {
@@ -7532,9 +7544,18 @@ const LLD_TPL = (() => {
   /* — Feuille « 1 » : objectif du document (texte de l'app) — */
   function ch1(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
+    // Le paragraphe par défaut gravé dans le template (lignes 5-8) est
+    // effacé : l'objectif vient de la modale 📘 (pré-rempli par normLldInfo,
+    // modifiable / supprimable) — plus aucun doublon dans l'export.
+    for (let r = 5; r <= 8; r++) rows[r - 1] = [];
     if (!hasB('1', 'objectif')) return out(sheet, rows, heights);
-    proseLines(ws.lld && ws.lld.objectif, 40).forEach((t, i) => {
-      const r = 9 + i;
+    const lines = proseLines(ws.lld && ws.lld.objectif, 40);
+    if (!lines.length) {
+      rows[4] = [{ v: 'Section à compléter.', s: 129 }];
+      return out(sheet, rows, heights);
+    }
+    lines.forEach((t, i) => {
+      const r = 5 + i;
       while (rows.length < r) rows.push([]);
       rows[r - 1][0] = { v: t, s: 129 };
     });
@@ -7545,17 +7566,42 @@ const LLD_TPL = (() => {
   function ch2(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
     const L = ws.lld || {};
-    const site = (ws.sites || [])[0] || {};
     const fai = L.fai || {};
-    set(rows, 'C6', site.name || '');
-    set(rows, 'E6', site.address || '');
-    set(rows, 'C7', site.type || '');
-    set(rows, 'E7', site.country || '');
-    set(rows, 'C8', site.users || '');
-    const allDown = ((L.fais && L.fais.length) ? L.fais : (fai.operator ? [fai] : []))
-      .map(x => x.down).filter(Boolean).join(' + ');
-    set(rows, 'C9', allDown || fai.down || '');
-    set(rows, 'C10', String(fai.notes || '').split('\n')[0]);
+    // 2.1 : tableau des sites = mêmes colonnes que l'app / le PDF (schéma
+    // dynamique, gridCols compris), un site par ligne. Remplace le formulaire
+    // gravé du template (Nom/Adresse/… + « Capacité Total de FAI » +
+    // « Commentaires » : ces deux champs appartenaient à la fiche FAI ch.5).
+    const siteCols = lldExportCols(L, 'sites', LLD_SITE_COLS);
+    for (let r = 6; r <= 10; r++) rows[r - 1] = [];   // efface le formulaire gravé
+    let tblW = null;                                  // largeurs A + colonnes tableau
+    if (hasB('2.1', 'sites')) {
+      const allSites = ws.sites || [];
+      const shift = cells => {
+        const rw = [];
+        cells.forEach((c, i) => { rw[1 + i] = c; });   // colonne A vide (numéro)
+        return rw;
+      };
+      if (allSites.length) {
+        rows[5] = shift(H(siteCols.map(c => String(c[1]))));
+        // 8 lignes max (Excel 7→14) : au-delà, 7 sites + note sur la
+        // dernière ligne libre (la ligne 15 est le titre du ch. 2.2).
+        const shown = allSites.length > 8 ? allSites.slice(0, 7) : allSites;
+        shown.forEach((s, i) => {
+          rows[6 + i] = shift(D(siteCols.map(c => String(s[c[0]] ?? '')), i % 2));
+        });
+        if (allSites.length > shown.length)
+          rows[13] = [{ v: `+ ${allSites.length - shown.length} autre(s) site(s) — voir le PDF`, s: 129 }];
+        tblW = [8.14];                                // colonne A (template)
+        siteCols.forEach(c => {
+          let m = String(c[1]).length;
+          shown.forEach(s => String(s[c[0]] ?? '').split('\n')
+            .forEach(ln => { m = Math.max(m, ln.length); }));
+          tblW.push(Math.min(40, Math.max(10, m + 2)));
+        });
+      } else {
+        rows[5] = [{ v: 'Aucun site déclaré (info « Sites » du sommaire).', s: 129 }];
+      }
+    }
     // 2.2 : texte « infrastructure existante » de l'app (zone vide r16+)
     if (hasB('2.2', 'existant')) proseLines(L.existant, 30).forEach((t, i) => {
       const r = 16 + i;
@@ -7574,7 +7620,10 @@ const LLD_TPL = (() => {
     for (let r = 52 + Math.min(models.length, 8); r <= 59; r++) { set(rows, `B${r}`, ''); set(rows, `D${r}`, ''); }
     if (totalModels > 8)
       rows[60] = [{ v: `+ ${totalModels - 8} autres modèles — voir chapitre 3.1 (Equipments)`, s: 129 }];
-    return out(sheet, rows, heights);
+    const colsOv = tblW
+      ? tblW.concat([{ min: 2 + siteCols.length, max: 16384, width: sheet.dcw || 11.57 }])
+      : null;
+    return out(sheet, rows, heights, null, colsOv);
   }
 
   /* — Feuille « 3 » : architecture cible + équipements — */
