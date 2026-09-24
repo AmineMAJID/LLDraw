@@ -2649,3 +2649,22 @@ body.mode3d .switch-wrap {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ---- Matrice ch. 4 (même disposition que la feuille Excel « 4 ») ---- */
+.lld-mx-wrap { max-height: min(62vh, 560px); overflow: auto; border: 1px solid var(--line, #d7dde5); border-radius: 8px; }
+.lld-mx { min-width: 920px; font-size: 12px; }
+.lld-mx th, .lld-mx td { vertical-align: middle; }
+.lld-mx thead th { position: sticky; top: 0; z-index: 2; background: var(--panel, #1b2430); color: #e8eef5; text-align: center; }
+.lld-mx-cat {
+  writing-mode: horizontal-tb; font-weight: 700; text-align: center; white-space: pre-line;
+  background: #e8eef5; color: #1a2b3c; min-width: 72px; vertical-align: middle;
+}
+.lld-mx-desc { min-width: 150px; color: var(--muted, #8b98a8); font-size: 11px; }
+.lld-mx-auto { color: var(--muted, #8b98a8); padding: 4px 6px; }
+.lld-mx-edit { padding: 2px; background: #eef6ff; }
+.lld-mx-edit input {
+  width: 100%; min-width: 72px; border: 1px dashed #7eb6e8; border-radius: 4px;
+  background: #fff; color: inherit; padding: 4px 6px; font: inherit;
+}
+.lld-mx-edit input:focus { outline: 2px solid #4a90d9; outline-offset: -1px; border-style: solid; }
+.lld-mx-note { margin-top: 8px; }
