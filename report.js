@@ -468,7 +468,7 @@ function rptCustomNodeContent(ws, node, nestSubs) {
   if (nestSubs) {
     (node.subs || []).filter(s => s.custom).forEach(s => {
       const inner = rptCustomNodeContent(ws, s, true);
-      html += `<h3>${RPT_ESC(`${s.num}. ${s.title}`)}</h3>` +
+      html += `<h3>${RPT_ESC(s.title)}</h3>` +
         (inner || '<p class="muted">Section à compléter.</p>');
     });
   }
@@ -482,12 +482,12 @@ function rptCustomSections(ws) {
     if (n.custom) {
       const content = rptCustomNodeContent(ws, n, true)
         || '<p class="muted">Chapitre sans contenu — ajoutez un tableau, un paragraphe ou une capture dans le sommaire 📘.</p>';
-      out.push(['sec-c-' + n.id, '📌', `${n.num}. ${n.title}`, content]);
+      out.push(['sec-c-' + n.id, '📄', n.title, content]);
     } else {
       (n.subs || []).filter(s => s.custom).forEach(s => {
         const content = rptCustomNodeContent(ws, s, true)
           || '<p class="muted">Chapitre sans contenu — ajoutez un tableau, un paragraphe ou une capture dans le sommaire 📘.</p>';
-        out.push(['sec-c-' + s.id, '📌', `${s.num}. ${s.title}`, content]);
+        out.push(['sec-c-' + s.id, '📄', s.title, content]);
       });
     }
   });
@@ -519,7 +519,7 @@ function rptFreeBySection(ws) {
       if (html) {
         const sec = RPT_FREE_SEC[String(n.num)];
         if (sec) bySec[sec] = (bySec[sec] || '') + html;
-        else leftovers.push(['sec-c-' + n.id, '📌', `${n.num}. ${n.title}`, html]);
+        else leftovers.push(['sec-c-' + n.id, '📄', n.title, html]);
       }
       walk(n.subs);
     });
@@ -848,7 +848,7 @@ $('#export-html').addEventListener('click', async () => {
     hint: 'Page de garde et synthèse toujours incluses ; les rubriques vides (ex : pas de flux, pas de topologie) sont ignorées automatiquement. Les chapitres ajoutés au sommaire 📘 figurent en fin de liste.',
     items: RPT_SECTION_ITEMS.concat(
       rptFreeBySection(ws).leftovers.concat(rptCustomSections(ws))
-        .map(([id, , title]) => [id, '📌 ' + title]))
+        .map(([id, ico, title]) => [id, `${ico} ${title}`]))
   });
   if (!only) return;   // annulé
   if (!only.size) {

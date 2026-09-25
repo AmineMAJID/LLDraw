@@ -7055,9 +7055,14 @@ $('#lld-toc-add-ch').addEventListener('click', () => {
   };
   lldPushUndo(true);
   lldToc().push(node);
+  lldSelId = node.id;
+  lldRenderToc();
   lldSelectNode(node.id);
   const item = $('#lld-toc-tree').querySelector(`[data-id="${node.id}"]`);
-  if (item) lldStartRename(item, node);
+  if (item) {
+    item.scrollIntoView({ block: 'nearest' });
+    lldStartRename(item, node);
+  }
 });
 
 $('#lld-toc-add-sub').addEventListener('click', () => {
@@ -7090,9 +7095,14 @@ $('#lld-toc-add-sub').addEventListener('click', () => {
   lldPushUndo(true);
   parent.subs = parent.subs || [];
   parent.subs.push(node);
+  lldSelId = node.id;
+  lldRenderToc();
   lldSelectNode(node.id);
   const item = $('#lld-toc-tree').querySelector(`[data-id="${node.id}"]`);
-  if (item) lldStartRename(item, node);
+  if (item) {
+    item.scrollIntoView({ block: 'nearest' });
+    lldStartRename(item, node);
+  }
 });
 
 // ---- Ouverture / fermeture de la modale ----
