@@ -10149,6 +10149,14 @@ const LLD_TPL = (() => {
   function byCat(ws, cats) {
     return sortedRackInstances(ws).filter(x => cats.includes(normCat(x.inst.cat)));
   }
+  /* Tableaux du sommaire : l'Excel n'écrit QUE ces lignes.
+     Jamais de repli sur l'élévation — la démo les embarque déjà dans ws.lld.*,
+     un workspace normal reste vide jusqu'au bouton 🔎 / saisie. */
+  function tocTbl(ws, key, attached) {
+    if (!attached) return [];
+    return ((ws.lld && ws.lld[key]) || [])
+      .filter(r => r && Object.values(r).some(v => String(v ?? '').trim()));
+  }
   /* Table équipements : Nom / Modèle / IP mgmt / Position */
   function equipTable(rows, list, headers) {
     rows.push([]); rows.push([]);
@@ -10170,8 +10178,7 @@ const LLD_TPL = (() => {
   function ch7(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
     const L7 = ws.lld || {};
-    const fe = (hasB('7.1', 'fwEquip') || hasB('7', 'fwEquip'))
-      ? (L7.fwEquip || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim())) : [];
+    const fe = tocTbl(ws, 'fwEquip', hasB('7.1', 'fwEquip') || hasB('7', 'fwEquip'));
     if (fe.length) {
       const cols = lldExportCols(L7, 'fwEquip', LLD_CAT_EQUIP_COLS);
       rows.push([]); rows.push([]);
@@ -10179,27 +10186,19 @@ const LLD_TPL = (() => {
       rows.push([]);
       rows.push(H(cols.map(c => String(c[1]))));
       fe.forEach((r0, i) => rows.push(D(cols.map(c => String(r0[c[0]] ?? '')), i % 2)));
-    } else {
-      const fws = byCat(ws, ['firewall', 'router']);
-      if (fws.length) equipTable(rows, fws, { titre: '7.1. Equipements Firewall / Routeurs',
-        cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
+    } else if (hasB('7.1', 'fwEquip') || hasB('7', 'fwEquip')) {
+      pushNote(rows, "7.1 : aucun équipement — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘.");
     }
-    const fv = (hasB('7.2', 'fwVlan') || hasB('7', 'fwVlan'))
-      ? (L7.fwVlan || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim())) : [];
-    const vlans = fv.length ? fv : ((ws.lld && ws.lld.vlans) || []);
-    if (vlans.length) {
+    const fv = tocTbl(ws, 'fwVlan', hasB('7.2', 'fwVlan') || hasB('7', 'fwVlan'));
+    if (fv.length) {
+      const cols = lldExportCols(L7, 'fwVlan', LLD_FW_VLAN_COLS);
       rows.push([]); rows.push([]);
       rows.push(SEC('7.2. Interfaces VLAN'));
       rows.push([]);
-      if (fv.length) {
-        const cols = lldExportCols(L7, 'fwVlan', LLD_FW_VLAN_COLS);
-        rows.push(H(cols.map(c => String(c[1]))));
-        fv.forEach((v, i) => rows.push(D(cols.map(c => String(v[c[0]] ?? '')), i % 2)));
-      } else {
-        rows.push(H(['VLAN', 'Nom', 'Sous-réseau', 'Passerelle']));
-        vlans.forEach((v, i) => rows.push(D([
-          v.vid ? `VLAN ${v.vid}` : '', v.name || '', v.subnet || '', v.gw || ''], i % 2)));
-      }
+      rows.push(H(cols.map(c => String(c[1]))));
+      fv.forEach((v, i) => rows.push(D(cols.map(c => String(v[c[0]] ?? '')), i % 2)));
+    } else if (hasB('7.2', 'fwVlan') || hasB('7', 'fwVlan')) {
+      pushNote(rows, "7.2 : aucune interface VLAN — bouton « 🔎 » dans le sommaire 📘.");
     }
     const fw = (hasB('7.3', 'fw') || hasB('7', 'fw')) ? ((ws.lld && ws.lld.fw) || []) : [];
     if (fw.length) {
@@ -10251,11 +10250,8 @@ const LLD_TPL = (() => {
       .find(x => x[2] === String(sheet.name));
     const eqKey = meta ? meta[0] : null;
     const poKey = meta ? meta[1] : null;
-    const eqRows = eqKey && hasB(sheet.name, eqKey)
-      ? (Lw[eqKey] || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim())) : [];
-    const poRows = poKey && hasB(sheet.name, poKey)
-      ? (Lw[poKey] || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim())) : [];
-    const sws = byCat(ws, catList).filter(x => !zone || x.inst.zone === zone.id);
+    const eqRows = tocTbl(ws, eqKey, eqKey && hasB(sheet.name, eqKey));
+    const poRows = tocTbl(ws, poKey, poKey && hasB(sheet.name, poKey));
     const notes = (ws.lld && ws.lld.catNotes) || {};
     if (eqRows.length) {
       const cols = lldExportCols(Lw, eqKey, LLD_CAT_EQUIP_COLS);
@@ -10265,10 +10261,8 @@ const LLD_TPL = (() => {
       rows.push(H(cols.map(c => String(c[1]))));
       eqRows.forEach((r0, i) => rows.push(D(cols.map(c => String(r0[c[0]] ?? '')), i % 2)));
       if (zone && zone.vlans) rows.push([{ v: `VLANs de la zone : ${zone.vlans}`, s: 129 }]);
-    } else if (sws.length) {
-      equipTable(rows, sws, { titre: `Equipements Switching${zone ? ' — zone ' + zone.name : ''}`,
-        cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
-      if (zone && zone.vlans) rows.push([{ v: `VLANs de la zone : ${zone.vlans}`, s: 129 }]);
+    } else if (eqKey && hasB(sheet.name, eqKey)) {
+      pushNote(rows, "Aucun équipement — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘.");
     }
     if (poRows.length) {
       const cols = lldExportCols(Lw, poKey, LLD_SW_PORT_COLS);
@@ -10277,17 +10271,8 @@ const LLD_TPL = (() => {
       rows.push([]);
       rows.push(H(cols.map(c => String(c[1]))));
       poRows.forEach((r0, i) => rows.push(D(cols.map(c => String(r0[c[0]] ?? '')), i % 2)));
-    } else if (sws.length) {
-      const zoneNames = new Set(sws.map(x => x.inst.name));
-      const portRows = portsRowsByCat(ws, catList).slice(1)
-        .filter(p => zoneNames.has(p[3]));
-      if (portRows.length) {
-        rows.push([]); rows.push([]);
-        rows.push(SEC('Plan de ports'));
-        rows.push([]);
-        rows.push(H(['Rack', 'Device', 'Port', 'Étiquette', 'VLAN']));
-        portRows.slice(0, 200).forEach((p, i) => rows.push(D([p[0], p[3], p[4], p[5], p[7]], i % 2)));
-      }
+    } else if (poKey && hasB(sheet.name, poKey)) {
+      pushNote(rows, "Plan de ports vide — bouton « 🔎 » dans le sommaire 📘.");
     }
     // Note de configuration de la zone (info « zones/notes » du sommaire)
     const note = hasB(sheet.name, 'note:switching') ? notes.switching : '';
@@ -10314,10 +10299,9 @@ const LLD_TPL = (() => {
     return (sheet, ws) => {
       const { rows, heights } = fromLayout(sheet);
       const Lw = ws.lld || {};
-      const list = byCat(ws, [cat]);
       const eqKey = key === 'vms' ? 'srvEquip' : null;
-      const eqRows = eqKey && (hasB('9.1', eqKey) || hasB(sheet.name, eqKey))
-        ? (Lw[eqKey] || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim())) : [];
+      const eqRows = tocTbl(ws, eqKey, eqKey && (hasB('9.1', eqKey) || hasB(sheet.name, eqKey)));
+      const list = eqKey ? [] : byCat(ws, [cat]);
       if (eqRows.length) {
         const cols = lldExportCols(Lw, eqKey, LLD_CAT_EQUIP_COLS);
         rows.push([]); rows.push([]);
@@ -10325,11 +10309,14 @@ const LLD_TPL = (() => {
         rows.push([]);
         rows.push(H(cols.map(c => String(c[1]))));
         eqRows.forEach((r0, i) => rows.push(D(cols.map(c => String(r0[c[0]] ?? '')), i % 2)));
+      } else if (eqKey && (hasB('9.1', eqKey) || hasB(sheet.name, eqKey))) {
+        pushNote(rows, "9.1 : aucun serveur — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘.");
       } else if (list.length) {
+        // Ch. 10 / 12 : pas encore de tableau d'équipements dans le sommaire.
         equipTable(rows, list, { titre, cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
       }
       const tblOn = hasB(sheet.name, key) || (key === 'vms' && hasB('9.2', key));
-      const tbl = tblOn ? (Lw[key] || []) : [];
+      const tbl = tblOn ? tocTbl(ws, key, true) : [];
       if (tbl.length) {
         const dyn = lldExportCols(Lw, key, cols2.map(([lbl, k]) => [k, lbl, null]));
         rows.push([]); rows.push([]);
@@ -10946,8 +10933,7 @@ const LLD_TPL = (() => {
   function ch5(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
     const L = ws.lld || {};
-    const fais = (L.fais && L.fais.length) ? L.fais
-      : (L.fai && (L.fai.operator || L.fai.offer || L.fai.down) ? [L.fai] : []);
+    const fais = tocTbl(ws, 'fais', hasB('5.1', 'fais') || hasB('5', 'fais'));
     const lblFai = f => String(f.desc || '').trim()
       || (f.operator ? `${f.operator}${f.offer ? ' — ' + f.offer : ''}` : '');
     const COLS5 = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'];
@@ -10974,17 +10960,10 @@ const LLD_TPL = (() => {
     });
     for (let r = 35 + Math.min(fais.length, 4); r <= 38; r++)
       COLS5.forEach(c2 => set(rows, `${c2}${r}`, ''));
-    // 5.2 câblage : source prioritaire = tableau du sommaire L.faiCab
-    // (généré/enregistré dans la modale) ; sinon dérivé des FAI (CPE → WAN).
-    const cab5 = (Array.isArray(L.faiCab) && L.faiCab.length)
-      ? L.faiCab.filter(r => r && ((r.desc || '').trim() || (r.conn || '').trim()))
-      : fais.slice(0, 4).map(f => ({
-        cat: 'FAI',
-        desc: f.cpe || lblFai(f),
-        conn: f.wanLabel || ''
-      }));
+    // 5.2 câblage : UNIQUEMENT le tableau du sommaire (pas de dérivation FAI).
+    const cab5 = tocTbl(ws, 'faiCab', hasB('5.2', 'faiCab') || hasB('5', 'faiCab'));
     for (let r = 46; r <= 53; r++) {
-      set(rows, `B${r}`, r === 46 ? 'FAI' : '');
+      set(rows, `B${r}`, '');
       set(rows, `C${r}`, '');
       set(rows, `D${r}`, '');
     }
@@ -11019,74 +10998,54 @@ const LLD_TPL = (() => {
     };
     // 6.1 — extrémités (r30/31) : identité, SN, firmware, adressage WAN du FAI,
     // HA (J→P), VIP partagée (N30/31), commentaire
-    // Source prioritaire : tableau 6.1 du sommaire (L.ic61), sinon champs interco
-    const ic61 = (Array.isArray(L.ic61) && L.ic61.length)
-      ? L.ic61.filter(r => r && Object.values(r).some(v => String(v ?? '').trim()))
-      : [];
-    const epFrom = (row, sideEp, idx) => {
-      if (row) {
-        return [
-          row.equip || sideEp,
-          row.sn || '', row.fw || '',
-          row.haEn === 'Oui' || row.haGroup ? (row.haGroup || 'Oui') : '',
-          row.haRole || '',
-          row.mgmt || '', row.mgmtMask || '',
-          // FAI comment + IP depuis row.ip si présent
-          { wanIp: row.ip || '', wanMask: row.mask || '', wanGw: row.gw || '', wanDns: row.dns || '',
-            operator: /FAI\s*:/.test(row.note || '') ? String(row.note).replace(/^FAI\s*:\s*/, '').split(' — ')[0] : '',
-            offer: '' },
-          'C62'
-        ];
+    // Source UNIQUE : tableau 6.1 du sommaire (pas de repli interco / élévation).
+    const ic61 = tocTbl(ws, 'ic61', hasB('6.1', 'ic61') || hasB('6', 'ic61'));
+    const epFrom = (row) => {
+      if (!row) {
+        return ['', '', '', '', '', '', '',
+          { wanIp: '', wanMask: '', wanGw: '', wanDns: '', operator: '', offer: '' }, ''];
       }
-      const side = idx === 0 ? 'A' : 'B';
-      const ep = sideEp;
-      const sn = side === 'A' ? ic.snA : ic.snB;
-      const fw = side === 'A' ? ic.fwA : ic.fwB;
-      const ha = side === 'A' ? ic.haA : ic.haB;
-      const role = side === 'A' ? ic.roleA : ic.roleB;
-      const mgmt = side === 'A' ? ic.mgmtA : ic.mgmtB;
-      const mgmtMask = side === 'A' ? ic.mgmtMaskA : ic.mgmtMaskB;
-      return [ep, sn, fw, ha, role, mgmt, mgmtMask, faiOf(ep, idx), idx === 0 ? 'C62' : 'C67'];
+      return [
+        row.equip || '',
+        row.sn || '', row.fw || '',
+        row.haEn === 'Oui' || row.haGroup ? (row.haGroup || 'Oui') : '',
+        row.haRole || '',
+        row.mgmt || '', row.mgmtMask || '',
+        { wanIp: row.ip || '', wanMask: row.mask || '', wanGw: row.gw || '', wanDns: row.dns || '',
+          operator: /FAI\s*:/.test(row.note || '') ? String(row.note).replace(/^FAI\s*:\s*/, '').split(' — ')[0] : '',
+          offer: '' },
+        ''
+      ];
     };
     const endpoints = [
-      (() => { const a = epFrom(ic61[0], ic.epA, 0); a[8] = 'C62'; return ['30', ...a]; })(),
-      (() => { const b = epFrom(ic61[1], ic.epB, 1); b[8] = 'C67'; return ['31', ...b]; })()
+      (() => { const a = epFrom(ic61[0]); a[8] = 'C62'; return ['30', ...a]; })(),
+      (() => { const b = epFrom(ic61[1]); b[8] = 'C67'; return ['31', ...b]; })()
     ].map(arr => {
-      // arr = [r, ep, sn, fw, ha, role, mgmt, mgmtMask, f, cabRef]
       return [arr[0], arr[1], arr[2], arr[3], arr[4], arr[5], arr[6], arr[7], arr[8], arr[9]];
     });
     endpoints.forEach(([r, ep, sn, fw, ha, role, mgmt, mgmtMask, f, cabRef]) => {
-      if (ep) {
-        set(rows, `B${r}`, ep);
-        if (cabRef) set(rows, cabRef, short(ep));
-      }
-      // Nomenclature : saisie 6.1 si presente, sinon device d'inventaire
-      const nm = short(ep).split(/[\s(]/)[0].toLowerCase();
-      const inst = sortedRackInstances(ws).find(x => (x.inst.name || '').toLowerCase() === nm);
+      set(rows, `B${r}`, ep || '');
+      if (cabRef) set(rows, cabRef, ep ? short(ep) : '');
       const rowIc = (r === '30' || r === '31') ? ic61[r === '30' ? 0 : 1] : null;
-      const nomen = (rowIc && rowIc.nomen)
-        || (inst ? [inst.inst.brand, inst.inst.model].filter(Boolean).join(' ') : '');
+      const nomen = (rowIc && rowIc.nomen) || '';
       set(rows, `C${r}`, nomen);
       set(rows, `D${r}`, sn || '');
       set(rows, `E${r}`, fw || '');
-      const ipR = (r === '30' || r === '31') ? ic61[r === '30' ? 0 : 1] : null;
-      set(rows, `F${r}`, (ipR && ipR.ip) || f.wanIp || ipOf(ep) || '');
-      set(rows, `G${r}`, (ipR && ipR.mask) || f.wanMask || '');
-      set(rows, `H${r}`, (ipR && ipR.gw) || f.wanGw || '');
-      set(rows, `I${r}`, (ipR && ipR.dns) || f.wanDns || '');
-      const haR = (r === '30' || r === '31') ? ic61[r === '30' ? 0 : 1] : null;
-      set(rows, `J${r}`, (haR && haR.haEn) || (ha ? 'Oui' : ''));
-      set(rows, `K${r}`, (haR && haR.haGroup) || ha || '');
-      set(rows, `L${r}`, (haR && haR.haRole) || role || '');
-      set(rows, `M${r}`, (haR && haR.haMaster) || (/master/i.test(role || '') ? 'Oui' : ''));
-      set(rows, `O${r}`, (haR && haR.mgmt) || mgmt || '');
-      set(rows, `P${r}`, (haR && haR.mgmtMask) || mgmtMask || '');
-      const noteIc = haR && haR.note;
-      if (noteIc) set(rows, `Q${r}`, noteIc);
-      else if (f.operator) set(rows, `Q${r}`, `FAI : ${f.operator}${f.offer ? ' — ' + f.offer : ''}`);
+      const ipR = rowIc;
+      set(rows, `F${r}`, (ipR && ipR.ip) || '');
+      set(rows, `G${r}`, (ipR && ipR.mask) || '');
+      set(rows, `H${r}`, (ipR && ipR.gw) || '');
+      set(rows, `I${r}`, (ipR && ipR.dns) || '');
+      set(rows, `J${r}`, (ipR && ipR.haEn) || '');
+      set(rows, `K${r}`, (ipR && ipR.haGroup) || '');
+      set(rows, `L${r}`, (ipR && ipR.haRole) || '');
+      set(rows, `M${r}`, (ipR && ipR.haMaster) || '');
+      set(rows, `O${r}`, (ipR && ipR.mgmt) || '');
+      set(rows, `P${r}`, (ipR && ipR.mgmtMask) || '');
+      set(rows, `Q${r}`, (ipR && ipR.note) || '');
     });
-    const vipA = (ic61[0] && ic61[0].vip) || ic.vipA || '';
-    const vipB = (ic61[1] && ic61[1].vip) || ic.vipB || '';
+    const vipA = (ic61[0] && ic61[0].vip) || '';
+    const vipB = (ic61[1] && ic61[1].vip) || '';
     if (vipA) set(rows, 'N30', vipA);
     if (vipB) set(rows, 'N31', vipB);
     // System — Admin Security (r37-38) : comptes d'administration saisis dans la fiche LLD
@@ -11107,10 +11066,7 @@ const LLD_TPL = (() => {
       ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'M'].forEach(c2 => set(rows, `${c2}${r}`, ''));
     // WAN Connection Settings (r45-47) — source prioritaire : tableau L.icWan
     // du sommaire ; sinon dérivation FAI (comportement historique).
-    const icWan = (Array.isArray(L.icWan) && L.icWan.length)
-      ? L.icWan.filter(r => r && ((r.name || '').trim() || (r.ip || '').trim()
-          || (r.provider || '').trim() || (r.enable || '').trim()))
-      : [];
+    const icWan = tocTbl(ws, 'icWan', hasB('6.1', 'icWan') || hasB('6', 'icWan'));
     const wanCols = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
                      'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
                      'Y', 'Z', 'AA', 'AB'];
@@ -11126,28 +11082,11 @@ const LLD_TPL = (() => {
         wanCols.forEach((col, ci) => set(rows, `${col}${r}`, String(row[wanKeys[ci]] ?? '')));
       }
     } else {
-      fais.slice(0, 3).forEach((f, i) => {
-        const r = 45 + i;
-        set(rows, `B${r}`, f.operator ? `WAN ${i + 1} — ${f.operator}` : `WAN ${i + 1}`);
-        set(rows, `C${r}`, 'Oui');
-        set(rows, `D${r}`, f.ipMode || '');
-        set(rows, `E${r}`, 'NAT');
-        set(rows, `F${r}`, f.wanIp || '');
-        set(rows, `G${r}`, f.wanMask || '');
-        set(rows, `H${r}`, f.wanGw || '');
-        set(rows, `I${r}`, f.wanDns || '');
-        set(rows, `K${r}`, f.up || '');
-        set(rows, `L${r}`, f.down || '');
-        set(rows, `M${r}`, f.down || '');
-        set(rows, `X${r}`, f.operator || '');
-      });
-      for (let r = 45 + Math.min(fais.length, 3); r <= 47; r++)
-        ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'X'].forEach(c2 => set(rows, `${c2}${r}`, ''));
+      for (let r = 45; r <= 47; r++)
+        wanCols.forEach(c2 => set(rows, `${c2}${r}`, ''));
     }
     // LAN (r52 = en-têtes ; r53-55 = données) — source prioritaire : L.icLan
-    const icLan = (Array.isArray(L.icLan) && L.icLan.length)
-      ? L.icLan.filter(r => r && ((r.lan || '').trim() || (r.routing || '').trim() || (r.network || '').trim()))
-      : [];
+    const icLan = tocTbl(ws, 'icLan', hasB('6.1', 'icLan') || hasB('6', 'icLan'));
     if (icLan.length) {
       for (let i = 0; i < 3; i++) {
         const r = 53 + i;
@@ -11161,20 +11100,15 @@ const LLD_TPL = (() => {
         // no-op sur merges : out() gère via merges6 — voir filtre plus bas
       }
     } else {
-      if (ic.routing) set(rows, 'C53', ic.routing);
-      const nv = (L.vlans || []).length;
-      set(rows, 'D53', nv ? `x${nv} VLANs routés` : '');
-      if (ic.localSubnets) set(rows, 'B53', `LAN — ${ic.localSubnets}`);
-      if (ic.remoteSubnets) {
-        set(rows, 'B54', 'LAN — distant');
-        set(rows, 'D54', ic.remoteSubnets);
+      for (let r = 53; r <= 55; r++) {
+        set(rows, `B${r}`, '');
+        set(rows, `C${r}`, '');
+        set(rows, `D${r}`, '');
       }
     }
     // 6.2 câblage — source prioritaire : tableau L.icCab (sommaire) ;
     // sinon dérivation FAI/interco sur les lignes du template (62-71).
-    const icCab = (Array.isArray(L.icCab) && L.icCab.length)
-      ? L.icCab.filter(r => r && ((r.desc || '').trim() || (r.port || '').trim() || (r.conn || '').trim()))
-      : [];
+    const icCab = tocTbl(ws, 'icCab', hasB('6.2', 'icCab') || hasB('6', 'icCab'));
     if (icCab.length) {
       // template : B=Categorie (col1), C=Description, D=Port, E=Connecté a
       for (let r = 62; r <= 71; r++) {
@@ -11191,18 +11125,12 @@ const LLD_TPL = (() => {
         set(rows, `E${r}`, String(c.conn || ''));
       });
     } else {
-      const labA = (faiOf(ic.epA, 0).wanLabel || '');
-      const labB = (faiOf(ic.epB, 1).wanLabel || '');
-      const extraFor = (ownA, ownB, re) => fais.map(f => f.wanLabel || '')
-        .find(l => l && l !== ownA && l !== ownB && re.test(l)) || '';
-      set(rows, 'E62', labA);
-      set(rows, 'E63', extraFor(labA, labB, /rtr-?01|siège|siege/i));
-      set(rows, 'E64', '');
-      set(rows, 'E67', labB);
-      set(rows, 'E68', extraFor(labA, labB, /rtr-?02|agence/i));
-      set(rows, 'E69', '');
-      set(rows, 'E66', ic.lanA || '');
-      set(rows, 'E71', ic.lanB || '');
+      for (let r = 62; r <= 71; r++) {
+        set(rows, `B${r}`, '');
+        set(rows, `C${r}`, '');
+        set(rows, `D${r}`, '');
+        set(rows, `E${r}`, '');
+      }
     }
     // VIP (N30/31) et masque admin (P30/31) : le template fusionne N30:N31 et
     // P30:P31 alors que chaque extrémité a ses propres valeurs -> on défusionne.
@@ -12405,9 +12333,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
       ...cabTable5.map(r => [String(r.cat || 'FAI'), String(r.desc || ''), String(r.conn || '')])
     ], [1.0, 2.2, 2.4], 8);
   } else {
-    const cabFai = cablingRowsByDomain(ws, 'fai');
-    if (cabFai.length > 1) drawTable(cabFai, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
-    else note('Aucun câble classé « FAI » (mode Câblage : domaine du câble).');
+    placeholder();
   }
   endNode('5.2');
   drawCustomSubs('5');          // extras déjà imprimés avant 5.1
@@ -12480,9 +12406,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
       ])
     ], [1.2, 1.6, 0.9, 2.0], 8);
   } else {
-    const cabIc = cablingRowsByDomain(ws, 'interco');
-    if (cabIc.length > 1) drawTable(cabIc, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
-    else note('Aucun câble classé « Interconnexion » (mode Câblage : domaine du câble).');
+    placeholder();
   }
   endNode('6.2');
   drawCustomSubs('6');

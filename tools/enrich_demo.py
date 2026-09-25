@@ -4,7 +4,7 @@ UPS/IDS/NVR/SPO/PRT en double site, clime avec IP), corrige les câbles cassés
 (portIds renommés), complète le registre VLAN (VOIP + site B), les alias (x9),
 les VMs (x8), les FAI (PF détaillé, IPv6, WLAN), les zones de switching, la
 nomenclature, les notes par chapitre, les descriptions de sites et la révision
-1.2. Bump demoVer -> 5."""
+1.2. Bump demoVer -> 6."""
 import json, copy
 
 P = 'demo/demo-state.json'
@@ -230,7 +230,7 @@ L['revs'].append({'rev': '1.2', 'date': '2026-09-21', 'author': 'Amine MJID',
                           "+ Registre VLAN agence (123-134) et alias firewall 3\n"
                           "+ Redirection de ports FAI détaillée (ch. 5) et nomenclature étendue"})
 
-s['demoVer'] = 5
+s['demoVer'] = 6
 json.dump(s, open(P, 'w', encoding='utf-8'), indent=1, ensure_ascii=False)
 print('demo-state enrichi — demoVer', s['demoVer'])
 print('instances RACK-A:', len(rackA['instances']), '| RACK-B:', len(rackB['instances']))
