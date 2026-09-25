@@ -95,8 +95,9 @@ via localStorage, en secours).
    racks, les déplacer en tirant l'en-tête, **changer leur taille** via le menu
    dans l'en-tête, et les **renommer** en double-cliquant sur le nom.
    Le sélecteur de **site** de l'en-tête rattache le rack à un site déclaré
-   dans la fiche du dossier (onglet **Sites**) : une **pastille colorée**
-   identifie le site, reprise dans les exports (PDF, PNG, CSV, Excel). La
+   dans la fiche du dossier (📘 → chapitre 2.1, information **Sites**) : une
+   **pastille colorée** identifie le site, reprise dans les exports (PDF,
+   PNG, CSV, Excel). La
    section **Sites** du panneau de gauche permet de **filtrer le board** par
    site (les racks des autres sites sont atténués).
    L'en-tête affiche des **métriques de capacité** mises à jour en direct :
@@ -111,7 +112,7 @@ via localStorage, en secours).
    **sites** et **flux réseau**). Un clic sur un résultat device/port ouvre le
    bon workspace, centre la vue sur le rack et fait **clignoter** l'élément
    trouvé ; un résultat **site** ou **flux** ouvre directement la fiche du
-   dossier (onglet correspondant).
+   dossier sur le chapitre correspondant (2.1 / 14).
 5. **Annuler / Rétablir** : **Ctrl+Z** (ou Ctrl+Maj+Z) et **Ctrl+Y** permettent
    d'annuler/rétablir toutes les actions (placement, suppression, « Vider »,
    création de device/workspace…).
@@ -141,7 +142,9 @@ via localStorage, en secours).
      redirection de ports, DMZ, WLAN), interconnexion S2S (extrémités, HA,
      Admin Security, câblage), équipements par chapitre, plans de ports des
      zones de switching, matrice des flux, tableau de câblage et élévations
-     de baies ;
+     de baies. Les chapitres 5/6/7 embarquent aussi le diagramme (tableau
+     De → Liaison → Vers, mêmes nœuds/liens que le schéma modal) et les
+     captures d'écran (lignes + images JPEG/PNG ancrées dans la feuille) ;
    - **Inventaire (CSV)** — tableau de tous les devices posés (rack, site,
      étage, taille, nom, catégorie, marque, modèle, référence, n° série,
      IP mgmt, VLAN, puissance, poids, garantie/contrat, fin de garantie,
@@ -243,41 +246,83 @@ via localStorage, en secours).
     dessus ; les noeuds se déplacent à la souris ; **double-clic sur un noeud**
     revient en élévations, centré sur le device. La topologie est sauvegardée
     dans le workspace et se recadre automatiquement (⌂).
-12. **Infos du dossier LLD** : le bouton **📘** de la barre du haut ouvre la
-    fiche du dossier, organisée en onglets :
-    - **📄 Document** — **client**, **auteur**, **version**, textes du dossier
-      (**1. Objectif du document**, **2.2. Infrastructure existante**,
-      **3. Architecture cible**) et **historique des révisions** (tableau
-      ajouté à la page de garde du PDF) ;
-    - **🌐 Réseau** — **nomenclature** (type d'objet, préfixe, exemple, règle)
-      avec un bouton **🔎 Générer depuis les devices** qui détecte les
-      préfixes utilisés (FW, SW, SRV…) et propose le type d'objet ; le
-      **registre d'adressage IP global** (VLAN, nom, site, subnet, passerelle,
-      usage) avec **🔎 Détecter depuis les ports** ; le bloc **FAI**
-      (opérateur, offre, type de lien, débits, bloc IP publiques, CPE,
-      notes de configuration — ch. 5) et le bloc **Interconnexion site 2
-      site** (technologie IPsec/MPLS/SD-WAN…, endpoints publics, subnets
-      locaux/distants, routage, chiffrement, notes — ch. 6) ;
-    - **🏢 Sites** — gestion des sites du dossier (nom, adresse, contacts,
-      description). **Site A / Site B** sont créés par défaut ; chaque rack se
-      rattache à un site via le sélecteur de son en-tête (pastille colorée,
-      filtrage du board par site). Supprimer un site détache les racks qui y
-      étaient rattachés ;
-    - **🔄 Flux** — **matrice des flux réseau** (ch. 14) : nom, source,
-      destination, protocole/ports, sens (bidirectionnel/unidirectionnel) et
-      usage de chaque flux ; dans la vue Topologie, le sélecteur 🔄 met en
-      évidence les équipements mentionnés dans le flux choisi ;
-    - **📚 Chapitres** — **notes de configuration** de chaque chapitre 7 à 13
-      (Firewall, Switching, Serveurs, Stockage, IDS, CCTV, Pointage) et
-      **zones de Switching** qui découpent le chapitre 8 : par défaut INFRA,
-      LAN Site B, Aruba AP Site A, Aruba AP Site B, LAN Site A (ajout,
-      suppression, réordonnancement ↑↓) ; les chapitres 7 à 13 du PDF sont
-      générés automatiquement : notes, équipements par catégorie (et par
-      zone pour le Switching), ports & adressage, câblage du domaine.
-    Ces informations alimentent les chapitres correspondants du document LLD
-    (le ch. 2.1 affiche le tableau des sites et les racks par site, et la
-    colonne **Site** apparaît dans l'inventaire, les ports et la synthèse des
-    racks de tous les exports).
+12. **Infos du dossier LLD (sommaire)** : le bouton **📘** de la barre du
+    haut ouvre d'abord le **sommaire du dossier** (chapitres +
+    sous-chapitres, page de garde en tête) :
+    - **Double-clic sur un titre** pour renommer un chapitre ou un
+      sous-chapitre — le nouveau nom est repris dans le **sommaire du PDF**,
+      les en-têtes de chapitres du PDF, les titres de feuilles Excel et la
+      feuille « Contenu » ;
+    - **＋ Chapitre / ＋ Sous-chapitre** pour enrichir le sommaire : les
+      chapitres ajoutés deviennent de vraies sections à la fin du PDF et de
+      nouvelles feuilles dans l'export Excel (contenu = informations qui y
+      sont rattachées) ;
+    - **Clic sur un nœud** : à droite, **seules les informations insertibles
+      de ce chapitre** s'affichent (page de garde : client/auteur/version +
+      révisions/approbateurs/réviseurs ; ch. 4 : nomenclature, VLANs, profils
+      firewall, VPN, alias ; ch. 5 : FAI ; ch. 6 : interconnexion + comptes
+      d'administration ; ch. 7 à 13 : règles/NAT, zones de Switching, VMs,
+      volumes, caméras et notes de configuration ; ch. 14 : flux…). Chaque
+      bloc indique aussi les sections **incluses automatiquement** à l'export
+      (équipements, ports, câblage…) ;
+    - **Informations synchronisées** : « ＋ Ajouter cette info » rattache au
+      chapitre une information déjà présente ailleurs — le stockage est
+      unique, un badge **🔄 Synchronisé avec 7. …** liste les autres
+      chapitres concernés et toute modification est reprise partout ;
+    - **Colonnes personnalisables** : sur chaque tableau éditable, **✕** dans
+      l'en-tête supprime la colonne, un **double-clic** sur l'en-tête la
+      renomme, **＋ Colonne** en ajoute une et un **glisser-déposer** de
+      l'en-tête change sa position — le schéma (libellés, suppression, ordre)
+      est mémorisé dans le workspace et repris par les tableaux des exports
+      (PDF, CSV, feuille nomenclature, feuille « Governance » et chapitres
+      ajoutés de l'Excel) ; la fenêtre 📘 s'adapte à la taille de la fenêtre
+      navigateur ;
+    - **Annulation Ctrl+Z** : dans la modale 📘, **Ctrl+Z** annule la dernière
+      modification (renommage/ajout de chapitre, ajout/suppression/réordon-
+      nancement de colonne, lignes de tableau, blocs d'infos, saisies de
+      champs) et **Ctrl+Shift+Z** ou **Ctrl+Y** rétablit — pile limitée à 60
+      états, réinitialisée à l'ouverture de la fenêtre ;
+    - **Ch. 1 & 2.1 fidèles à l'app** : l'objectif du document est pré-rempli
+      avec le paragraphe de présentation du template (modifiable et
+      supprimable — la suppression persiste) et l'Excel n'affiche que la
+      saisie de l'app ; le bloc « Information sur le site » de l'Excel est un
+      vrai tableau aux mêmes colonnes que l'app (Contacts, Description… et
+      colonnes personnalisées compris), un site par ligne.
+    - **Ch. 3 sans vide ni double source** : dans l'Excel, le sous-chapitre
+      3.1 est collé juste après le texte d'architecture (plus de bloc vide
+      jusqu'à la ligne 37) et son tableau n'affiche **que les lignes du
+      sommaire** — bouton **🔎 Générer depuis l'élévation** dans la fiche
+      « Équipements » pour pré-remplir depuis les racks, puis édition libre
+      (suppression persiste, colonnes du schéma dynamique comprises).
+    - **Ch. 4 = feuille Excel « 4 »** : la fiche « Matrice d'adressage IP »
+      reprend la disposition exacte du classeur (catégories fusionnées FAI →
+      Clime, mêmes descriptions, en-tête IP / Mask / GW / DNS) — **toutes les
+      cellules de valeurs sont modifiables** : les liens structurés (VPN S2S,
+      alias, profils) alimentent aussi le PDF, les autres écritures deviennent
+      des **surcharges appliquées à la feuille Excel « 4 »** (revenir à la
+      valeur d'origine réactive le recalcul auto depuis devices / FAI) ;
+      sous la matrice, le **registre VLANs** puis la **nomenclature**, comme
+      en bas de la feuille.
+    - **Ch. 5/6/7 — diagrammes & captures avant les sous-chapitres** :
+      chaque chapitre FAI, Interconnexion et Firewall s'ouvre sur un
+      **diagramme généré depuis l'élévation** (FAI / tunnel / FW au centre,
+      équipements reliés à ce qu'ils branchent) et une zone de
+      **glisser-dépose de captures d'écran** exportées dans le PDF ;
+      « 🔎 Générer » crée aussi le **rack FAI** (5 routeurs) à gauche des
+      baies et le relie en topologie aux pare-feux.
+    - **Synchro exports** : les saisies sont enregistrées dans le workspace
+      (bouton **Enregistrer**) et lues telles quelles par le **PDF** et
+      l'**Excel** à chaque export ; retirer une information d'un chapitre la
+      retire aussi de sa section d'export. La recherche globale ouvre la
+      fiche directement sur le chapitre concerné (site → 2.1, flux → ch. 14).
+    Rappel des blocs historiques : **sites** (Site A / Site B par défaut,
+    pastille colorée sur les racks, filtrage du board), **registre VLANs**
+    avec **🔎 Détecter depuis les ports**, **nomenclature** avec **🔎 Générer
+    depuis les devices**, **FAI / Interconnexion** (ch. 5-6), **zones de
+    Switching** (découpent les sous-chapitres 8.x du PDF : INFRA, LAN Site B,
+    Aruba AP Site A, Aruba AP Site B, LAN Site A par défaut — ajout,
+    suppression, réordonnancement ↑↓) et **matrice des flux** (ch. 14,
+    surbrillance en vue Topologie).
 
 Tout est sauvegardé automatiquement : sur le **serveur (fichier `data/state.json`)**
 quand l'application est lancée avec `server.py`, et sinon dans le navigateur

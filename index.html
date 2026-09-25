@@ -19,7 +19,7 @@
       <span class="brand-name">LLDraw</span>
     </button>
     <div class="workspace-tools">
-      <button id="ws-info" class="ws-btn" title="Informations du dossier LLD : client, auteur, versions, VLANs">📘</button>
+      <button id="ws-info" class="ws-btn" title="Sommaire & informations du dossier LLD : chapitres, sous-chapitres, contenus synchronisés">📘</button>
     </div>
     <div class="topbar-hint hidden" id="mode-hint"></div>
 
@@ -382,282 +382,34 @@
     </div>
   </div>
 
-  <!-- ============ MODALE INFOS DOSSIER LLD ============ -->
+  <!-- ============ MODALE INFOS DOSSIER LLD (sommaire + chapitres) ============ -->
   <div id="lld-modal" class="modal hidden">
     <div class="modal-box modal-box-lg">
-      <h3>📘 Informations du dossier LLD</h3>
+      <h3>📘 Sommaire & informations du dossier LLD</h3>
 
-      <div class="lld-tabs">
-        <button type="button" class="lld-tab active" data-tab="doc">📄 Document</button>
-        <button type="button" class="lld-tab" data-tab="rzo">🌐 Réseau</button>
-        <button type="button" class="lld-tab" data-tab="sites" title="Gérer les sites du dossier (Site A, Site B…)">🏢 Sites</button>
-        <button type="button" class="lld-tab" data-tab="chaps" title="Notes de configuration par chapitre (7 à 13) et zones de Switching (ch. 8)">📚 Chapitres</button>
-        <button type="button" class="lld-tab" data-tab="flux" title="Matrice des flux réseau (ch. 14)">🔄 Flux</button>
-      </div>
+      <div class="lld-split">
+        <!-- Sommaire : chapitres + sous-chapitres (renommage en double-clic) -->
+        <aside class="lld-toc">
+          <div class="lld-toc-head">
+            <span class="lld-toc-head-title">📖 Sommaire</span>
+            <span class="lld-toc-head-hint" title="Double-cliquez sur un titre pour le renommer">double-clic = renommer</span>
+          </div>
+          <div id="lld-toc-tree" class="lld-toc-tree"></div>
+          <div class="lld-toc-actions">
+            <button id="lld-toc-add-ch" class="btn btn-ghost btn-sm" title="Ajouter un chapitre à la fin du sommaire">＋ Chapitre</button>
+            <button id="lld-toc-add-sub" class="btn btn-ghost btn-sm" title="Ajouter un sous-chapitre au chapitre sélectionné">＋ Sous-chapitre</button>
+          </div>
+        </aside>
 
-      <!-- Onglet Document -->
-      <div class="lld-pane" data-pane="doc">
-        <div class="d-grid">
-          <label>Client
-            <input id="lld-client" type="text" placeholder="Ex : Client SAS" maxlength="80">
-          </label>
-          <label>Auteur
-            <input id="lld-author" type="text" placeholder="Ex : A. MJID — Ingénieur infra" maxlength="80">
-          </label>
-          <label>Version du dossier
-            <input id="lld-version" type="text" placeholder="Ex : 1.0" maxlength="80">
-          </label>
-        </div>
-
-        <label>1. Objectif du document
-          <textarea id="lld-objectif" rows="4" maxlength="4000"
-            placeholder="Ex : Ce document décrit la conception bas niveau (LLD) de l'infrastructure réseau et système des sites A et B…"></textarea>
-        </label>
-        <label>2.2. Infrastructure existante
-          <textarea id="lld-existant" rows="4" maxlength="4000"
-            placeholder="Ex : Site A — 1 baie 12U, LAN non redondant…&#10;Site B — aucun équipement…"></textarea>
-        </label>
-        <label>3. Architecture cible
-          <textarea id="lld-architecture" rows="4" maxlength="4000"
-            placeholder="Ex : Architecture deux sites interconnectés en IPsec via Internet, pare-feu en chaque site…"></textarea>
-        </label>
-
-        <div class="d-inv-title">Historique des révisions</div>
-        <div class="lld-table" id="lld-revs"></div>
-        <button id="lld-add-rev" class="btn btn-ghost btn-sm">＋ Ajouter une révision</button>
-
-        <div class="d-inv-title">Approbateurs</div>
-        <div class="lld-table" id="lld-approvers"></div>
-        <button id="lld-add-approver" class="btn btn-ghost btn-sm">＋ Ajouter un approbateur</button>
-
-        <div class="d-inv-title">Réviseurs</div>
-        <div class="lld-table" id="lld-reviewers"></div>
-        <button id="lld-add-reviewer" class="btn btn-ghost btn-sm">＋ Ajouter un réviseur</button>
-      </div>
-
-      <!-- Onglet Réseau -->
-      <div class="lld-pane hidden" data-pane="rzo">
-        <div class="d-inv-title">Nomenclature (ch. 4)</div>
-        <div class="lld-table" id="lld-nomen"></div>
-        <div class="lld-vlan-actions">
-          <button id="lld-add-nomen" class="btn btn-ghost btn-sm">＋ Ajouter une ligne</button>
-          <button id="lld-gen-nomen" class="btn btn-ghost btn-sm" title="Détecte les préfixes utilisés par les devices et câbles posés et les ajoute à la nomenclature">🔎 Générer depuis les devices</button>
-        </div>
-
-        <div class="d-inv-title" style="margin-top:14px">Adressage IP global — VLANs &amp; subnets (ch. 4)</div>
-        <div class="lld-table" id="lld-vlans"></div>
-        <div class="lld-vlan-actions">
-          <button id="lld-add-vlan" class="btn btn-ghost btn-sm">＋ Ajouter un VLAN</button>
-          <button id="lld-detect-vlans" class="btn btn-ghost btn-sm" title="Ajouter automatiquement les VLANs utilisés sur les ports mais absents du registre">🔎 Détecter depuis les ports</button>
-        </div>
-
-        <div class="d-inv-title" style="margin-top:14px">FAI — accès Internet (ch. 5)</div>
-        <div class="lld-table" id="lld-fais"></div>
-        <div class="lld-vlan-actions">
-          <button id="lld-add-fai" class="btn btn-ghost btn-sm">＋ Ajouter un FAI</button>
-        </div>
-
-        <div class="d-inv-title" style="margin-top:14px">Interconnexion site 2 site (ch. 6)</div>
-        <div class="d-grid">
-          <label>Technologie
-            <select id="lld-ic-tech">
-              <option value="">—</option>
-              <option>IPsec site-to-site</option>
-              <option>MPLS</option>
-              <option>SD-WAN</option>
-              <option>LAN-to-LAN opérateur</option>
-              <option>VPN SSL</option>
-              <option>Autre</option>
-            </select>
-          </label>
-          <label>Routage
-            <input id="lld-ic-routing" type="text" placeholder="Ex : statique" maxlength="60">
-          </label>
-          <label>Endpoint public site A
-            <input id="lld-ic-epa" type="text" placeholder="Ex : 41.92.10.2" maxlength="60">
-          </label>
-          <label>Endpoint public site B
-            <input id="lld-ic-epb" type="text" placeholder="Ex : 105.12.33.2" maxlength="60">
-          </label>
-          <label>Subnets locaux (A)
-            <input id="lld-ic-local" type="text" placeholder="Ex : 10.0.0.0/16" maxlength="80">
-          </label>
-          <label>Subnets distants (B)
-            <input id="lld-ic-remote" type="text" placeholder="Ex : 10.1.0.0/16" maxlength="80">
-          </label>
-          <label>Chiffrement
-            <input id="lld-ic-enc" type="text" placeholder="Ex : AES-256 / IKEv2" maxlength="60">
-          </label>
-        </div>
-        <div class="d-grid" style="margin-top:8px">
-          <label>Extrémité A — N° de série
-            <input id="lld-ic-sna" type="text" placeholder="Ex : PL5815421" maxlength="60">
-          </label>
-          <label>Extrémité B — N° de série
-            <input id="lld-ic-snb" type="text" placeholder="Ex : PL5815422" maxlength="60">
-          </label>
-          <label>Extrémité A — Firmware
-            <input id="lld-ic-fwa" type="text" placeholder="Ex : 8.3.2" maxlength="40">
-          </label>
-          <label>Extrémité B — Firmware
-            <input id="lld-ic-fwb" type="text" placeholder="Ex : 8.3.2" maxlength="40">
-          </label>
-          <label>HA — Groupe (A)
-            <input id="lld-ic-haa" type="text" placeholder="Ex : Group 1" maxlength="40">
-          </label>
-          <label>HA — Groupe (B)
-            <input id="lld-ic-hab" type="text" placeholder="Ex : Group 1" maxlength="40">
-          </label>
-          <label>HA — Rôle préféré (A)
-            <input id="lld-ic-rolea" type="text" placeholder="Ex : Master" maxlength="30">
-          </label>
-          <label>HA — Rôle préféré (B)
-            <input id="lld-ic-roleb" type="text" placeholder="Ex : Slave" maxlength="30">
-          </label>
-          <label>IP virtuelle (HA) — site A
-            <input id="lld-ic-vipa" type="text" placeholder="Ex : 41.92.10.1" maxlength="45">
-          </label>
-          <label>IP virtuelle (HA) — site B
-            <input id="lld-ic-vipb" type="text" placeholder="Ex : 105.157.20.1" maxlength="45">
-          </label>
-          <label>IP admin — extrémité B
-            <input id="lld-ic-mgmtb" type="text" placeholder="Ex : 10.11.99.12" maxlength="45">
-          </label>
-          <label>Masque admin — extrémité B
-            <input id="lld-ic-mgmtmaskb" type="text" placeholder="Ex : 255.255.255.0" maxlength="45">
-          </label>
-          <label>IP admin — extrémité A
-            <input id="lld-ic-mgmta" type="text" placeholder="Ex : 10.10.99.12" maxlength="45">
-          </label>
-          <label>Masque admin — extrémité A
-            <input id="lld-ic-mgmtmaska" type="text" placeholder="Ex : 255.255.255.0" maxlength="45">
-          </label>
-          <label>Extrémité B — LAN 1 connecté à
-            <input id="lld-ic-lanb" type="text" placeholder="Ex : SW-02 port 25" maxlength="60">
-          </label>
-          <label>Extrémité A — LAN 1 connecté à
-            <input id="lld-ic-lana" type="text" placeholder="Ex : SW-01 port 25" maxlength="60">
-          </label>
-          <label>Cluster firewall — Master (A)
-            <input id="lld-ic-clustera" type="text" placeholder="Ex : Cluster 1" maxlength="40">
-          </label>
-          <label>Cluster firewall — Slave (B)
-            <input id="lld-ic-clusterb" type="text" placeholder="Ex : Cluster 2" maxlength="40">
-          </label>
-        </div>
-
-        <div class="d-inv-title" style="margin-top:14px">Profils firewall (ch. 4)</div>
-        <div class="d-grid">
-          <label>VPN SSL — utilisateurs
-            <input id="lld-fwp-vpnssl" type="text" placeholder="Ex : USER_SSL" maxlength="60">
-          </label>
-          <label>Application Control
-            <input id="lld-fwp-appctrl" type="text" placeholder="Ex : AppControl.V1" maxlength="60">
-          </label>
-          <label>WebBlocker
-            <input id="lld-fwp-webblocker" type="text" placeholder="Ex : WebBlocker.V1" maxlength="60">
-          </label>
-          <label>HTTP Proxy
-            <input id="lld-fwp-httpproxy" type="text" placeholder="Ex : HTTP-Client-v1" maxlength="60">
-          </label>
-        </div>
-
-        <div class="d-inv-title" style="margin-top:14px">Admin Security — comptes d'administration (ch. 6)</div>
-        <div class="lld-table" id="lld-adminsec"></div>
-        <button id="lld-add-admin" class="btn btn-ghost btn-sm">＋ Ajouter un compte d'administration</button>
-
-        <div class="d-inv-title" style="margin-top:14px">Tunnels VPN site à site (ch. 4)</div>
-        <div class="lld-table" id="lld-vpns"></div>
-        <button id="lld-add-vpn" class="btn btn-ghost btn-sm">＋ Ajouter un tunnel VPN</button>
-
-        <div class="d-inv-title" style="margin-top:14px">Alias firewall (ch. 4)</div>
-        <div class="lld-table" id="lld-aliases"></div>
-        <button id="lld-add-alias" class="btn btn-ghost btn-sm">＋ Ajouter un alias</button>
-
-        <label>Notes de configuration (interconnexion)
-          <textarea id="lld-ic-notes" rows="3" maxlength="2000"
-            placeholder="Ex : tunnel IPsec redondé, DPD activé, SA en IKEv2…"></textarea>
-        </label>
-      </div>
-
-      <!-- Onglet Sites -->
-      <div class="lld-pane hidden" data-pane="sites">
-        <p class="lld-hint">
-          Les sites structurent le dossier (chapitre 2) : rattachez chaque rack à son site
-          via le sélecteur de son en-tête. Les sites alimentent aussi le chapitre 2.1 du PDF.
-        </p>
-        <div class="lld-table" id="lld-sites"></div>
-        <button id="lld-add-site" class="btn btn-ghost btn-sm">＋ Ajouter un site</button>
-      </div>
-
-      <!-- Onglet Chapitres -->
-      <div class="lld-pane hidden" data-pane="chaps">
-        <p class="lld-hint">
-          Notes de configuration reprises dans les chapitres 7 à 13 du dossier LLD.
-          Les <strong>zones de Switching</strong> découpent le chapitre 8 (8.1, 8.2…) :
-          rattachez chaque switch / borne WiFi à sa zone depuis sa fiche de survol
-          (double-clic sur la ligne « Zone »).
-        </p>
-
-        <div class="d-inv-title">Zones de Switching (ch. 8)</div>
-        <div class="lld-table" id="lld-zones"></div>
-        <button id="lld-add-zone" class="btn btn-ghost btn-sm">＋ Ajouter une zone</button>
-
-        <div class="d-inv-title" style="margin-top:14px">Équipements &amp; licences hors baie (ch. 3)</div>
-        <div class="lld-table" id="lld-equip"></div>
-        <button id="lld-add-equip" class="btn btn-ghost btn-sm">＋ Ajouter un élément</button>
-
-        <div class="d-inv-title" style="margin-top:14px">Règles &amp; NAT Firewall (ch. 7)</div>
-        <div class="lld-table" id="lld-fw"></div>
-        <button id="lld-add-fw" class="btn btn-ghost btn-sm">＋ Ajouter une règle / NAT</button>
-
-        <div class="d-inv-title" style="margin-top:14px">Machines virtuelles (ch. 9)</div>
-        <div class="lld-table" id="lld-vms"></div>
-        <button id="lld-add-vm" class="btn btn-ghost btn-sm">＋ Ajouter une VM</button>
-
-        <div class="d-inv-title" style="margin-top:14px">Volumes / LUN (ch. 10)</div>
-        <div class="lld-table" id="lld-vols"></div>
-        <button id="lld-add-vol" class="btn btn-ghost btn-sm">＋ Ajouter un volume</button>
-
-        <div class="d-inv-title" style="margin-top:14px">Caméras CCTV (ch. 12)</div>
-        <div class="lld-table" id="lld-cams"></div>
-        <button id="lld-add-cam" class="btn btn-ghost btn-sm">＋ Ajouter une caméra</button>
-
-        <div class="d-inv-title" style="margin-top:14px">Notes de configuration par chapitre</div>
-        <label>7. Firewall
-          <textarea id="lld-note-firewall" rows="3" maxlength="2000" placeholder="Ex : policies, NAT, VLANs, haute disponibilité…"></textarea>
-        </label>
-        <label>8. Switching
-          <textarea id="lld-note-switching" rows="3" maxlength="2000" placeholder="Ex : VLANs, trunks, spanning-tree, PoE…"></textarea>
-        </label>
-        <label>9. Serveurs
-          <textarea id="lld-note-server" rows="3" maxlength="2000" placeholder="Ex : hyperviseur, adresses IP, rôles…"></textarea>
-        </label>
-        <label>10. Stockage
-          <textarea id="lld-note-storage" rows="3" maxlength="2000" placeholder="Ex : RAID, iSCSI, capacités…"></textarea>
-        </label>
-        <label>11. Intrusion (IDS)
-          <textarea id="lld-note-ids" rows="3" maxlength="2000" placeholder="Ex : mode détection, sondes, emplacement…"></textarea>
-        </label>
-        <label>12. CCTV
-          <textarea id="lld-note-cctv" rows="3" maxlength="2000" placeholder="Ex : flux caméras, NVR, VLAN dédié…"></textarea>
-        </label>
-        <label>13. Pointage (SPO)
-          <textarea id="lld-note-pointage" rows="3" maxlength="2000" placeholder="Ex : badges, terminaux, serveur SPO…"></textarea>
-        </label>
-      </div>
-
-      <!-- Onglet Flux -->
-      <div class="lld-pane hidden" data-pane="flux">
-        <p class="lld-hint">
-          Matrice des flux réseau (chapitre 14 du dossier LLD). Indiquez la source, la
-          destination, le protocole/ports, le sens et l'usage de chaque flux — ex.
-          « LAN Site A → Internet, TCP 443, bidirectionnel, navigation web ».
-          Dans la <strong>vue Topologie</strong>, le sélecteur 🔄 met en évidence les
-          équipements mentionnés dans la source ou la destination du flux choisi.
-        </p>
-        <div class="lld-table" id="lld-flows"></div>
-        <button id="lld-add-flow" class="btn btn-ghost btn-sm">＋ Ajouter un flux</button>
+        <!-- Détail du chapitre sélectionné : ses informations insertibles -->
+        <section class="lld-detail">
+          <div id="lld-detail-empty" class="lld-detail-empty">
+            <div class="lld-detail-empty-ico">📖</div>
+            <p>Sélectionnez un chapitre ou un sous-chapitre<br>dans le sommaire pour saisir ses informations.</p>
+            <p class="lld-detail-empty-sub">Un même contenu ajouté dans plusieurs chapitres est <strong>synchronisé</strong><br>— les exports PDF / Excel en reprennent toujours la dernière version.</p>
+          </div>
+          <div id="lld-detail-body" class="lld-detail-body hidden"></div>
+        </section>
       </div>
 
       <div class="modal-actions">
