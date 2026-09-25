@@ -117,7 +117,35 @@ via localStorage, en secours).
    d'annuler/rétablir toutes les actions (placement, suppression, « Vider »,
    création de device/workspace…).
 6. **Export du plan** : le bouton **Exporter** de la barre du haut ouvre un
-   menu permettant d'enregistrer le plan du workspace courant :
+   menu permettant d'enregistrer le plan du workspace courant. En tête de
+   menu, les deux formats **recommandés** (lisibles et intuitifs) :
+   - **🌐 Rapport interactif (.html)** — un seul fichier HTML **autonome**
+     (zéro dépendance, fonctionne hors-ligne) à ouvrir dans un navigateur ou
+     à envoyer par mail, et **complet** : toutes les données du dossier LLD y
+     figurent (gouvernance — approbateurs/réviseurs/révisions, FAI 5.1 & 5.2,
+     interconnexion S2S, règles & profils firewall, alias, comptes d'admin,
+     tunnels VPN, VMs, volumes, caméras, zones de switching, équipements hors
+     baie, notes de configuration et **captures d'écran** des chapitres,
+     en plus des baies, devices, ports, câbles, VLANs, nomenclature et flux).
+     Côté lecture : barre de **recherche instantanée** (device, IP,
+     VLAN, câble, série…), sommaire cliquable avec suivi de section, bandeau
+     de chiffres clés (équipements, câbles, garanties), cartes de sites avec
+     **jauges de capacité** par baie (U / W / kg), **une élévation recadrée
+     par baie** + vue d'ensemble et topologie **zoomables en lightbox**,
+     inventaire et ports **regroupés par baie en blocs repliables** (fini la
+     colonne « RACK-A — Siège… » répétée sur chaque ligne), câbles avec
+     **pastille de couleur réelle** et filtre par domaine, garanties en code
+     couleur (vert / orange < 90 j / rouge), tableaux **triables** au clic
+     sur l'en-tête, et **mise en page d'impression** propre (Ctrl+P → PDF
+     via le navigateur) ;
+   - **📊 Excel « vue données » (.xlsx)** — à la place du classeur-chapitres
+     quand on veut **exploiter** les données : onglet **Sommaire** avec
+     **liens hypertextes** vers chaque feuille, tableaux aux **en-têtes
+     figées** avec **filtres automatiques**, Inventaire et Ports **regroupés
+     par baie** en plan repliable (boutons ±), Garanties **colorées** et
+     triées par échéance, Câblage avec **couleur réelle** des cordons, Racks
+     avec % d'occupation U, plus Sites, VLANs, Nomenclature et Flux.
+   Puis les formats **historiques** (toujours disponibles) :
    - **Image PNG** / **Plan PDF (1 page)** — rendu haute définition des racks,
      devices et ports ;
    - **Document LLD (PDF)** — le dossier complet, multi-pages, structuré en

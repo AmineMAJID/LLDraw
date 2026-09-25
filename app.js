@@ -3712,6 +3712,63 @@ const lldConfirm = (message, opts) => lldDialog(Object.assign({ message, okLabel
 const lldPrompt  = (message, value, opts) => lldDialog(Object.assign({ message, input: value ?? '', okLabel: 'Créer' }, opts));
 const lldAlert   = (message, opts) => lldDialog(Object.assign({ message, okLabel: 'OK', cancelLabel: 'OK', hideCancel: true }, opts));
 
+/* ---- Sélecteur de rubriques d'export ----
+   items = [[clé, libellé], …] affichés en cases à cocher (toutes cochées par
+   défaut, case « Tout sélectionner » en tête). Résout :
+     • un Set des clés cochées  → Exporter
+     • null → Annuler / Échap / clic dehors. */
+function lldPickSections({ title, items, hint = '' }) {
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'lld-dlg-overlay';
+    ov.innerHTML = `
+      <div class="lld-dlg lld-pick" role="dialog" aria-modal="true">
+        <h3>${escapeHtml(title)}</h3>
+        ${hint ? `<p class="lld-dlg-msg">${escapeHtml(hint)}</p>` : ''}
+        <label class="lld-pick-all"><input type="checkbox" checked> <b>Tout sélectionner</b>
+          <span class="lld-pick-count">${items.length}/${items.length}</span></label>
+        <div class="lld-pick-list">
+          ${items.map(([k, lbl]) => `
+            <label class="lld-pick-item"><input type="checkbox" value="${escapeHtml(k)}" checked>
+              <span>${escapeHtml(lbl)}</span></label>`).join('')}
+        </div>
+        <div class="lld-dlg-btns">
+          <button class="btn lld-dlg-cancel" type="button">Annuler</button>
+          <button class="btn lld-dlg-ok" type="button">⬇ Exporter</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const all = ov.querySelector('.lld-pick-all input');
+    const boxes = [...ov.querySelectorAll('.lld-pick-item input')];
+    const cnt = ov.querySelector('.lld-pick-count');
+    const sync = () => {
+      const n = boxes.filter(b => b.checked).length;
+      cnt.textContent = `${n}/${boxes.length}`;
+      all.checked = n === boxes.length;
+      all.indeterminate = n > 0 && n < boxes.length;
+    };
+    all.addEventListener('change', () => {
+      boxes.forEach(b => { b.checked = all.checked; });
+      sync();
+    });
+    boxes.forEach(b => b.addEventListener('change', sync));
+    let closed = false;
+    const done = val => { if (closed) return; closed = true; ov.remove(); resolve(val); };
+    ov.querySelector('.lld-dlg-cancel').addEventListener('click', () => done(null));
+    ov.querySelector('.lld-dlg-ok').addEventListener('click', () => {
+      const sel = new Set(boxes.filter(b => b.checked).map(b => b.value));
+      done(sel);
+    });
+    ov.addEventListener('mousedown', e => { if (e.target === ov) done(null); });
+    ov.addEventListener('keydown', e => {
+      e.stopPropagation();
+      if (e.key === 'Escape') done(null);
+      if (e.key === 'Enter') ov.querySelector('.lld-dlg-ok').click();
+    });
+    ov.querySelector('.lld-dlg-ok').focus();
+  });
+}
+
 function formatDate(ts) {
   if (!ts) return 'Jamais modifié';
   const d = new Date(ts);
@@ -8708,7 +8765,9 @@ const XLSX = (() => {
       anchors + `</xdr:wsDr>`;
   }
   function sheetXml(rows, opts = {}) {
+    // freeze: false -> aucun volet figé ; freezeRows: N -> N premières lignes figées (défaut 1)
     const freeze = opts.freeze !== false;
+    const freezeRows = freeze ? (Number.isFinite(opts.freezeRows) ? opts.freezeRows : 1) : 0;
     const autoHeader = opts.autoHeader !== false;
     let cols;
     if (opts.cols) {
@@ -8733,11 +8792,17 @@ const XLSX = (() => {
         `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>';
     }
     let body = '';
+    // Regroupement repliable (plan/outline) : rowMeta[n° ligne] = { outline: 1, hidden?, collapsed? }
+    const rowMeta = opts.rowMeta || null;
     rows.forEach((row, ri) => {
       const ht = opts.heights && opts.heights[ri + 1];
       const cells = row.map((v, ci) => {
-        let val = v, st = null;
-        if (v && typeof v === 'object') { val = v.v; st = v.s; }
+        let val = v, st = null, fx = null;
+        if (v && typeof v === 'object') { val = v.v; st = v.s; fx = v.f || null; }
+        if (fx) {
+          const refF = colName(ci) + (ri + 1);
+          return `<c r="${refF}" t="str"${st ? ` s="${st}"` : ''}><f>${xmlEsc(fx)}</f><v>${xmlEsc(val ?? '')}</v></c>`;
+        }
         if (val === undefined || val === null || val === '') {
           // cellule vide MAIS stylée (barreaux bleus, bordures) : on l'émet
           if (st === null || st === 0) return '';
@@ -8750,16 +8815,27 @@ const XLSX = (() => {
         return `<c r="${ref}" t="inlineStr"${sAttr}>` +
                `<is><t xml:space="preserve">${xmlEsc(val)}</t></is></c>`;
       }).join('');
-      body += `<row r="${ri + 1}"${ht ? ` ht="${ht}" customHeight="1"` : ''}>${cells}</row>`;
+      const rm = rowMeta && rowMeta[ri + 1];
+      const rmAttrs = rm
+        ? (rm.outline ? ` outlineLevel="${rm.outline}"` : '') +
+          (rm.hidden ? ' hidden="1"' : '') +
+          (rm.collapsed ? ' collapsed="1"' : '')
+        : '';
+      body += `<row r="${ri + 1}"${ht ? ` ht="${ht}" customHeight="1"` : ''}${rmAttrs}>${cells}</row>`;
     });
     const merges = (opts.merges && opts.merges.length)
       ? `<mergeCells count="${opts.merges.length}">` +
         opts.merges.map(ref => `<mergeCell ref="${ref}"/>`).join('') + '</mergeCells>'
       : '';
-    const views = freeze
-      ? '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+    const views = freezeRows
+      ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${freezeRows}" topLeftCell="A${freezeRows + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
       : '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
-    const fmtPr = opts.dcw ? `<sheetFormatPr defaultColWidth="${opts.dcw}" defaultRowHeight="15"/>` : '';
+    const hasOutline = !!(rowMeta && Object.values(rowMeta).some(m => m && (m.outline || m.collapsed)));
+    const fmtPr = (opts.dcw || hasOutline)
+      ? `<sheetFormatPr${opts.dcw ? ` defaultColWidth="${opts.dcw}"` : ''} defaultRowHeight="15"${hasOutline ? ' outlineLevelRow="1"' : ''}/>`
+      : '';
+    // Filtres automatiques de la « vue données » (zone d'en-têtes incluse)
+    const autofilter = opts.autofilter ? `<autoFilter ref="${xmlEsc(opts.autofilter)}"/>` : '';
     const hasIm = !!(opts.images && opts.images.length);
     const rootOpen = hasIm
       ? '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"' +
@@ -8768,7 +8844,7 @@ const XLSX = (() => {
     const drawing = hasIm ? '<drawing r:id="rId1"/>' : '';
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       rootOpen +
-      views + fmtPr + cols + '<sheetData>' + body + '</sheetData>' + merges + drawing + '</worksheet>';
+      views + fmtPr + cols + '<sheetData>' + body + '</sheetData>' + autofilter + merges + drawing + '</worksheet>';
   }
   const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
   // ZIP minimal (méthode « store », sans compression)
@@ -8954,10 +9030,10 @@ const XLSX = (() => {
     function regStyle(d) {
       const k = JSON.stringify(d);
       if (xfIdx.has(k)) return xfIdx.get(k);
-      const fk = JSON.stringify([d.name || 'Calibri', d.sz || 11, !!d.b, !!d.i, d.color || '']);
+      const fk = JSON.stringify([d.name || 'Calibri', d.sz || 11, !!d.b, !!d.i, !!d.u, d.color || '']);
       if (!fontIdx.has(fk)) {
         fontIdx.set(fk, fonts.length);
-        fonts.push('<font>' + (d.b ? '<b/>' : '') + (d.i ? '<i/>' : '') +
+        fonts.push('<font>' + (d.b ? '<b/>' : '') + (d.i ? '<i/>' : '') + (d.u ? '<u/>' : '') +
           (d.color ? `<color rgb="${d.color}"/>` : '') +
           `<sz val="${d.sz || 11}"/><name val="${d.name || 'Calibri'}"/></font>`);
       }
@@ -9042,6 +9118,319 @@ const XLSX = (() => {
 
   return { build };
 })();
+
+/* ============================================================
+   EXCEL « VUE DONNÉES » (.xlsx) — alternative lisible au classeur
+   « chapitres » : DES DONNÉES exploitables, pas un document plaqué.
+     • quelques onglets tabulaires (Inventaire, Ports, Câblage,
+       Garanties, Racks, Sites, VLANs, Nomenclature, Flux) ;
+     • en-têtes figées + filtres automatiques partout ;
+     • Inventaire & Ports REGROUPÉS par baie (plan repliable ± à
+       gauche) — fini « RACK-A — Siège … » répété sur chaque ligne ;
+     • Garanties colorées (vert / orange / rouge), câbles avec
+       pastille de couleur ;
+     • Sommaire avec liens hypertextes vers chaque onglet.
+   Généré avec le moteur XLSX maison (zéro dépendance).
+   ============================================================ */
+const DX = (() => {
+  // Palette sobre, alignée sur le rapport HTML
+  const INK = 'FF1F2733', MUT = 'FF64748B', ACC = 'FF1F6FEB', HDR = 'FF16233D',
+        GRP = 'FFE8EEFB', ZEB = 'FFF4F7FA',
+        OK = 'FF15803D', SOON = 'FFB45309', KO = 'FFB91C1C',
+        OK_BG = 'FFDCFCE7', SOON_BG = 'FFFEF3C7', KO_BG = 'FFFEE2E2';
+  // Descripteurs de style (moteur interne de XLSX.build)
+  const S = {
+    title:  { b: true, sz: 15, color: INK },
+    sub:    { sz: 10, color: MUT },
+    head:   { b: true, sz: 10.5, color: 'FFFFFFFF', fill: HDR, v: 'center', wrap: true,
+              border: { b: 'thin' } },
+    cell:   { sz: 11, color: INK, v: 'top' },
+    cellZ:  { sz: 11, color: INK, v: 'top', fill: ZEB },
+    grp:    { b: true, sz: 11, color: INK, fill: GRP, border: { b: 'thin' } },
+    link:   { b: true, sz: 11.5, color: ACC, u: true },
+    linkSm: { sz: 10, color: ACC, u: true },
+    ok:     { sz: 11, color: OK, v: 'top' },
+    okZ:    { sz: 11, color: OK, v: 'top', fill: ZEB },
+    soon:   { b: true, sz: 11, color: SOON, v: 'top' },
+    ko:     { b: true, sz: 11, color: KO, v: 'top' },
+    num:    { sz: 11, color: INK, v: 'top', h: 'right' },
+    numZ:   { sz: 11, color: INK, v: 'top', h: 'right', fill: ZEB }
+  };
+  const escF = s => String(s ?? '').replace(/"/g, '""');
+  // Lien interne vers un onglet (formule HYPERLINK : pas de relationship à gérer)
+  const linkTo = (sheet, label, st = S.link) =>
+    ({ f: `HYPERLINK("#'${escF(sheet)}'!A1","${escF(label)}")`, v: label, s: st });
+  // Statut garantie → style de texte
+  const wStyle = (val, zeb) =>
+    val === 'En garantie' ? (zeb ? S.okZ : S.ok)
+    : val === 'Hors garantie' ? S.ko
+    : null;
+  // Ligne de cellules stylées (zebra optionnel + styles spéciaux par colonne)
+  const line = (vals, zeb, special = {}) => vals.map((v, i) =>
+    (special[i] && special[i](v))
+      ? { v, s: special[i](v) }
+      : (typeof v === 'number' ? { v, s: (zeb ? S.numZ : S.num) } : { v, s: (zeb ? S.cellZ : S.cell) }));
+
+  // En-tête standard d'une feuille de données : titre + retour + sous-titre + en-têtes
+  function dataSheet(name, title, subtitle, head, body, opts = {}) {
+    const rows = [
+      [{ v: title, s: S.title }, ...(new Array(head.length - 2).fill(null)), linkTo('Sommaire', '⌂ Sommaire', S.linkSm)],
+      [{ v: subtitle, s: S.sub }],
+      [],
+      head.map(h => ({ v: h, s: S.head }))
+    ];
+    const rowMeta = {};
+    let r = 5;
+    for (const b of body) {
+      if (b && b.__group) {           // ligne de groupe (baie) non repliable
+        rows.push([{ v: b.label, s: S.grp }]);
+        // Étendre la ligne de groupe sur toute la largeur (visuel)
+        for (let i = 1; i < head.length; i++) rows[rows.length - 1].push({ v: '', s: S.grp });
+      } else {
+        rows.push(b.cells);
+        if (b.outline) rowMeta[r] = { outline: 1 };
+      }
+      r++;
+    }
+    const lastCol = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[head.length - 1] || 'Z';
+    return {
+      name, rows,
+      opts: {
+        freezeRows: 4, autoHeader: false,
+        autofilter: opts.noFilter ? null : `A4:${lastCol}${Math.max(4, r - 1)}`,
+        rowMeta: Object.keys(rowMeta).length ? rowMeta : null
+      }
+    };
+  }
+  const groupRow = label => ({ __group: true, label });
+  const dataRow = (cells, outline = false) => ({ cells, outline });
+
+  // Onglets exportables (ordre d'affichage du sélecteur d'export)
+  const SHEET_ITEMS = [
+    ['Inventaire', '📦 Inventaire — équipements regroupés par baie (repliable)'],
+    ['Ports', '🗂️ Ports & adressage'],
+    ['Câblage', '🔌 Câblage — couleurs réelles des cordons'],
+    ['Garanties', '🛡️ Garanties — triées par échéance, colorées'],
+    ['Racks', '🗄️ Racks — capacités & budgets'],
+    ['Sites', '🏢 Sites'],
+    ['VLANs', '🏷️ Registre VLANs & subnets'],
+    ['Nomenclature', '📛 Nomenclature'],
+    ['Flux', '🔄 Matrice des flux réseau']
+  ];
+
+  // ---------- Construction des feuilles ----------
+  function sheets(ws, keep = () => true) {
+    const L = normLldInfo(ws);
+    const out = [];
+    // Sélecteur d'export : ne pousse que les feuilles cochées
+    const add = sheetObj => { if (keep(sheetObj.name)) out.push(sheetObj); };
+    const totalDev = sortedRackInstances(ws).length;
+    const totalPorts = portsRows(ws).length - 1;
+    const wsum = warrantySummary(ws);
+    const today = new Date().toLocaleDateString('fr-FR');
+    const meta = [ws.name, L.client, 'v' + (L.version || '1.0'), 'généré le ' + today].filter(Boolean).join(' · ');
+
+    // 1) Inventaire — regroupé par baie (repliable), sans colonnes Rack/Site répétées
+    const invHead = ['Étage', 'Nom', 'Catégorie', 'Marque', 'Modèle', 'Référence', 'N° série',
+                     'IP mgmt', 'VLAN(s)', 'Puissance (W)', 'Poids (kg)', 'Contrat garantie',
+                     'Fin de garantie', 'Statut garantie', 'Ports'];
+    const invBody = [];
+    const byRack = new Map();
+    sortedRackInstances(ws).forEach(({ rack, inst }) => {
+      if (!byRack.has(rack.id)) byRack.set(rack.id, { rack, items: [] });
+      byRack.get(rack.id).items.push(inst);
+    });
+    let zeb = false;
+    // Le site n'est pas répété sur la ligne de groupe s'il figure déjà dans le nom de la baie
+    const rackSiteSuffix = r => {
+      const s = siteName(ws, r);
+      return (s && !r.name.includes(s.split('—')[0].trim())) ? '  —  ' + s : '';
+    };
+    for (const { rack, items } of byRack.values()) {
+      invBody.push(groupRow(
+        `🗄️  ${rack.name}${rackSiteSuffix(rack)}   ·   ${items.length} équipement${items.length > 1 ? 's' : ''}   ·   ${rack.sizeU}U`));
+      zeb = false;
+      for (const inst of items) {
+        const wi = warrantyInfo(inst);
+        invBody.push(dataRow(line([
+          slotLabel(inst), inst.name, `${catIcon(normCat(inst.cat))} ${catLabel(normCat(inst.cat))}`,
+          inst.brand || '', inst.model || '', inst.partRef || '', inst.serial || '',
+          inst.ipMgmt || '', inst.vlan || '',
+          inst.watts ? Number(inst.watts) : '', inst.weightKg ? Number(inst.weightKg) : '',
+          inst.warranty || '',
+          wi.status === 'none' ? '' : wi.label,
+          warrantyShortStatus(wi.status),
+          (inst.ports || []).length
+        ], zeb, { 13: v => wStyle(v, zeb) }), true));
+        zeb = !zeb;
+      }
+    }
+    add(dataSheet('Inventaire', `📦 Inventaire des équipements — ${totalDev} équipements`,
+      `${meta} — regroupé par baie : repliez/dépliez avec les boutons ± à gauche, filtrez avec les flèches d'en-tête.`,
+      invHead, invBody));
+
+    // 2) Ports & adressage — regroupé par baie également
+    if (totalPorts > 0) {
+      const portHead = ['Équipement', 'Port', 'Étiquette', 'IP', 'VLAN', 'Câble'];
+      const portBody = [];
+      const cableOf = (instId, portId) => {
+        const c = (ws.cables || []).find(cb =>
+          (cb.a?.instId === instId && cb.a?.portId === portId) ||
+          (cb.b?.instId === instId && cb.b?.portId === portId));
+        return c ? c.name : '';
+      };
+      for (const { rack, items } of byRack.values()) {
+        const rackPorts = items.filter(i => (i.ports || []).length);
+        if (!rackPorts.length) continue;
+        portBody.push(groupRow(`🗄️  ${rack.name}   ·   ${rackPorts.reduce((s, i) => s + i.ports.length, 0)} ports`));
+        zeb = false;
+        for (const inst of rackPorts) {
+          for (const p of inst.ports) {
+            portBody.push(dataRow(line([
+              `${slotLabel(inst)} · ${inst.name}`, p.name, p.label || '',
+              p.ip || '', p.vlan || '', cableOf(inst.id, p.id)
+            ], zeb), true));
+            zeb = !zeb;
+          }
+        }
+      }
+      add(dataSheet('Ports', `🗂️ Ports & adressage — ${totalPorts} ports étiquetés`,
+        `${meta} — regroupé par baie (boutons ±), filtrable.`,
+        portHead, portBody));
+    }
+
+    // 3) Câblage — pastille de couleur réelle, filtrable
+    const cabRows = cablingRows(ws);
+    if (cabRows.length > 1) {
+      const cabBody = [];
+      zeb = false;
+      for (const r of cabRows.slice(1)) {
+        const [name, color, domain, ...rest] = r;
+        cabBody.push(dataRow(line([name, color || '', domain, ...rest], zeb, {
+          1: v => {
+            const hex = /^#[0-9a-fA-F]{6}$/.test(v) ? v.toUpperCase() : 'FFB8C2D4';
+            // Texte clair ou foncé selon la luminance de la couleur du câble
+            const rr = parseInt(hex.slice(1, 3), 16), gg = parseInt(hex.slice(3, 5), 16), bb = parseInt(hex.slice(5, 7), 16);
+            const luma = (0.299 * rr + 0.587 * gg + 0.114 * bb) / 255;
+            const fill = 'FF' + hex.replace('#', '');
+            return { sz: 10, b: true, color: luma > 0.6 ? 'FF1F2733' : 'FFFFFFFF', fill, h: 'center', v: 'center' };
+          }
+        })));
+        zeb = !zeb;
+      }
+      add(dataSheet('Câblage', `🔌 Tableau de câblage — ${cabRows.length - 1} câbles`,
+        `${meta} — la colonne Couleur reprend la couleur réelle du cordon ; filtrez par Domaine, Rack…`,
+        cabRows[0], cabBody));
+    }
+
+    // 4) Garanties — triées par échéance, statut coloré
+    const garRows = warrantyRows(ws);
+    if (garRows.length > 1) {
+      const garBody = [];
+      zeb = false;
+      for (const r of garRows.slice(1)) {
+        garBody.push(dataRow(line(r, zeb, { 7: v => wStyle(v, zeb) })));
+        zeb = !zeb;
+      }
+      add(dataSheet('Garanties', `🛡️ Suivi des garanties — ${garRows.length - 1} équipements suivis`,
+        `${meta} — trié de l'échéance la plus proche à la plus lointaine.`,
+        garRows[0], garBody));
+    }
+
+    // 5) Racks — capacités (occupation en % ajoutée)
+    {
+      const rr = racksRows(ws);
+      const rackBody = [];
+      zeb = false;
+      for (const r of rr.slice(1)) {
+        const usedU = parseInt(r[3], 10), sizeU = parseInt(r[2], 10);
+        const pct = (Number.isFinite(usedU) && Number.isFinite(sizeU) && sizeU)
+          ? Math.round(usedU * 100 / sizeU) : '';
+        rackBody.push(dataRow(line([...r, pct === '' ? '' : pct / 100], zeb, {
+          10: v => (v !== '' && v >= 0.85)
+            ? { numFmt: 10, sz: 11, b: true, color: 'FFB91C1C', v: 'top', h: 'right' }   // 10 = 0%
+            : { numFmt: 10, sz: 11, color: INK, v: 'top', h: 'right', ...(zeb ? { fill: ZEB } : {}) }
+        })));
+        zeb = !zeb;
+      }
+      add(dataSheet('Racks', `🗄️ Baies — capacités & budgets`,
+        `${meta} — occupation, puissance et charge par baie (« % U occupés » calculé sur la taille).`,
+        [...rr[0], '% U occupés'], rackBody));
+    }
+
+    // 6) Feuilles simples (si renseignées) : Sites / VLANs / Nomenclature / Flux
+    const simple = [
+      ['Sites', '🏢 Sites', sitesRows(ws)],
+      ['VLANs', '🏷️ Registre VLANs & subnets', addressingRows(ws)],
+      ['Nomenclature', '📛 Nomenclature (règles de nommage)', nomenRows(ws)],
+      ['Flux', '🔄 Matrice des flux réseau', flowsRows(ws)]
+    ];
+    for (const [sheetName, title, rows] of simple) {
+      if (rows.length < 2) continue;
+      zeb = false;
+      const b = rows.slice(1).map(r => dataRow(line(r, (zeb = !zeb))));
+      add(dataSheet(sheetName, `${title} — ${rows.length - 1} lignes`, meta, rows[0], b));
+    }
+    return out;
+  }
+
+  // ---------- Feuille Sommaire (toujours en premier) ----------
+  function summarySheet(ws, dataSheets) {
+    const L = normLldInfo(ws);
+    const wsum = warrantySummary(ws);
+    const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    const counts = {
+      Inventaire: `${sortedRackInstances(ws).length} équipements, par baie (repliable)`,
+      Ports: `${portsRows(ws).length - 1} ports étiquetés`,
+      Câblage: `${(ws.cables || []).length} câbles, couleurs réelles`,
+      Garanties: `${wsum.known} suivies — ${wsum.in} en garantie${wsum.soon ? `, ${wsum.soon} expire(nt) < 90 j` : ''}${wsum.out ? `, ${wsum.out} hors garantie` : ''}`,
+      Racks: `${ws.racks.length} baie${ws.racks.length > 1 ? 's' : ''} (capacités)`,
+      Sites: `${(ws.sites || []).length} site${(ws.sites || []).length > 1 ? 's' : ''}`,
+      VLANs: `${addressingRows(ws).length - 1} VLANs`,
+      Nomenclature: `${nomenRows(ws).length - 1} règles`,
+      Flux: `${(ws.flows || []).length} flux`
+    };
+    const rows = [
+      [{ v: `⌂ ${ws.name} — Sommaire`, s: S.title }],
+      [{ v: [L.client && 'Client : ' + L.client, 'Version ' + (L.version || '1.0'),
+             'Auteur : ' + (L.author || '—'), 'Généré le ' + today].filter(Boolean).join('   ·   '), s: S.sub }],
+      [],
+      [{ v: 'Ce classeur est la « vue données » du dossier : chaque onglet est un tableau filtrable aux en-têtes figées.', s: S.sub }],
+      [{ v: 'Sur Inventaire et Ports, les lignes se replient/enroulent par baie avec les boutons  ➖/➕  à gauche.', s: S.sub }],
+      []
+    ];
+    let r = 7;
+    for (const ds of dataSheets) {
+      rows.push([linkTo(ds.name, ds.name), { v: counts[ds.name] || '', s: S.sub }]);
+      r++;
+    }
+    return { name: 'Sommaire', rows, opts: { freeze: false, autoHeader: false } };
+  }
+
+  function buildAll(ws, only = null) {
+    const keep = only ? name => only.has(name) : () => true;
+    const data = sheets(ws, keep);
+    return XLSX.build([summarySheet(ws, data), ...data]);
+  }
+  return { buildAll, SHEET_ITEMS };
+})();
+
+$('#export-xlsx-data').addEventListener('click', async () => {
+  $('#export-menu').classList.add('hidden');
+  const ws = lldWorkspaceForExport();
+  if (!ws || !ws.racks.length) {
+    lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Excel — vue données' });
+    return;
+  }
+  const only = await lldPickSections({
+    title: '📊 Excel « vue données » — que voulez-vous exporter ?',
+    hint: 'Chaque rubrique cochée devient un onglet du classeur. L\u2019onglet Sommaire (avec liens) est toujours inclus.',
+    items: DX.SHEET_ITEMS.map(([k, lbl]) => [k, lbl])
+  });
+  if (!only) return;
+  if (!only.size) { lldAlert("Cochez au moins un onglet à exporter.", { title: '📊 Excel — vue données' }); return; }
+  downloadBlob(DX.buildAll(ws, only), exportFileBase() + '-donnees.xlsx');
+});
 
 /* ============================================================
    EXPORT XLSX « template » : réplique exacte du classeur LLD
@@ -10455,7 +10844,10 @@ const LLD_TPL = (() => {
                   '13': chapterEquip(['pointage'], '13.1. Pointeuses', null, 'pointage'),
                   '14': ch14, '15': ch15, '15.1': ch151 };
 
-  function buildAll(ws, layout, stylesXml, themeXml) {
+  function buildAll(ws, layout, stylesXml, themeXml, only = null) {
+    // Sélecteur de rubriques : racines de chapitres cochées (null = tout).
+    // Feuilles « chapter » filtrées par racine (« 8 » garde 8, 8.1…8.5).
+    const keepRoot = only ? (num => only.has(String(num).split('.')[0])) : () => true;
     // Sommaire (modale 📘) : index des chapitres + titres renommés
     BUILD_TOC = new Map();
     const tocNodes = [];
@@ -10463,7 +10855,10 @@ const LLD_TPL = (() => {
       (ns || []).forEach(x => { BUILD_TOC.set(String(x.num), x); tocNodes.push(x); walk(x.subs); });
     })(normLldInfo(ws).toc);
     const isCustom = n => !!(n && n.custom);
-    const sheets = layout.map(sheet => {
+    const numPrefix = /^\d+(?:\.\d+)?$/;
+    const layoutKept = layout.filter(sheet =>
+      numPrefix.test(String(sheet.name)) ? keepRoot(sheet.name) : true);
+    const sheets = layoutKept.map(sheet => {
       const fill = FILLS[sheet.name];
       let s;
       if (fill) s = fill(sheet, ws);
@@ -10481,8 +10876,16 @@ const LLD_TPL = (() => {
           const n = BUILD_TOC.get(m[1]);
           if (n && !isCustom(n) && !n.cover) cell.v = `${m[1]}. ${n.title}`;
         }));
+        if (only) {
+          // Sélecteur : retirer du sommaire les chapitres non exportés
+          s.rows = s.rows.filter(row => {
+            const first = row.find(cell => cell && typeof cell.v === 'string' && re.exec(cell.v));
+            if (!first) return true;
+            return keepRoot(re.exec(first.v)[1]);
+          });
+        }
         // … puis les chapitres/sous-chapitres ajoutés, en fin de liste
-        tocNodes.filter(isCustom).forEach(n => {
+        tocNodes.filter(n => isCustom(n) && keepRoot(n.num)).forEach(n => {
           const isSub = String(n.num).includes('.');
           s.rows.push(isSub
             ? [{ v: '', s: 50 }, { v: `${n.num}. ${n.title}`, s: 47 }]
@@ -10501,7 +10904,7 @@ const LLD_TPL = (() => {
     });
     // Chapitres / sous-chapitres AJOUTÉS au sommaire -> feuilles en plus
     const reserved = new Set(layout.map(x => String(x.name)));
-    tocNodes.filter(isCustom).forEach(n => {
+    tocNodes.filter(n => isCustom(n) && keepRoot(n.num)).forEach(n => {
       let name = String(n.num).slice(0, 31);
       if (reserved.has(name)) name = (name + ' bis').slice(0, 31);
       reserved.add(name);
@@ -10532,6 +10935,13 @@ $('#export-xlsx').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
   const ws = lldWorkspaceForExport();
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Export Excel' }); return; }
+  const only = await lldPickSections({
+    title: '📗 Classeur Excel — que voulez-vous exporter ?',
+    hint: 'Décochez les chapitres à exclure. Les pages de garde (LLD, Governance, Contenu) sont toujours incluses.',
+    items: lldChapterPickItems(ws)
+  });
+  if (!only) return;
+  if (!only.size) { lldAlert('Cochez au moins un chapitre à exporter.', { title: '📗 Classeur Excel' }); return; }
   try {
     const [layout, stylesXml, themeXml] = await Promise.all([
       fetch('assets/lld/layout.json').then(r => { if (!r.ok) throw new Error('layout'); return r.json(); }),
@@ -10542,7 +10952,7 @@ $('#export-xlsx').addEventListener('click', async () => {
     if (typeof lldRenderDiagExportImgs === 'function') {
       try { await lldRenderDiagExportImgs(ws); } catch (_) { globalThis.__LLD_DIAG_IMGS = {}; }
     }
-    downloadBlob(LLD_TPL.buildAll(ws, layout, stylesXml, themeXml), exportFileBase() + '.xlsx');
+    downloadBlob(LLD_TPL.buildAll(ws, layout, stylesXml, themeXml, only), exportFileBase() + '.xlsx');
   } catch (e) {
     lldAlert("Impossible de charger le template Excel (assets/lld/) : l'export XLSX nécessite ces fichiers à côté de l'application.", { title: '📊 Export Excel' });
   }
@@ -10586,10 +10996,14 @@ const strBytes = s => {
   return u;
 };
 
-function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
+function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = {}) {
   const PW = 595.28, PH = 841.89, M = 42;
   const pagesOps = [];
   let cur = null, y = 0;
+  // Sélecteur de rubriques : racines de chapitres à imprimer (null = tout).
+  const onlyRoots = (opts.only && typeof opts.only.has === 'function')
+    ? new Set([...opts.only].map(String)) : null;
+  let SKIP = false;   // true tant qu'un chapitre non sélectionné est parcouru
 
   // Opérations PDF réutilisables (permettent d'ajouter des pieds de page a posteriori)
   const textOp = (x, yy, s, size = 10, bold = false, color = [0.13, 0.16, 0.22]) =>
@@ -10597,11 +11011,12 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   const lineOp = (x1, yy, x2, color = [0.82, 0.85, 0.89], lw = 0.7) =>
     `${color.map(c => (+c).toFixed(2)).join(' ')} RG ${lw} w ${(+x1).toFixed(2)} ${(+yy).toFixed(2)} m ${(+x2).toFixed(2)} ${(+yy).toFixed(2)} l S`;
 
-  const txt = (x, yy, s, size, bold, color) => cur.push(textOp(x, yy, s, size, bold, color));
+  const txt = (x, yy, s, size, bold, color) => { if (!SKIP) cur.push(textOp(x, yy, s, size, bold, color)); };
   const rectFill = (x, yy, w, h, color) => {
+    if (SKIP) return;
     cur.push(`${color.map(c => (+c).toFixed(2)).join(' ')} rg ${(+x).toFixed(2)} ${(+yy).toFixed(2)} ${(+w).toFixed(2)} ${(+h).toFixed(2)} re f`);
   };
-  const hline = (x1, x2, yy) => cur.push(lineOp(x1, yy, x2));
+  const hline = (x1, x2, yy) => { if (!SKIP) cur.push(lineOp(x1, yy, x2)); };
   // Ligne libre (2 points) + contour de rectangle — diagrammes ch. 5/6/7
   const hexToRgb = hex => {
     const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
@@ -10614,13 +11029,18 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   const strokeRect = (x, yy, w, h, color = [0.4, 0.6, 0.9], lw = 1.2) =>
     `${color.map(c => (+c).toFixed(2)).join(' ')} RG ${lw} w ${(+x).toFixed(2)} ${(+yy).toFixed(2)} ${(+w).toFixed(2)} ${(+h).toFixed(2)} re S`;
 
-  const newPage = () => { cur = []; pagesOps.push(cur); y = PH - M; };
+  const newPage = () => { if (SKIP) return; cur = []; pagesOps.push(cur); y = PH - M; };
 
   // ---- Structure du dossier : sommaire piloté par L.toc (modale 📘) ----
   // Les titres renommés dans la modale remplacent les titres d'origine
   // (sommaire + en-têtes de chapitres) ; les contenus rattachés aux
   // nœuds (L.toc[].blocks) décident de ce qui est effectivement imprimé.
   const L = normLldInfo(ws);
+  // Sélecteur de rubriques : seuls les chapitres racine cochés (+ la page de
+  // garde et leurs sous-chapitres) sont imprimés.
+  if (opts.only && typeof opts.only.has === 'function') {
+    L.toc = L.toc.filter(n => n.cover || opts.only.has(String(n.num)));
+  }
   const tocByNum = new Map();
   (function walkToc(ns) {
     (ns || []).forEach(n => {
@@ -10659,6 +11079,11 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   const tocEntries = [];   // {label, title, level, pageIdx} — pageIdx AVANT insertion du sommaire
   const GRAY = [0.45, 0.5, 0.58];
   function chapter(label, title, opts = {}) {
+    // Rubrique décochée à l'export → chapitre entièrement masqué :
+    // SKIP rend toutes les primitives de dessin inertes jusqu'au prochain
+    // chapitre sélectionné.
+    SKIP = !!(onlyRoots && !onlyRoots.has(String(label).split('.')[0]));
+    if (SKIP) return;
     title = tocTitle(label, title);
     if (opts.flow) {          // chapitre compact : peut rester sur la page en cours
       if (y < M + 110) newPage(); else y -= 12;
@@ -10766,6 +11191,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   // Imprime une information rattachée à un nœud du sommaire (synchrone
   // avec la modale : même stockage ws.lld.* que l'interface).
   function pdfDrawBlock(key) {
+    if (SKIP) return;   // chapitre masqué par le sélecteur d'export
     const def = LLD_INFOS[key];
     if (!def) return;
     miniTitle(def.label);
@@ -11339,7 +11765,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     } else note('Aucun flux défini (info « Matrice des flux » du sommaire).');
   }
   miniTitle('Diagramme de topologie');
-  if (topoJpeg && topoW && topoH) {
+  if (!SKIP && topoJpeg && topoW && topoH) {
     const availW = PW - 2 * M, availH = y - M - 10;
     const k = Math.min(availW / topoW, availH / topoH);
     const iw = topoW * k, ih = topoH * k;
@@ -11359,7 +11785,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   if (cr.length > 1) drawTable(cr, [1.1, 0.8, 1.15, 1.3, 1.55, 1.3, 1.5, 1.3, 1.55, 1.3, 1.5]);
   else note('Aucun câble.');
   endNode('15');
-  if (planJpeg && planW && planH) {
+  if (!SKIP && planJpeg && planW && planH) {
     newPage();
     miniTitle('\u00c9l\u00e9vations des racks');
     const availW = PW - 2 * M, availH = y - M - 10;
@@ -11377,9 +11803,11 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     drawCustomSubs(n.num);
   }
 
-  // Toute fin du dossier : détail du câblage pour chaque device posé.
+  // Toute fin du dossier : détail du câblage pour chaque device posé
+  // (rattaché au chapitre 15 « Câblage / Rack » du sélecteur d'export).
+  SKIP = false;
   const placedDevices = sortedRackInstances(ws);
-  if (placedDevices.length) {
+  if (placedDevices.length && (!onlyRoots || onlyRoots.has('15'))) {
     newPage();
     txt(M, y - 13, 'Détail des connexions par device', 15, true, [0.12, 0.31, 0.47]);
     hline(M, PW - M, y - 21);
@@ -11517,10 +11945,23 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   return out;
 }
 
+// Rubriques = chapitres racine du sommaire 📘 (page de garde toujours incluse)
+function lldChapterPickItems(ws) {
+  return normLldInfo(ws).toc.filter(n => !n.cover)
+    .map(n => [String(n.num), `${n.num}. ${n.title}`]);
+}
+
 $('#export-lld').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
   const ws = lldWorkspaceForExport();
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📄 Export LLD (PDF)' }); return; }
+  const only = await lldPickSections({
+    title: '📕 Document LLD (PDF) — que voulez-vous exporter ?',
+    hint: 'Décochez les chapitres à exclure. La page de garde et le sommaire sont toujours inclus.',
+    items: lldChapterPickItems(ws)
+  });
+  if (!only) return;
+  if (!only.size) { lldAlert('Cochez au moins un chapitre à exporter.', { title: '📕 Document LLD (PDF)' }); return; }
   const c = await renderPlanCanvas();
   let jpeg = null, w = 0, h = 0;
   if (c) {
@@ -11533,7 +11974,7 @@ $('#export-lld').addEventListener('click', async () => {
     tj = dataURLBytes(tc.toDataURL('image/jpeg', 0.9));
     tw = tc.width; th = tc.height;
   }
-  const u8 = buildLldPdf(ws, jpeg, w, h, tj, tw, th);
+  const u8 = buildLldPdf(ws, jpeg, w, h, tj, tw, th, { only });
   downloadBlob(new Blob([u8], { type: 'application/pdf' }), exportFileBase() + '-LLD.pdf');
 });
 

@@ -10,7 +10,7 @@
   <link rel="shortcut icon" href="assets/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#3b82f6">
-  <link rel="stylesheet" href="styles.css?v=67">
+  <link rel="stylesheet" href="styles.css?v=68">
 </head>
 <body>
   <header class="topbar">
@@ -58,6 +58,9 @@
           <span class="btn-ico">⬇</span> Exporter ▾
         </button>
         <div id="export-menu" class="export-menu hidden">
+          <button id="export-html">🌐 <span>Rapport interactif (.html) — recommandé</span></button>
+          <button id="export-xlsx-data">📊 <span>Excel « vue données » (.xlsx) — recommandé</span></button>
+          <div class="export-sep"></div>
           <button id="export-png">🖼️ <span>Image PNG</span></button>
           <button id="export-pdf">📄 <span>Plan PDF (1 page)</span></button>
           <button id="export-lld">📕 <span>Document LLD (PDF)</span></button>
@@ -498,7 +501,8 @@
     </div>
   </div>
 
-  <script src="app.js?v=97"></script>
+  <script src="app.js?v=99"></script>
+  <script src="report.js?v=4"></script>
   <script type="importmap">
   {
     "imports": {
