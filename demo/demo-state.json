@@ -5129,6 +5129,1526 @@
       "webB": "https://105.157.20.2:8443",
       "note": "Accès restreint VPN admin"
      }
+    ],
+    "fwEquip": [
+     {
+      "name": "RTR-01",
+      "model": "Peplink Balance 20X",
+      "ip": "10.10.99.12",
+      "pos": "RACK-A — Siège Casablanca — U4"
+     },
+     {
+      "name": "FW-01",
+      "model": "WatchGuard Firebox M390",
+      "ip": "10.10.99.11",
+      "pos": "RACK-A — Siège Casablanca — U1"
+     },
+     {
+      "name": "RTR-02",
+      "model": "Peplink Balance 20X",
+      "ip": "10.11.99.12",
+      "pos": "RACK-B — Agence Rabat — U3"
+     },
+     {
+      "name": "FW-02",
+      "model": "WatchGuard Firebox M390",
+      "ip": "10.11.99.11",
+      "pos": "RACK-B — Agence Rabat — U1"
+     }
+    ],
+    "fwVlan": [
+     {
+      "vid": "10",
+      "name": "vMgmt",
+      "subnet": "10.10.10.0/24",
+      "gw": "10.10.10.1"
+     },
+     {
+      "vid": "20",
+      "name": "vServers",
+      "subnet": "10.10.20.0/24",
+      "gw": "10.10.20.1"
+     },
+     {
+      "vid": "21",
+      "name": "vBackup",
+      "subnet": "10.10.21.0/24",
+      "gw": "10.10.21.1"
+     },
+     {
+      "vid": "30",
+      "name": "vStorage",
+      "subnet": "10.10.30.0/24",
+      "gw": "10.10.30.1"
+     },
+     {
+      "vid": "40",
+      "name": "vUsers",
+      "subnet": "10.10.40.0/24",
+      "gw": "10.10.40.1"
+     },
+     {
+      "vid": "99",
+      "name": "vMgmtIPMI",
+      "subnet": "10.10.99.0/24",
+      "gw": "10.10.99.1"
+     },
+     {
+      "vid": "11",
+      "name": "vDMZ",
+      "subnet": "10.10.11.0/24",
+      "gw": "10.10.11.1"
+     },
+     {
+      "vid": "31",
+      "name": "vUPS",
+      "subnet": "10.10.31.0/24",
+      "gw": "10.10.31.1"
+     },
+     {
+      "vid": "60",
+      "name": "vGuests",
+      "subnet": "10.10.60.0/24",
+      "gw": "10.10.60.1"
+     },
+     {
+      "vid": "70",
+      "name": "vPrinters",
+      "subnet": "10.10.70.0/24",
+      "gw": "10.10.70.1"
+     },
+     {
+      "vid": "81",
+      "name": "vIDS",
+      "subnet": "10.10.81.0/24",
+      "gw": "10.10.81.1"
+     },
+     {
+      "vid": "91",
+      "name": "vCCTV",
+      "subnet": "10.10.91.0/24",
+      "gw": "10.10.91.1"
+     },
+     {
+      "vid": "101",
+      "name": "vSPO",
+      "subnet": "10.10.101.0/24",
+      "gw": "10.10.101.1"
+     },
+     {
+      "vid": "121",
+      "name": "viDRAC",
+      "subnet": "10.10.121.0/24",
+      "gw": "10.10.121.1"
+     },
+     {
+      "vid": "111",
+      "name": "vVOIP",
+      "subnet": "10.10.111.0/24",
+      "gw": "10.10.111.1"
+     },
+     {
+      "vid": "123",
+      "name": "vDMZ Agence",
+      "subnet": "10.11.11.0/24",
+      "gw": "10.11.11.1"
+     },
+     {
+      "vid": "124",
+      "name": "vStorage Agence",
+      "subnet": "10.11.30.0/24",
+      "gw": "10.11.30.1"
+     },
+     {
+      "vid": "125",
+      "name": "vUPS Agence",
+      "subnet": "10.11.31.0/24",
+      "gw": "10.11.31.1"
+     },
+     {
+      "vid": "126",
+      "name": "vMgmt Agence",
+      "subnet": "10.11.10.0/24",
+      "gw": "10.11.10.1"
+     },
+     {
+      "vid": "127",
+      "name": "vUsers Agence",
+      "subnet": "10.11.40.0/24",
+      "gw": "10.11.40.1"
+     },
+     {
+      "vid": "128",
+      "name": "vGuests Agence",
+      "subnet": "10.11.60.0/24",
+      "gw": "10.11.60.1"
+     },
+     {
+      "vid": "129",
+      "name": "vPrinters Agence",
+      "subnet": "10.11.70.0/24",
+      "gw": "10.11.70.1"
+     },
+     {
+      "vid": "130",
+      "name": "vIDS Agence",
+      "subnet": "10.11.81.0/24",
+      "gw": "10.11.81.1"
+     },
+     {
+      "vid": "131",
+      "name": "vCCTV Agence",
+      "subnet": "10.11.91.0/24",
+      "gw": "10.11.91.1"
+     },
+     {
+      "vid": "132",
+      "name": "vSPO Agence",
+      "subnet": "10.11.101.0/24",
+      "gw": "10.11.101.1"
+     },
+     {
+      "vid": "133",
+      "name": "vVOIP Agence",
+      "subnet": "10.11.111.0/24",
+      "gw": "10.11.111.1"
+     },
+     {
+      "vid": "134",
+      "name": "viDRAC Agence",
+      "subnet": "10.11.121.0/24",
+      "gw": "10.11.121.1"
+     }
+    ],
+    "srvEquip": [
+     {
+      "name": "SRV-DELL-01",
+      "model": "Dell PowerEdge R740",
+      "ip": "10.10.99.31",
+      "pos": "RACK-A — Siège Casablanca — U9–U10"
+     },
+     {
+      "name": "NX-03",
+      "model": "Nutanix NX-3155-G6",
+      "ip": "10.10.10.23",
+      "pos": "RACK-A — Siège Casablanca — U8"
+     },
+     {
+      "name": "NX-02",
+      "model": "Nutanix NX-3155-G6",
+      "ip": "10.10.10.22",
+      "pos": "RACK-A — Siège Casablanca — U7"
+     },
+     {
+      "name": "NX-01",
+      "model": "Nutanix NX-3155-G6",
+      "ip": "10.10.10.21",
+      "pos": "RACK-A — Siège Casablanca — U6"
+     }
+    ],
+    "sw8equip": [
+     {
+      "name": "SW-INFRA",
+      "model": "HPE Aruba 6000 12G (R8N89A)",
+      "ip": "10.10.99.20",
+      "pos": "RACK-A — Siège Casablanca — U18"
+     },
+     {
+      "name": "SW-01",
+      "model": "HPE Aruba 6100 24G PoE (JL677A)",
+      "ip": "10.10.99.21",
+      "pos": "RACK-A — Siège Casablanca — U17"
+     },
+     {
+      "name": "SW-02",
+      "model": "HPE Aruba 6100 12G (JL678A)",
+      "ip": "10.11.99.21",
+      "pos": "RACK-B — Agence Rabat — U10"
+     }
+    ],
+    "sw8ports": [
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-INFRA",
+      "port": "1",
+      "label": "VLAN 99",
+      "vlan": "VLAN 99"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-INFRA",
+      "port": "2",
+      "label": "VLAN 10",
+      "vlan": "VLAN 10"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-INFRA",
+      "port": "3",
+      "label": "VLAN 21",
+      "vlan": "VLAN 21"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-INFRA",
+      "port": "4",
+      "label": "VLAN 91",
+      "vlan": "VLAN 91"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-INFRA",
+      "port": "5",
+      "label": "VLAN 30",
+      "vlan": "VLAN 30"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-INFRA",
+      "port": "6",
+      "label": "VLAN 121",
+      "vlan": "VLAN 121"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "1",
+      "label": "VLAN 10",
+      "vlan": "VLAN 10"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "2",
+      "label": "VLAN 20",
+      "vlan": "VLAN 20"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "3",
+      "label": "VLAN 21",
+      "vlan": "VLAN 21"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "4",
+      "label": "VLAN 30",
+      "vlan": "VLAN 30"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "5",
+      "label": "VLAN 40",
+      "vlan": "VLAN 40"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "6",
+      "label": "VLAN 50",
+      "vlan": "VLAN 50"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "7",
+      "label": "VLAN 60",
+      "vlan": "VLAN 60"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "8",
+      "label": "VLAN 99",
+      "vlan": "VLAN 99"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "SW-02",
+      "port": "1",
+      "label": "VLAN 10",
+      "vlan": "VLAN 10"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "SW-02",
+      "port": "2",
+      "label": "VLAN 20",
+      "vlan": "VLAN 20"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "SW-02",
+      "port": "3",
+      "label": "VLAN 40",
+      "vlan": "VLAN 40"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "SW-02",
+      "port": "4",
+      "label": "VLAN 99",
+      "vlan": "VLAN 99"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "SW-02",
+      "port": "5",
+      "label": "VLAN 70",
+      "vlan": "VLAN 70"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "SW-02",
+      "port": "6",
+      "label": "",
+      "vlan": ""
+     }
+    ],
+    "sw81equip": [
+     {
+      "name": "SW-INFRA",
+      "model": "HPE Aruba 6000 12G (R8N89A)",
+      "ip": "10.10.99.20",
+      "pos": "RACK-A — Siège Casablanca — U18"
+     }
+    ],
+    "sw81ports": [
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-INFRA",
+      "port": "1",
+      "label": "VLAN 99",
+      "vlan": "VLAN 99"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-INFRA",
+      "port": "2",
+      "label": "VLAN 10",
+      "vlan": "VLAN 10"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-INFRA",
+      "port": "3",
+      "label": "VLAN 21",
+      "vlan": "VLAN 21"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-INFRA",
+      "port": "4",
+      "label": "VLAN 91",
+      "vlan": "VLAN 91"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-INFRA",
+      "port": "5",
+      "label": "VLAN 30",
+      "vlan": "VLAN 30"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-INFRA",
+      "port": "6",
+      "label": "VLAN 121",
+      "vlan": "VLAN 121"
+     }
+    ],
+    "sw82equip": [
+     {
+      "name": "SW-02",
+      "model": "HPE Aruba 6100 12G (JL678A)",
+      "ip": "10.11.99.21",
+      "pos": "RACK-B — Agence Rabat — U10"
+     }
+    ],
+    "sw82ports": [
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "SW-02",
+      "port": "1",
+      "label": "VLAN 10",
+      "vlan": "VLAN 10"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "SW-02",
+      "port": "2",
+      "label": "VLAN 20",
+      "vlan": "VLAN 20"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "SW-02",
+      "port": "3",
+      "label": "VLAN 40",
+      "vlan": "VLAN 40"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "SW-02",
+      "port": "4",
+      "label": "VLAN 99",
+      "vlan": "VLAN 99"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "SW-02",
+      "port": "5",
+      "label": "VLAN 70",
+      "vlan": "VLAN 70"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "SW-02",
+      "port": "6",
+      "label": "",
+      "vlan": ""
+     }
+    ],
+    "sw83equip": [
+     {
+      "name": "AP-ARUBA-A",
+      "model": "Aruba AP-515",
+      "ip": "10.10.99.13",
+      "pos": "RACK-A — Siège Casablanca — U5"
+     }
+    ],
+    "sw83ports": [
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "AP-ARUBA-A",
+      "port": "eth0",
+      "label": "eth0 (PoE, trunk)",
+      "vlan": ""
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "AP-ARUBA-A",
+      "port": "console",
+      "label": "console (série)",
+      "vlan": ""
+     }
+    ],
+    "sw84equip": [
+     {
+      "name": "AP-ARUBA-B",
+      "model": "Aruba AP-515",
+      "ip": "10.11.99.13",
+      "pos": "RACK-B — Agence Rabat — U4"
+     }
+    ],
+    "sw84ports": [
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "AP-ARUBA-B",
+      "port": "eth0",
+      "label": "eth0 (PoE, trunk)",
+      "vlan": ""
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "dev": "AP-ARUBA-B",
+      "port": "console",
+      "label": "console (série)",
+      "vlan": ""
+     }
+    ],
+    "sw85equip": [
+     {
+      "name": "SW-01",
+      "model": "HPE Aruba 6100 24G PoE (JL677A)",
+      "ip": "10.10.99.21",
+      "pos": "RACK-A — Siège Casablanca — U17"
+     }
+    ],
+    "sw85ports": [
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "1",
+      "label": "VLAN 10",
+      "vlan": "VLAN 10"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "2",
+      "label": "VLAN 20",
+      "vlan": "VLAN 20"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "3",
+      "label": "VLAN 21",
+      "vlan": "VLAN 21"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "4",
+      "label": "VLAN 30",
+      "vlan": "VLAN 30"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "5",
+      "label": "VLAN 40",
+      "vlan": "VLAN 40"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "6",
+      "label": "VLAN 50",
+      "vlan": "VLAN 50"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "7",
+      "label": "VLAN 60",
+      "vlan": "VLAN 60"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "dev": "SW-01",
+      "port": "8",
+      "label": "VLAN 99",
+      "vlan": "VLAN 99"
+     }
+    ],
+    "faiCab": [
+     {
+      "cat": "FAI",
+      "desc": "Maroc Telecom (siège) · Inwi (agence) — FTTO Pro — 2 accès",
+      "conn": "Port eth1 (ONT M. Télécom) → WAN 1 RTR-01"
+     },
+     {
+      "cat": "FAI",
+      "desc": "Inwi — FTTO Agence — 50M",
+      "conn": "Port eth1 (ONT Inwi) → WAN 1 RTR-02"
+     },
+     {
+      "cat": "FAI",
+      "desc": "Orange — 5G Business (secours)",
+      "conn": "Port WAN 2 RTR-01 (5G)"
+     }
+    ],
+    "ic61": [
+     {
+      "equip": "RTR-01 (siège) — WAN 41.92.10.2",
+      "nomen": "Peplink Balance 20X",
+      "sn": "PL5815421",
+      "fw": "8.3.2",
+      "ip": "41.92.10.2",
+      "mask": "255.255.255.248",
+      "gw": "41.92.10.1",
+      "dns": "212.217.0.1",
+      "haEn": "Oui",
+      "haGroup": "Group 1",
+      "haRole": "Master",
+      "haMaster": "Oui",
+      "vip": "41.92.10.1",
+      "mgmt": "10.10.99.12",
+      "mgmtMask": "255.255.255.0",
+      "note": "FAI : Maroc Telecom (siège) · Inwi (agence) — FTTO Pro — 2 accès"
+     },
+     {
+      "equip": "RTR-02 (agence) — WAN 105.157.20.2",
+      "nomen": "Peplink Balance 20X",
+      "sn": "PL5815422",
+      "fw": "8.3.2",
+      "ip": "105.157.20.2",
+      "mask": "255.255.255.248",
+      "gw": "105.157.20.1",
+      "dns": "41.128.0.1",
+      "haEn": "Oui",
+      "haGroup": "Group 1",
+      "haRole": "Slave",
+      "haMaster": "",
+      "vip": "105.157.20.1",
+      "mgmt": "10.11.99.12",
+      "mgmtMask": "255.255.255.0",
+      "note": "FAI : Inwi — FTTO Agence — 50M"
+     }
+    ],
+    "icWan": [
+     {
+      "name": "WAN 1 — Maroc Telecom (siège) · Inwi (agence)",
+      "enable": "Oui",
+      "connMethod": "Static IP",
+      "routingMode": "NAT",
+      "ip": "41.92.10.2",
+      "mask": "255.255.255.248",
+      "gw": "41.92.10.1",
+      "dns": "212.217.0.1",
+      "up": "100 Mbps (siège) / 50 Mbps (agence)",
+      "down": "100 Mbps",
+      "provider": "Maroc Telecom (siège) · Inwi (agence)"
+     },
+     {
+      "name": "WAN 2 — Inwi",
+      "enable": "Oui",
+      "connMethod": "Static IP",
+      "routingMode": "NAT",
+      "ip": "105.157.20.2",
+      "mask": "255.255.255.248",
+      "gw": "105.157.20.1",
+      "dns": "41.128.0.1",
+      "up": "50 Mbps",
+      "down": "50 Mbps",
+      "provider": "Inwi"
+     },
+     {
+      "name": "WAN 3 — Orange",
+      "enable": "Oui",
+      "connMethod": "DHCP",
+      "routingMode": "NAT",
+      "ip": "",
+      "mask": "",
+      "gw": "",
+      "dns": "",
+      "up": "50 Mbps",
+      "down": "300 Mbps",
+      "provider": "Orange"
+     }
+    ],
+    "icLan": [
+     {
+      "lan": "LAN — 10.10.0.0/16 (siège)",
+      "routing": "SpeedFusion — routage statique + priorité de flux",
+      "network": "x27 VLANs routés"
+     },
+     {
+      "lan": "LAN — distant",
+      "routing": "",
+      "network": "10.11.0.0/16 (agence)"
+     }
+    ],
+    "icCab": [
+     {
+      "cat": "Interconnexion S2S",
+      "desc": "RTR-01 (siège)",
+      "port": "WAN",
+      "conn": "Port eth1 (ONT M. Télécom) → WAN 1 RTR-01"
+     },
+     {
+      "cat": "Interconnexion S2S",
+      "desc": "RTR-02 (agence)",
+      "port": "WAN",
+      "conn": "Port eth1 (ONT Inwi) → WAN 1 RTR-02"
+     },
+     {
+      "cat": "Interconnexion S2S",
+      "desc": "RTR-01 (siège)",
+      "port": "LAN",
+      "conn": "Switch HA — SW-01 port 25"
+     },
+     {
+      "cat": "Interconnexion S2S",
+      "desc": "RTR-02 (agence)",
+      "port": "LAN",
+      "conn": "Switch HA — SW-02 port 25"
+     }
+    ],
+    "stoEquip": [
+     {
+      "name": "NAS-01",
+      "model": "Synology RS1221+",
+      "ip": "10.10.99.41",
+      "pos": "RACK-A — Siège Casablanca — U11–U12"
+     },
+     {
+      "name": "NAS-02",
+      "model": "Synology RS1221+",
+      "ip": "10.11.99.41",
+      "pos": "RACK-B — Agence Rabat — U6–U7"
+     }
+    ],
+    "idsEquip": [
+     {
+      "name": "IDS-01",
+      "model": "WatchGuard Dimension + TDR",
+      "ip": "10.10.99.51",
+      "pos": "RACK-A — Siège Casablanca — U19"
+     },
+     {
+      "name": "IDS-02",
+      "model": "WatchGuard Dimension + TDR",
+      "ip": "10.11.99.51",
+      "pos": "RACK-B — Agence Rabat — U11"
+     }
+    ],
+    "cctvEquip": [
+     {
+      "name": "NVR-01",
+      "model": "Hikvision DS-7732NI-K4 (32 canaux)",
+      "ip": "10.10.99.61",
+      "pos": "RACK-A — Siège Casablanca — U21"
+     }
+    ],
+    "spoEquip": [
+     {
+      "name": "SPO-01",
+      "model": "ZKTeco SpeedFace-V5L",
+      "ip": "10.10.99.71",
+      "pos": "RACK-A — Siège Casablanca — U22"
+     }
+    ],
+    "cab15": [
+     {
+      "id": "CAB-001 · RTR-01 → FW-01 (transit FAI)",
+      "color": "#f59e0b",
+      "domain": "Firewall",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "RTR-01",
+      "portA": "WAN1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "FW-01",
+      "portB": "eth0"
+     },
+     {
+      "id": "CAB-002 · FW-01 LAN → BR-A-01/1",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "FW-01",
+      "portA": "eth1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "1"
+     },
+     {
+      "id": "CAB-003 · RTR-01 LAN → BR-A-01/2",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "RTR-01",
+      "portA": "LAN1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "2"
+     },
+     {
+      "id": "CAB-004 · NX-01 MGMT → BR-A-01/3",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-01",
+      "portA": "MGMT",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "3"
+     },
+     {
+      "id": "CAB-005 · NX-02 MGMT → BR-A-01/4",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-02",
+      "portA": "MGMT",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "4"
+     },
+     {
+      "id": "CAB-006 · NX-03 MGMT → BR-A-01/5",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-03",
+      "portA": "MGMT",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "5"
+     },
+     {
+      "id": "CAB-007 · SRV-DELL-01 iDRAC → BR-A-01/6",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "SRV-DELL-01",
+      "portA": "iDRAC",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "6"
+     },
+     {
+      "id": "CAB-008 · NAS-01 MGMT → BR-A-01/7",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NAS-01",
+      "portA": "MGMT",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "7"
+     },
+     {
+      "id": "CAB-009 · AKCP-01 ETH0 → BR-A-01/8",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "AKCP-01",
+      "portA": "eth0",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "8"
+     },
+     {
+      "id": "CAB-010 · AP-ARUBA-A ETH0 → BR-A-02/1",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "AP-ARUBA-A",
+      "portA": "eth0",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "1"
+     },
+     {
+      "id": "CAB-011 · NX-01 10G-1 → BR-A-02/2",
+      "color": "#34d399",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-01",
+      "portA": "10G-1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "2"
+     },
+     {
+      "id": "CAB-012 · NX-01 10G-2 → BR-A-02/3",
+      "color": "#34d399",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-01",
+      "portA": "10G-2",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "3"
+     },
+     {
+      "id": "CAB-013 · NX-02 10G-1 → BR-A-02/4",
+      "color": "#34d399",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-02",
+      "portA": "10G-1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "4"
+     },
+     {
+      "id": "CAB-014 · NX-02 10G-2 → BR-A-02/5",
+      "color": "#34d399",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-02",
+      "portA": "10G-2",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "5"
+     },
+     {
+      "id": "CAB-015 · NX-03 10G-1 → BR-A-02/6",
+      "color": "#34d399",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-03",
+      "portA": "10G-1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "6"
+     },
+     {
+      "id": "CAB-016 · NX-03 10G-2 → BR-A-02/7",
+      "color": "#34d399",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-03",
+      "portA": "10G-2",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "7"
+     },
+     {
+      "id": "CAB-017 · SRV-DELL-01 LAN1 → BR-A-02/8",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "SRV-DELL-01",
+      "portA": "LAN1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "8"
+     },
+     {
+      "id": "CAB-018 · SRV-DELL-01 LAN2 → BR-A-02/9",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "SRV-DELL-01",
+      "portA": "LAN2",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "9"
+     },
+     {
+      "id": "CAB-019 · NAS-01 ISCSI1 → BR-A-02/10",
+      "color": "#f472b6",
+      "domain": "san",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NAS-01",
+      "portA": "ISCSI1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "10"
+     },
+     {
+      "id": "CAB-101 · RTR-02 → FW-02 (transit FAI)",
+      "color": "#f59e0b",
+      "domain": "Firewall",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "RTR-02",
+      "portA": "WAN1",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "FW-02",
+      "portB": "eth0"
+     },
+     {
+      "id": "CAB-102 · FW-02 LAN → BR-B-01/1",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "FW-02",
+      "portA": "eth1",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-01",
+      "portB": "1"
+     },
+     {
+      "id": "CAB-103 · RTR-02 LAN → BR-B-01/2",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "RTR-02",
+      "portA": "LAN1",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-01",
+      "portB": "2"
+     },
+     {
+      "id": "CAB-104 · AKCP-02 ETH0 → BR-B-01/3",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "AKCP-02",
+      "portA": "eth0",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-01",
+      "portB": "3"
+     },
+     {
+      "id": "CAB-105 · NAS-02 LAN1 → BR-B-01/4",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "NAS-02",
+      "portA": "LAN1",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-01",
+      "portB": "4"
+     },
+     {
+      "id": "CAB-106 · AP-ARUBA-B ETH0 → BR-B-02/1",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "AP-ARUBA-B",
+      "portA": "eth0",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-02",
+      "portB": "1"
+     },
+     {
+      "id": "CAB-107 · NAS-02 LAN2 → BR-B-02/2",
+      "color": "#f472b6",
+      "domain": "san",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "NAS-02",
+      "portA": "LAN2",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-02",
+      "portB": "2"
+     },
+     {
+      "id": "CAB-020 · IDS-01 → BR-A-01/9",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "IDS-01",
+      "portA": "1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "9"
+     },
+     {
+      "id": "CAB-021 · IDS-01 → BR-A-02/11",
+      "color": "#f97316",
+      "domain": "IDS",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "IDS-01",
+      "portA": "2",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "11"
+     },
+     {
+      "id": "CAB-022 · UPS-01 → BR-A-01/10",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "UPS-01",
+      "portA": "1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "10"
+     },
+     {
+      "id": "CAB-023 · NVR-01 → BR-A-01/11",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NVR-01",
+      "portA": "1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "11"
+     },
+     {
+      "id": "CAB-024 · NVR-01 → BR-A-02/12",
+      "color": "#22d3ee",
+      "domain": "CCTV",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NVR-01",
+      "portA": "2",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "12"
+     },
+     {
+      "id": "CAB-025 · SPO-01 → BR-A-01/12",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "SPO-01",
+      "portA": "1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "12"
+     },
+     {
+      "id": "CAB-026 · SW-01 → BR-A-01/13",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "SW-01",
+      "portA": "8",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "13"
+     },
+     {
+      "id": "CAB-027 · BR-A-03/14 → FW-01 eth3",
+      "color": "#e11d48",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "BR-A-03",
+      "portA": "14",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "FW-01",
+      "portB": "eth3"
+     },
+     {
+      "id": "CAB-028 · SW-INFRA → BR-A-02/13",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "SW-INFRA",
+      "portA": "1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "13"
+     },
+     {
+      "id": "CAB-109 · IDS-02 → BR-B-01/5",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "IDS-02",
+      "portA": "1",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-01",
+      "portB": "5"
+     },
+     {
+      "id": "CAB-110 · UPS-02 → BR-B-01/6",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "UPS-02",
+      "portA": "1",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-01",
+      "portB": "6"
+     },
+     {
+      "id": "CAB-111 · SW-02 → BR-B-02/3",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "SW-02",
+      "portA": "6",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-02",
+      "portB": "3"
+     }
+    ],
+    "elev15": [
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U1",
+      "name": "FW-01",
+      "cat": "Firewall",
+      "model": "WatchGuard Firebox M390",
+      "size": "1U",
+      "ip": "10.10.99.11"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U2",
+      "name": "BR-A-01",
+      "cat": "Patch",
+      "model": "MPO PP-24 CAT6A",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U3",
+      "name": "BR-A-02",
+      "cat": "Patch",
+      "model": "MPO PP-24 CAT6A",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U4",
+      "name": "RTR-01",
+      "cat": "Routeur",
+      "model": "Peplink Balance 20X",
+      "size": "1U",
+      "ip": "10.10.99.12"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U5",
+      "name": "AP-ARUBA-A",
+      "cat": "Borne WiFi",
+      "model": "Aruba AP-515",
+      "size": "1U",
+      "ip": "10.10.99.13"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U6",
+      "name": "NX-01",
+      "cat": "Serveur",
+      "model": "Nutanix NX-3155-G6",
+      "size": "1U",
+      "ip": "10.10.10.21"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U7",
+      "name": "NX-02",
+      "cat": "Serveur",
+      "model": "Nutanix NX-3155-G6",
+      "size": "1U",
+      "ip": "10.10.10.22"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U8",
+      "name": "NX-03",
+      "cat": "Serveur",
+      "model": "Nutanix NX-3155-G6",
+      "size": "1U",
+      "ip": "10.10.10.23"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U9–U10",
+      "name": "SRV-DELL-01",
+      "cat": "Serveur",
+      "model": "Dell PowerEdge R740",
+      "size": "2U",
+      "ip": "10.10.99.31"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U11–U12",
+      "name": "NAS-01",
+      "cat": "Stockage",
+      "model": "Synology RS1221+",
+      "size": "2U",
+      "ip": "10.10.99.41"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U13",
+      "name": "AKCP-01",
+      "cat": "Autre",
+      "model": "AKCP sensorProbe2+",
+      "size": "1U",
+      "ip": "10.10.99.14"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U14",
+      "name": "BR-A-03",
+      "cat": "Patch",
+      "model": "MPO PP-24 CAT6A",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U15",
+      "name": "BROSSE-A1",
+      "cat": "Autre",
+      "model": "Rittal DK 7706.500",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U16",
+      "name": "BROSSE-A2",
+      "cat": "Autre",
+      "model": "Rittal DK 7706.500",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U17",
+      "name": "SW-01",
+      "cat": "Switch",
+      "model": "HPE Aruba 6100 24G PoE (JL677A)",
+      "size": "1U",
+      "ip": "10.10.99.21"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U18",
+      "name": "SW-INFRA",
+      "cat": "Switch",
+      "model": "HPE Aruba 6000 12G (R8N89A)",
+      "size": "1U",
+      "ip": "10.10.99.20"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U19",
+      "name": "IDS-01",
+      "cat": "IDS",
+      "model": "WatchGuard Dimension + TDR",
+      "size": "1U",
+      "ip": "10.10.99.51"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U20",
+      "name": "UPS-01",
+      "cat": "UPS",
+      "model": "APC Smart-UPS SRT 3000VA (SRT3000XLI)",
+      "size": "1U",
+      "ip": "10.10.99.81"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U21",
+      "name": "NVR-01",
+      "cat": "CCTV",
+      "model": "Hikvision DS-7732NI-K4 (32 canaux)",
+      "size": "1U",
+      "ip": "10.10.99.61"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U22",
+      "name": "SPO-01",
+      "cat": "Pointage",
+      "model": "ZKTeco SpeedFace-V5L",
+      "size": "1U",
+      "ip": "10.10.99.71"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U23",
+      "name": "PRT-01",
+      "cat": "Autre",
+      "model": "HP LaserJet Enterprise M527",
+      "size": "1U",
+      "ip": "10.10.70.11"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U24",
+      "name": "PRT-02",
+      "cat": "Autre",
+      "model": "HP LaserJet M428",
+      "size": "1U",
+      "ip": "10.10.70.12"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U1",
+      "name": "FW-02",
+      "cat": "Firewall",
+      "model": "WatchGuard Firebox M390",
+      "size": "1U",
+      "ip": "10.11.99.11"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U2",
+      "name": "BR-B-01",
+      "cat": "Patch",
+      "model": "MPO PP-24 CAT6A",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U3",
+      "name": "RTR-02",
+      "cat": "Routeur",
+      "model": "Peplink Balance 20X",
+      "size": "1U",
+      "ip": "10.11.99.12"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U4",
+      "name": "AP-ARUBA-B",
+      "cat": "Borne WiFi",
+      "model": "Aruba AP-515",
+      "size": "1U",
+      "ip": "10.11.99.13"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U5",
+      "name": "AKCP-02",
+      "cat": "Autre",
+      "model": "AKCP sensorProbe2+",
+      "size": "1U",
+      "ip": "10.11.99.14"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U6–U7",
+      "name": "NAS-02",
+      "cat": "Stockage",
+      "model": "Synology RS1221+",
+      "size": "2U",
+      "ip": "10.11.99.41"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U8",
+      "name": "BR-B-02",
+      "cat": "Patch",
+      "model": "MPO PP-24 CAT6A",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U9",
+      "name": "BROSSE-B1",
+      "cat": "Autre",
+      "model": "Rittal DK 7706.500",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U10",
+      "name": "SW-02",
+      "cat": "Switch",
+      "model": "HPE Aruba 6100 12G (JL678A)",
+      "size": "1U",
+      "ip": "10.11.99.21"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U11",
+      "name": "IDS-02",
+      "cat": "IDS",
+      "model": "WatchGuard Dimension + TDR",
+      "size": "1U",
+      "ip": "10.11.99.51"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U12",
+      "name": "PRT-03",
+      "cat": "Autre",
+      "model": "HP LaserJet M428",
+      "size": "1U",
+      "ip": "10.11.70.11"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U13",
+      "name": "PRT-04",
+      "cat": "Autre",
+      "model": "HP LaserJet Enterprise M527",
+      "size": "1U",
+      "ip": "10.11.70.12"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U14",
+      "name": "UPS-02",
+      "cat": "UPS",
+      "model": "APC Smart-UPS SRT 3000VA (SRT3000XLI)",
+      "size": "1U",
+      "ip": "10.11.99.81"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U15",
+      "name": "CLIM-01",
+      "cat": "Autre",
+      "model": "Daikin FTX-KV — split précision 1er étage",
+      "size": "1U",
+      "ip": "10.11.99.72"
+     }
     ]
    },
    "view": {
@@ -5137,9 +6657,10 @@
     "scale": 1
    },
    "viewTouched": false,
-   "updatedAt": 1788868800000
+   "updatedAt": 1788868800000,
+   "demoVer": 8
   }
  ],
  "activeWorkspaceId": "demo-dc",
- "demoVer": 5
+ "demoVer": 8
 }

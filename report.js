@@ -229,29 +229,12 @@ function rptPorts(ws) {
 
 // Câblage : pastille couleur, sens de lecture A → B, filtre par domaine
 function rptCabling(ws) {
-  const cables = ws.cables || [];
-  if (!cables.length) return '<p class="muted">Aucun câble dans ce workspace.</p>';
-  const domains = [...new Set(cables.map(c => c.domain || ''))];
-  const filt = domains.length > 1
-    ? `<div class="pills no-print" id="cab-filt">
-        <button class="pill on" data-dom="">Tous (${cables.length})</button>` +
-      domains.map(d => `<button class="pill" data-dom="${RPT_ESC_ARIA(d)}">${RPT_ESC(cableDomainLabel(d))} (${cables.filter(c => (c.domain || '') === d).length})</button>`).join('') +
-      `</div>` : '';
-  const ep = e => {
-    const d = resolveEndpoint(ws, e);
-    return d ? `<b>${RPT_ESC(d.rack.name)}</b> · ${RPT_ESC(d.inst.name)} · <b>${RPT_ESC(d.port.name)}</b>${d.port.label ? `<div class="meta">${RPT_ESC(d.port.label)}</div>` : ''}` : '—';
-  };
-  const rows = cables.map(c => {
-    const search = [c.name, cableDomainLabel(c.domain), c.color].join(' ').toLowerCase();
-    return `<tr data-search="${RPT_ESC_ARIA(search)}" data-dom="${RPT_ESC_ARIA(c.domain || '')}">
-      <td class="nowrap"><b>${RPT_ESC(c.name || '')}</b></td>
-      <td class="nowrap">${rptCableChip(c.color)}</td>
-      <td>${RPT_ESC(cableDomainLabel(c.domain))}</td>
-      <td>${ep(c.a)}</td><td class="arrow">⟶</td><td>${ep(c.b)}</td></tr>`;
-  }).join('');
-  return filt + `<table class="sortable" id="cab-table">
-    <thead><tr><th>ID câble</th><th>Couleur</th><th>Domaine</th><th>Extrémité A</th><th></th><th>Extrémité B</th></tr></thead>
-    <tbody>${rows}</tbody></table>`;
+  const L = normLldInfo(ws);
+  if ((L.cab15 || []).length) {
+    return rptSub('15 — Tableau de câblage', rptLldGrid(
+      lldExportCols(L, 'cab15', LLD_CAB15_COLS).map(c => [c[0], String(c[1])]), L.cab15));
+  }
+  return '<p class="muted">Aucun câble dans le sommaire 📘 — bouton 🔎 sur le chapitre 15.</p>';
 }
 
 // Garanties : tableau trié selon échéance + pastilles (code couleur de l'app)
@@ -405,14 +388,18 @@ function rptInterco(ws) {
 // 🔥 Firewall & sécurité (ch. 7 + admin) : règles/NAT, profils, alias, comptes
 function rptFirewall(ws) {
   const L = normLldInfo(ws);
-  const rules = rptSub('Règles & NAT', rptLldGrid(
+  const equip = rptSub('7.1 — Équipements Firewall / Routeurs', rptLldGrid(
+    lldExportCols(L, 'fwEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.fwEquip));
+  const vlan = rptSub('7.2 — Interfaces VLAN', rptLldGrid(
+    lldExportCols(L, 'fwVlan', LLD_FW_VLAN_COLS).map(c => [c[0], String(c[1])]), L.fwVlan));
+  const rules = rptSub('7.3 — Règles & NAT', rptLldGrid(
     lldExportCols(L, 'fw', LLD_FW_COLS).map(c => [c[0], String(c[1])]), L.fw));
   const prof = rptSub('Profils firewall', rptKv(LLD_FWP_FIELDS, L.fwProfiles));
   const aliases = rptSub('Alias firewall', rptLldGrid(
     lldExportCols(L, 'aliases', LLD_ALIAS_COLS).map(c => [c[0], String(c[1])]), L.aliases));
   const admin = rptSub("Comptes d'administration (Admin Security)", rptLldGrid(
     lldExportCols(L, 'adminSec', LLD_ADMIN_COLS).map(c => [c[0], String(c[1])]), L.adminSec));
-  return rules + prof + aliases + admin + rptShots(ws, 'shots7') || '';
+  return equip + vlan + rules + prof + aliases + admin + rptShots(ws, 'shots7') || '';
 }
 
 // 🖥️ Système, stockage & supervision : VMs, volumes, caméras, zones de switching
@@ -420,13 +407,30 @@ function rptSystem(ws) {
   const L = normLldInfo(ws);
   const zones = rptSub('Zones de switching (ch. 8)', rptLldGrid(
     lldExportCols(L, 'zones', LLD_ZONE_COLS).map(c => [c[0], String(c[1])]), L.swZones));
-  const vms = rptSub('Machines virtuelles (ch. 9)', rptLldGrid(
+  let swHtml = '';
+  (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : []).forEach(([eq, po, num, lab]) => {
+    swHtml += rptSub(`${num} — Équipements ${lab}`, rptLldGrid(
+      lldExportCols(L, eq, LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L[eq]));
+    swHtml += rptSub(`${num} — Plan de ports ${lab}`, rptLldGrid(
+      lldExportCols(L, po, LLD_SW_PORT_COLS).map(c => [c[0], String(c[1])]), L[po]));
+  });
+  const srv = rptSub('9.1 — Serveurs', rptLldGrid(
+    lldExportCols(L, 'srvEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.srvEquip));
+  const vms = rptSub('9.2 — Machines virtuelles', rptLldGrid(
     lldExportCols(L, 'vms', LLD_VM_COLS).map(c => [c[0], String(c[1])]), L.vms));
-  const vols = rptSub('Volumes / LUN (ch. 10)', rptLldGrid(
+  const sto = rptSub('10.1 — Stockage', rptLldGrid(
+    lldExportCols(L, 'stoEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.stoEquip));
+  const vols = rptSub('10.2 — Volumes / LUN', rptLldGrid(
     lldExportCols(L, 'vols', LLD_VOL_COLS).map(c => [c[0], String(c[1])]), L.vols));
-  const cams = rptSub('Caméras CCTV (ch. 12)', rptLldGrid(
+  const ids = rptSub("11.1 — Détection d'intrusion", rptLldGrid(
+    lldExportCols(L, 'idsEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.idsEquip));
+  const nvr = rptSub('12.1 — Caméras et enregistreur (NVR)', rptLldGrid(
+    lldExportCols(L, 'cctvEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.cctvEquip));
+  const cams = rptSub('12.2 — Caméras', rptLldGrid(
     lldExportCols(L, 'cams', LLD_CAM_COLS).map(c => [c[0], String(c[1])]), L.cams));
-  return zones + vms + vols + cams || '';
+  const spo = rptSub('13.1 — Pointeuses', rptLldGrid(
+    lldExportCols(L, 'spoEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.spoEquip));
+  return zones + swHtml + srv + vms + sto + vols + ids + nvr + cams + spo || '';
 }
 
 // Équipements & licences hors baie (table 3.1 du dossier)
@@ -434,6 +438,104 @@ function rptOutOfRack(ws) {
   const L = normLldInfo(ws);
   return rptSub('Équipements & licences hors baie', rptLldGrid(
     lldExportCols(L, 'equip', LLD_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.equip));
+}
+
+// Un bloc d'un chapitre ajouté (paragraphe / tableau / captures / infos liées)
+function rptBlock(ws, key) {
+  const L = normLldInfo(ws);
+  const def = typeof lldInfoDef === 'function' ? lldInfoDef(key, L) : null;
+  if (!def) return '';
+  if (def.kind === 'textarea') {
+    const v = def.catKey ? String((L.catNotes || {})[def.catKey] || '') : String(L[key] || '');
+    const t = v.trim();
+    if (!t) return '';
+    return `<div class="prose"><h3>${RPT_ESC(def.label)}</h3>${
+      t.split(/\n+/).map(p => `<p>${RPT_ESC(p)}</p>`).join('')}</div>`;
+  }
+  if (def.kind === 'table') {
+    const cols = lldExportCols(L, key, def.cols || []);
+    return rptSub(def.label, rptLldGrid(cols.map(c => [c[0], String(c[1])]), L[key]));
+  }
+  if (def.kind === 'shots') {
+    const shots = rptShots(ws, key);
+    return shots ? `<h3>${RPT_ESC(def.label)}</h3>${shots}` : '';
+  }
+  if (def.kind === 'fields') {
+    const tgt = def.path ? (L[def.path] || {}) : L;
+    return rptSub(def.label, rptKv(def.fields || [], tgt));
+  }
+  return '';
+}
+function rptCustomNodeContent(ws, node, nestSubs) {
+  let html = '';
+  (node.blocks || []).forEach(k => { html += rptBlock(ws, k); });
+  if (nestSubs) {
+    (node.subs || []).filter(s => s.custom).forEach(s => {
+      const inner = rptCustomNodeContent(ws, s, true);
+      html += `<h3>${RPT_ESC(s.title)}</h3>` +
+        (inner || '<p class="muted">Section à compléter.</p>');
+    });
+  }
+  return html;
+}
+function rptCustomSections(ws) {
+  const L = normLldInfo(ws);
+  const out = [];
+  (L.toc || []).forEach(n => {
+    if (n.cover) return;
+    if (n.custom) {
+      const content = rptCustomNodeContent(ws, n, true)
+        || '<p class="muted">Chapitre sans contenu — ajoutez un tableau, un paragraphe ou une capture dans le sommaire 📘.</p>';
+      out.push(['sec-c-' + n.id, '📄', n.title, content]);
+    } else {
+      (n.subs || []).filter(s => s.custom).forEach(s => {
+        const content = rptCustomNodeContent(ws, s, true)
+          || '<p class="muted">Chapitre sans contenu — ajoutez un tableau, un paragraphe ou une capture dans le sommaire 📘.</p>';
+        out.push(['sec-c-' + s.id, '📄', s.title, content]);
+      });
+    }
+  });
+  return out;
+}
+
+// Blocs libres (tableau / paragraphe / capture) saisis sur les chapitres
+// d'origine du sommaire 📘 → injectés dans la rubrique HTML correspondante.
+const RPT_FREE_SEC = {
+  '1': 'sec-contexte', '2': 'sec-sites', '2.1': 'sec-sites', '2.2': 'sec-contexte',
+  '3': 'sec-contexte', '3.1': 'sec-inv', '4': 'sec-addr',
+  '5': 'sec-fai', '5.1': 'sec-fai', '5.2': 'sec-fai',
+  '6': 'sec-ic', '6.1': 'sec-ic', '6.2': 'sec-ic',
+  '7': 'sec-fw', '7.1': 'sec-fw', '7.2': 'sec-fw', '7.3': 'sec-fw',
+  '8': 'sec-sys', '8.1': 'sec-sys', '8.2': 'sec-sys', '8.3': 'sec-sys',
+  '8.4': 'sec-sys', '8.5': 'sec-sys',
+  '9': 'sec-sys', '9.1': 'sec-sys', '9.2': 'sec-sys',
+  '10': 'sec-sys', '10.1': 'sec-sys', '10.2': 'sec-sys',
+  '11': 'sec-sys', '11.1': 'sec-sys',
+  '12': 'sec-sys', '12.1': 'sec-sys', '12.2': 'sec-sys',
+  '13': 'sec-sys', '13.1': 'sec-sys',
+  '14': 'sec-flux', '14.1': 'sec-flux',
+  '15': 'sec-cab', '15.1': 'sec-elev'
+};
+function rptFreeBySection(ws) {
+  const L = normLldInfo(ws);
+  const bySec = {};
+  const leftovers = [];
+  (function walk(ns) {
+    (ns || []).forEach(n => {
+      if (n.cover || n.custom) { walk(n.subs); return; }
+      let html = '';
+      (n.blocks || []).forEach(k => {
+        if (typeof lldIsCustomKey === 'function' && lldIsCustomKey(k)) html += rptBlock(ws, k);
+      });
+      if (html) {
+        const sec = RPT_FREE_SEC[String(n.num)];
+        if (sec) bySec[sec] = (bySec[sec] || '') + html;
+        else leftovers.push(['sec-c-' + n.id, '📄', n.title, html]);
+      }
+      walk(n.subs);
+    });
+  })(L.toc);
+  return { bySec, leftovers };
 }
 
 /* ---------- Assemblage du document ---------- */
@@ -464,27 +566,32 @@ function buildHtmlReportFile(ws, images = {}, picked = null) {
 
   // Sommaire : seules les sections cochées au sélecteur ET ayant du contenu
   // y figurent. Page de garde + synthèse (KPIs) toujours incluses.
+  const free = rptFreeBySection(ws);
+  const plus = id => free.bySec[id] || '';
   const secs = [
-    ['sec-sites', '🏢', 'Sites & baies', rptSitesBlocks(ws)],
-    ['sec-elev', '🧱', 'Élévations des baies', rptElevations(ws, rackShots, plan)],
+    ['sec-sites', '🏢', 'Sites & baies', rptSitesBlocks(ws) + plus('sec-sites')],
+    ['sec-elev', '🧱', 'Élévations des baies', rptElevations(ws, rackShots, plan) + plus('sec-elev')],
     ...(topo ? [['sec-topo', '🕸️', 'Topologie réseau', '']] : []),
     ['sec-contexte', '📝', 'Contexte & architecture',
-      rptContext(ws) + rptOutOfRack(ws) + rptCatNotes(ws)],
-    ['sec-inv', '📦', 'Inventaire des équipements', rptInventory(ws)],
-    ['sec-cab', '🔌', 'Câblage', rptCabling(ws)],
+      rptContext(ws) + rptOutOfRack(ws) + rptCatNotes(ws) + plus('sec-contexte')],
+    ['sec-inv', '📦', 'Inventaire des équipements', rptInventory(ws) + plus('sec-inv')],
+    ['sec-cab', '🔌', 'Câblage', rptCabling(ws) + plus('sec-cab')],
     ['sec-ports', '🗂️', 'Ports & adressage', rptPorts(ws)],
     ['sec-gar', '🛡️', 'Garanties', rptWarranties(ws)],
-    ['sec-addr', '🏷️', 'VLANs & nomenclature', rptAddressing(ws)],
-    ['sec-fai', '🌍', 'FAI & accès Internet', rptFai(ws)],
-    ['sec-ic', '🔗', 'Interconnexion site à site', rptInterco(ws)],
-    ['sec-fw', '🔥', 'Firewall & sécurité', rptFirewall(ws)],
-    ['sec-sys', '🖥️', 'Système, stockage & supervision', rptSystem(ws)],
-    ['sec-flux', '🔄', 'Flux réseau', rptFlows(ws)],
-    ['sec-gov', '📑', 'Gouvernance du document', rptGovernance(ws)],
+    ['sec-addr', '🏷️', 'VLANs & nomenclature', rptAddressing(ws) + plus('sec-addr')],
+    ['sec-fai', '🌍', 'FAI & accès Internet', rptFai(ws) + plus('sec-fai')],
+    ['sec-ic', '🔗', 'Interconnexion site à site', rptInterco(ws) + plus('sec-ic')],
+    ['sec-fw', '🔥', 'Firewall & sécurité', rptFirewall(ws) + plus('sec-fw')],
+    ['sec-sys', '🖥️', 'Système, stockage & supervision', rptSystem(ws) + plus('sec-sys')],
+    ['sec-flux', '🔄', 'Flux réseau', rptFlows(ws) + plus('sec-flux')],
+    ['sec-gov', '📑', 'Gouvernance du document', rptGovernance(ws) + plus('sec-gov')],
+    ...free.leftovers,
+    ...rptCustomSections(ws),
   // (sec-topo n'entre dans la liste que si une topologie existe — son contenu
-  // est construit plus bas, donc elle échappe au filtre sur contenu vide.)
+  // est construit plus bas, donc elle échappe au filtre sur contenu vide.
+  // Les chapitres ajoutés au sommaire 📘 sont toujours proposés.)
   ].filter(([id, , , content]) =>
-      (id === 'sec-topo' || String(content).trim() !== '') &&
+      (id === 'sec-topo' || String(id).startsWith('sec-c-') || String(content).trim() !== '') &&
       (!picked || picked.has(id)));
   const nav = secs.map(([id, ico, t]) =>
     `<a class="nav-a" href="#${id}"><span>${ico}</span>${RPT_ESC(t)}</a>`).join('');
@@ -514,11 +621,11 @@ a{color:var(--acc);text-decoration:none}
 .brand-txt small{display:block;font-weight:400;color:var(--mut);font-size:11px}
 #q{flex:1;max-width:460px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px}
 /* Boutons de chapitres : TOUJOURS collés en haut, bloc SANS aucun fond ni
-   effet (transparence totale), retour à la ligne automatique sur deux lignes
-   si nécessaire — jamais de scroll horizontal. Les boutons sont blancs opaques
-   pour rester parfaitement nets au-dessus du contenu qui défile. */
+   effet (transparence totale), centrés au milieu, retour à la ligne
+   automatique sur deux lignes si nécessaire — jamais de scroll horizontal.
+   Les boutons sont blancs opaques pour rester nets au-dessus du contenu. */
 #chapnav{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:5px;
-  padding:10px 20px 9px}
+  padding:10px 20px 9px;justify-content:center;width:100%}
 .nav-a{padding:6px 11px;border-radius:99px;color:var(--ink);font-size:12.5px;white-space:nowrap;
   background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 1px 4px rgba(20,28,45,.09)}
 .nav-a span{margin-right:5px}
@@ -749,8 +856,10 @@ $('#export-html').addEventListener('click', async () => {
   }
   const only = await lldPickSections({
     title: '🌐 Rapport interactif — que voulez-vous exporter ?',
-    hint: 'Page de garde et synthèse toujours incluses ; les rubriques vides (ex : pas de flux, pas de topologie) sont ignorées automatiquement.',
-    items: RPT_SECTION_ITEMS
+    hint: 'Page de garde et synthèse toujours incluses ; les rubriques vides (ex : pas de flux, pas de topologie) sont ignorées automatiquement. Les chapitres ajoutés au sommaire 📘 figurent en fin de liste.',
+    items: RPT_SECTION_ITEMS.concat(
+      rptFreeBySection(ws).leftovers.concat(rptCustomSections(ws))
+        .map(([id, ico, title]) => [id, `${ico} ${title}`]))
   });
   if (!only) return;   // annulé
   if (!only.size) {
