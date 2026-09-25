@@ -499,12 +499,13 @@ function buildHtmlReportFile(ws, images = {}, picked = null) {
 
   const css = `
 :root{--bg:#eef1f6;--panel:#fff;--ink:#1f2733;--mut:#64748b;--line:#e2e8f0;--acc:#1f6feb;
-  --ok:#16a34a;--soon:#d97706;--ko:#dc2626;--rad:12px}
+  --ok:#16a34a;--soon:#d97706;--ko:#dc2626;--rad:12px;--navh:64px}
 *{box-sizing:border-box}html{scroll-behavior:smooth}
 body{margin:0;font:14px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink)}
 a{color:var(--acc);text-decoration:none}
-#top{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);
-  border-bottom:1px solid var(--line);box-shadow:0 2px 14px rgba(20,28,45,.05)}
+/* Barre du haut (marque + recherche) : NON collante — elle défile naturellement
+   et disparaît vers le bas, réapparaît en remontant. */
+#top{background:#fff;border-bottom:1px solid var(--line)}
 .bar1{display:flex;gap:14px;align-items:center;padding:10px 22px 9px}
 .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:15px;white-space:nowrap}
 .brand .logo{display:flex;align-items:center;height:30px}
@@ -512,10 +513,17 @@ a{color:var(--acc);text-decoration:none}
 .brand .logo .fb{font-size:24px;line-height:1}
 .brand-txt small{display:block;font-weight:400;color:var(--mut);font-size:11px}
 #q{flex:1;max-width:460px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px}
-.bar2{display:flex;gap:3px;overflow-x:auto;padding:7px 16px 9px;border-top:1px solid var(--line);
-  background:rgba(248,250,253,.85)}
-.nav-a{padding:6px 11px;border-radius:8px;color:var(--ink);font-size:12.5px;white-space:nowrap}
-.nav-a span{margin-right:5px}.nav-a:hover,.nav-a.cur{background:#e2ebfb}
+/* Boutons de chapitres : TOUJOURS collés en haut, aucun fond de bloc
+   (flou seul pour rester lisible au-dessus du contenu), retour à la ligne
+   automatique sur deux lignes si nécessaire — jamais de scroll horizontal. */
+#chapnav{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:5px;
+  padding:10px 20px 9px;
+  backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4)}
+.nav-a{padding:6px 11px;border-radius:99px;color:var(--ink);font-size:12.5px;white-space:nowrap;
+  background:rgba(255,255,255,.85);border:1px solid rgba(226,232,240,.95);box-shadow:0 1px 4px rgba(20,28,45,.07)}
+.nav-a span{margin-right:5px}
+.nav-a:hover{background:#e2ebfb}
+.nav-a.cur{background:#e2ebfb;border-color:#b9cffb;color:#123e8f;font-weight:600}
 #top button{margin-left:auto;padding:8px 14px;border:1px solid var(--acc);background:var(--acc);color:#fff;
   border-radius:8px;cursor:pointer;font-size:12.5px;white-space:nowrap}
 main{max-width:1180px;margin:0 auto;padding:26px 22px 80px}
@@ -540,7 +548,7 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 80px}
 .kpi-lbl{color:rgba(255,255,255,.72);font-size:11.5px;margin-top:1px}
 .k-ok .kpi-num{color:#86efac}.k-soon .kpi-num{color:#fcd34d}.k-ko .kpi-num{color:#fca5a5}
 .section{background:var(--panel);border:1px solid var(--line);border-radius:var(--rad);
-  padding:22px 24px;margin-bottom:18px}
+  padding:22px 24px;margin-bottom:18px;scroll-margin-top:calc(var(--navh,64px) + 10px)}
 .section h2{margin:0 0 14px;font-size:18px;padding-bottom:10px;border-bottom:2px solid var(--line)}
 .section h3{font-size:14.5px;margin:14px 0 8px}
 .site-block{border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px}
@@ -570,7 +578,7 @@ table.kv th{background:#f1f5f9;color:var(--ink);width:240px;font-weight:600;bord
 .shot img{display:block;width:100%;cursor:zoom-in;background:#101318}
 .shot figcaption{background:#fff;padding:7px 11px;font-size:12px;border-top:1px solid var(--line)}
 table{width:100%;border-collapse:collapse;font-size:12.8px;margin:8px 0}
-th{background:#16233d;color:#fff;text-align:left;padding:8px 10px;font-size:12px;position:sticky;top:96px;z-index:5}
+th{background:#16233d;color:#fff;text-align:left;padding:8px 10px;font-size:12px;position:sticky;top:var(--navh,64px);z-index:5}
 .sortable th{cursor:pointer;user-select:none}.sortable th:hover{background:#1f3a63}
 .sortable th .dir::after{content:" ⇅";opacity:.5}
 .sortable th.asc::after{content:" ↑"}.sortable th.desc::after{content:" ↓"}
@@ -604,7 +612,7 @@ details.grp th{top:0;position:static}
 #lb img{max-width:96vw;max-height:94vh;border-radius:6px;box-shadow:0 8px 60px #000c}
 #lb .hint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);color:#cbd5e1;font-size:12px;background:#0008;padding:6px 12px;border-radius:99px}
 footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
-@media(max-width:820px){.bar1{flex-wrap:wrap}.bar2{overflow-x:auto}th{top:0;position:static}}
+@media(max-width:820px){.bar1{flex-wrap:wrap}#chapnav{padding:8px 12px}th{top:0;position:static}}
 @media print{
   body{background:#fff}#top,.no-print,#lb{display:none!important}
   main{max-width:none;padding:0}
@@ -624,6 +632,12 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
 
   const js = `
 (function(){
+  /* Hauteur réelle du bandeau de chapitres (peut faire 2 lignes) -> --navh,
+     utilisée pour les en-têtes de tableau collants et la marge des ancres. */
+  var nav=document.getElementById('chapnav');
+  function syncNavH(){if(nav)document.documentElement.style.setProperty('--navh',(nav.offsetHeight+2)+'px')}
+  syncNavH();window.addEventListener('resize',syncNavH);
+  window.addEventListener('load',syncNavH);
   var q=document.getElementById('q');
   if(q){q.addEventListener('input',function(){
     var v=q.value.trim().toLowerCase();
@@ -679,8 +693,7 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
     <input id="q" type="search" placeholder="🔎 Recherche instantanée : device, IP, VLAN, câble, série…" class="no-print">
     <button type="button" class="no-print" onclick="window.print()">🖨️ Imprimer / PDF</button>
   </div>
-  <nav class="bar2 no-print">${nav}</nav>
-</div>\n<main>\n`
+</div>\n<nav id="chapnav" class="no-print">${nav}</nav>\n<main>\n`
     + `<header class="cover">
   <h1>${RPT_ESC(ws.name)}</h1>
   <div class="sub">Dossier de conception bas niveau (LLD) — datacenter & infrastructure</div>
