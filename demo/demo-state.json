@@ -5895,6 +5895,760 @@
       "ip": "10.10.99.61",
       "pos": "RACK-A — Siège Casablanca — U21"
      }
+    ],
+    "spoEquip": [
+     {
+      "name": "SPO-01",
+      "model": "ZKTeco SpeedFace-V5L",
+      "ip": "10.10.99.71",
+      "pos": "RACK-A — Siège Casablanca — U22"
+     }
+    ],
+    "cab15": [
+     {
+      "id": "CAB-001 · RTR-01 → FW-01 (transit FAI)",
+      "color": "#f59e0b",
+      "domain": "Firewall",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "RTR-01",
+      "portA": "WAN1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "FW-01",
+      "portB": "eth0"
+     },
+     {
+      "id": "CAB-002 · FW-01 LAN → BR-A-01/1",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "FW-01",
+      "portA": "eth1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "1"
+     },
+     {
+      "id": "CAB-003 · RTR-01 LAN → BR-A-01/2",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "RTR-01",
+      "portA": "LAN1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "2"
+     },
+     {
+      "id": "CAB-004 · NX-01 MGMT → BR-A-01/3",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-01",
+      "portA": "MGMT",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "3"
+     },
+     {
+      "id": "CAB-005 · NX-02 MGMT → BR-A-01/4",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-02",
+      "portA": "MGMT",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "4"
+     },
+     {
+      "id": "CAB-006 · NX-03 MGMT → BR-A-01/5",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-03",
+      "portA": "MGMT",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "5"
+     },
+     {
+      "id": "CAB-007 · SRV-DELL-01 iDRAC → BR-A-01/6",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "SRV-DELL-01",
+      "portA": "iDRAC",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "6"
+     },
+     {
+      "id": "CAB-008 · NAS-01 MGMT → BR-A-01/7",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NAS-01",
+      "portA": "MGMT",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "7"
+     },
+     {
+      "id": "CAB-009 · AKCP-01 ETH0 → BR-A-01/8",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "AKCP-01",
+      "portA": "eth0",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "8"
+     },
+     {
+      "id": "CAB-010 · AP-ARUBA-A ETH0 → BR-A-02/1",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "AP-ARUBA-A",
+      "portA": "eth0",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "1"
+     },
+     {
+      "id": "CAB-011 · NX-01 10G-1 → BR-A-02/2",
+      "color": "#34d399",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-01",
+      "portA": "10G-1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "2"
+     },
+     {
+      "id": "CAB-012 · NX-01 10G-2 → BR-A-02/3",
+      "color": "#34d399",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-01",
+      "portA": "10G-2",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "3"
+     },
+     {
+      "id": "CAB-013 · NX-02 10G-1 → BR-A-02/4",
+      "color": "#34d399",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-02",
+      "portA": "10G-1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "4"
+     },
+     {
+      "id": "CAB-014 · NX-02 10G-2 → BR-A-02/5",
+      "color": "#34d399",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-02",
+      "portA": "10G-2",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "5"
+     },
+     {
+      "id": "CAB-015 · NX-03 10G-1 → BR-A-02/6",
+      "color": "#34d399",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-03",
+      "portA": "10G-1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "6"
+     },
+     {
+      "id": "CAB-016 · NX-03 10G-2 → BR-A-02/7",
+      "color": "#34d399",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NX-03",
+      "portA": "10G-2",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "7"
+     },
+     {
+      "id": "CAB-017 · SRV-DELL-01 LAN1 → BR-A-02/8",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "SRV-DELL-01",
+      "portA": "LAN1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "8"
+     },
+     {
+      "id": "CAB-018 · SRV-DELL-01 LAN2 → BR-A-02/9",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "SRV-DELL-01",
+      "portA": "LAN2",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "9"
+     },
+     {
+      "id": "CAB-019 · NAS-01 ISCSI1 → BR-A-02/10",
+      "color": "#f472b6",
+      "domain": "san",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NAS-01",
+      "portA": "ISCSI1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "10"
+     },
+     {
+      "id": "CAB-101 · RTR-02 → FW-02 (transit FAI)",
+      "color": "#f59e0b",
+      "domain": "Firewall",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "RTR-02",
+      "portA": "WAN1",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "FW-02",
+      "portB": "eth0"
+     },
+     {
+      "id": "CAB-102 · FW-02 LAN → BR-B-01/1",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "FW-02",
+      "portA": "eth1",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-01",
+      "portB": "1"
+     },
+     {
+      "id": "CAB-103 · RTR-02 LAN → BR-B-01/2",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "RTR-02",
+      "portA": "LAN1",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-01",
+      "portB": "2"
+     },
+     {
+      "id": "CAB-104 · AKCP-02 ETH0 → BR-B-01/3",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "AKCP-02",
+      "portA": "eth0",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-01",
+      "portB": "3"
+     },
+     {
+      "id": "CAB-105 · NAS-02 LAN1 → BR-B-01/4",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "NAS-02",
+      "portA": "LAN1",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-01",
+      "portB": "4"
+     },
+     {
+      "id": "CAB-106 · AP-ARUBA-B ETH0 → BR-B-02/1",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "AP-ARUBA-B",
+      "portA": "eth0",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-02",
+      "portB": "1"
+     },
+     {
+      "id": "CAB-107 · NAS-02 LAN2 → BR-B-02/2",
+      "color": "#f472b6",
+      "domain": "san",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "NAS-02",
+      "portA": "LAN2",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-02",
+      "portB": "2"
+     },
+     {
+      "id": "CAB-020 · IDS-01 → BR-A-01/9",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "IDS-01",
+      "portA": "1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "9"
+     },
+     {
+      "id": "CAB-021 · IDS-01 → BR-A-02/11",
+      "color": "#f97316",
+      "domain": "IDS",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "IDS-01",
+      "portA": "2",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "11"
+     },
+     {
+      "id": "CAB-022 · UPS-01 → BR-A-01/10",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "UPS-01",
+      "portA": "1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "10"
+     },
+     {
+      "id": "CAB-023 · NVR-01 → BR-A-01/11",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NVR-01",
+      "portA": "1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "11"
+     },
+     {
+      "id": "CAB-024 · NVR-01 → BR-A-02/12",
+      "color": "#22d3ee",
+      "domain": "CCTV",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "NVR-01",
+      "portA": "2",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "12"
+     },
+     {
+      "id": "CAB-025 · SPO-01 → BR-A-01/12",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "SPO-01",
+      "portA": "1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "12"
+     },
+     {
+      "id": "CAB-026 · SW-01 → BR-A-01/13",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "SW-01",
+      "portA": "8",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-01",
+      "portB": "13"
+     },
+     {
+      "id": "CAB-027 · BR-A-03/14 → FW-01 eth3",
+      "color": "#e11d48",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "BR-A-03",
+      "portA": "14",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "FW-01",
+      "portB": "eth3"
+     },
+     {
+      "id": "CAB-028 · SW-INFRA → BR-A-02/13",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-A — Siège Casablanca",
+      "devA": "SW-INFRA",
+      "portA": "1",
+      "rackB": "RACK-A — Siège Casablanca",
+      "devB": "BR-A-02",
+      "portB": "13"
+     },
+     {
+      "id": "CAB-109 · IDS-02 → BR-B-01/5",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "IDS-02",
+      "portA": "1",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-01",
+      "portB": "5"
+     },
+     {
+      "id": "CAB-110 · UPS-02 → BR-B-01/6",
+      "color": "#a78bfa",
+      "domain": "mgmt",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "UPS-02",
+      "portA": "1",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-01",
+      "portB": "6"
+     },
+     {
+      "id": "CAB-111 · SW-02 → BR-B-02/3",
+      "color": "#60a5fa",
+      "domain": "lan",
+      "rackA": "RACK-B — Agence Rabat",
+      "devA": "SW-02",
+      "portA": "6",
+      "rackB": "RACK-B — Agence Rabat",
+      "devB": "BR-B-02",
+      "portB": "3"
+     }
+    ],
+    "elev15": [
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U1",
+      "name": "FW-01",
+      "cat": "Firewall",
+      "model": "WatchGuard Firebox M390",
+      "size": "1U",
+      "ip": "10.10.99.11"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U2",
+      "name": "BR-A-01",
+      "cat": "Patch",
+      "model": "MPO PP-24 CAT6A",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U3",
+      "name": "BR-A-02",
+      "cat": "Patch",
+      "model": "MPO PP-24 CAT6A",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U4",
+      "name": "RTR-01",
+      "cat": "Routeur",
+      "model": "Peplink Balance 20X",
+      "size": "1U",
+      "ip": "10.10.99.12"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U5",
+      "name": "AP-ARUBA-A",
+      "cat": "Borne WiFi",
+      "model": "Aruba AP-515",
+      "size": "1U",
+      "ip": "10.10.99.13"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U6",
+      "name": "NX-01",
+      "cat": "Serveur",
+      "model": "Nutanix NX-3155-G6",
+      "size": "1U",
+      "ip": "10.10.10.21"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U7",
+      "name": "NX-02",
+      "cat": "Serveur",
+      "model": "Nutanix NX-3155-G6",
+      "size": "1U",
+      "ip": "10.10.10.22"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U8",
+      "name": "NX-03",
+      "cat": "Serveur",
+      "model": "Nutanix NX-3155-G6",
+      "size": "1U",
+      "ip": "10.10.10.23"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U9–U10",
+      "name": "SRV-DELL-01",
+      "cat": "Serveur",
+      "model": "Dell PowerEdge R740",
+      "size": "2U",
+      "ip": "10.10.99.31"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U11–U12",
+      "name": "NAS-01",
+      "cat": "Stockage",
+      "model": "Synology RS1221+",
+      "size": "2U",
+      "ip": "10.10.99.41"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U13",
+      "name": "AKCP-01",
+      "cat": "Autre",
+      "model": "AKCP sensorProbe2+",
+      "size": "1U",
+      "ip": "10.10.99.14"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U14",
+      "name": "BR-A-03",
+      "cat": "Patch",
+      "model": "MPO PP-24 CAT6A",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U15",
+      "name": "BROSSE-A1",
+      "cat": "Autre",
+      "model": "Rittal DK 7706.500",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U16",
+      "name": "BROSSE-A2",
+      "cat": "Autre",
+      "model": "Rittal DK 7706.500",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U17",
+      "name": "SW-01",
+      "cat": "Switch",
+      "model": "HPE Aruba 6100 24G PoE (JL677A)",
+      "size": "1U",
+      "ip": "10.10.99.21"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U18",
+      "name": "SW-INFRA",
+      "cat": "Switch",
+      "model": "HPE Aruba 6000 12G (R8N89A)",
+      "size": "1U",
+      "ip": "10.10.99.20"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U19",
+      "name": "IDS-01",
+      "cat": "IDS",
+      "model": "WatchGuard Dimension + TDR",
+      "size": "1U",
+      "ip": "10.10.99.51"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U20",
+      "name": "UPS-01",
+      "cat": "UPS",
+      "model": "APC Smart-UPS SRT 3000VA (SRT3000XLI)",
+      "size": "1U",
+      "ip": "10.10.99.81"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U21",
+      "name": "NVR-01",
+      "cat": "CCTV",
+      "model": "Hikvision DS-7732NI-K4 (32 canaux)",
+      "size": "1U",
+      "ip": "10.10.99.61"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U22",
+      "name": "SPO-01",
+      "cat": "Pointage",
+      "model": "ZKTeco SpeedFace-V5L",
+      "size": "1U",
+      "ip": "10.10.99.71"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U23",
+      "name": "PRT-01",
+      "cat": "Autre",
+      "model": "HP LaserJet Enterprise M527",
+      "size": "1U",
+      "ip": "10.10.70.11"
+     },
+     {
+      "rack": "RACK-A — Siège Casablanca",
+      "pos": "U24",
+      "name": "PRT-02",
+      "cat": "Autre",
+      "model": "HP LaserJet M428",
+      "size": "1U",
+      "ip": "10.10.70.12"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U1",
+      "name": "FW-02",
+      "cat": "Firewall",
+      "model": "WatchGuard Firebox M390",
+      "size": "1U",
+      "ip": "10.11.99.11"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U2",
+      "name": "BR-B-01",
+      "cat": "Patch",
+      "model": "MPO PP-24 CAT6A",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U3",
+      "name": "RTR-02",
+      "cat": "Routeur",
+      "model": "Peplink Balance 20X",
+      "size": "1U",
+      "ip": "10.11.99.12"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U4",
+      "name": "AP-ARUBA-B",
+      "cat": "Borne WiFi",
+      "model": "Aruba AP-515",
+      "size": "1U",
+      "ip": "10.11.99.13"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U5",
+      "name": "AKCP-02",
+      "cat": "Autre",
+      "model": "AKCP sensorProbe2+",
+      "size": "1U",
+      "ip": "10.11.99.14"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U6–U7",
+      "name": "NAS-02",
+      "cat": "Stockage",
+      "model": "Synology RS1221+",
+      "size": "2U",
+      "ip": "10.11.99.41"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U8",
+      "name": "BR-B-02",
+      "cat": "Patch",
+      "model": "MPO PP-24 CAT6A",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U9",
+      "name": "BROSSE-B1",
+      "cat": "Autre",
+      "model": "Rittal DK 7706.500",
+      "size": "1U",
+      "ip": ""
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U10",
+      "name": "SW-02",
+      "cat": "Switch",
+      "model": "HPE Aruba 6100 12G (JL678A)",
+      "size": "1U",
+      "ip": "10.11.99.21"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U11",
+      "name": "IDS-02",
+      "cat": "IDS",
+      "model": "WatchGuard Dimension + TDR",
+      "size": "1U",
+      "ip": "10.11.99.51"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U12",
+      "name": "PRT-03",
+      "cat": "Autre",
+      "model": "HP LaserJet M428",
+      "size": "1U",
+      "ip": "10.11.70.11"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U13",
+      "name": "PRT-04",
+      "cat": "Autre",
+      "model": "HP LaserJet Enterprise M527",
+      "size": "1U",
+      "ip": "10.11.70.12"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U14",
+      "name": "UPS-02",
+      "cat": "UPS",
+      "model": "APC Smart-UPS SRT 3000VA (SRT3000XLI)",
+      "size": "1U",
+      "ip": "10.11.99.81"
+     },
+     {
+      "rack": "RACK-B — Agence Rabat",
+      "pos": "U15",
+      "name": "CLIM-01",
+      "cat": "Autre",
+      "model": "Daikin FTX-KV — split précision 1er étage",
+      "size": "1U",
+      "ip": "10.11.99.72"
+     }
     ]
    },
    "view": {
@@ -5904,9 +6658,9 @@
    },
    "viewTouched": false,
    "updatedAt": 1788868800000,
-   "demoVer": 7
+   "demoVer": 8
   }
  ],
  "activeWorkspaceId": "demo-dc",
- "demoVer": 7
+ "demoVer": 8
 }

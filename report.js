@@ -229,29 +229,12 @@ function rptPorts(ws) {
 
 // Câblage : pastille couleur, sens de lecture A → B, filtre par domaine
 function rptCabling(ws) {
-  const cables = ws.cables || [];
-  if (!cables.length) return '<p class="muted">Aucun câble dans ce workspace.</p>';
-  const domains = [...new Set(cables.map(c => c.domain || ''))];
-  const filt = domains.length > 1
-    ? `<div class="pills no-print" id="cab-filt">
-        <button class="pill on" data-dom="">Tous (${cables.length})</button>` +
-      domains.map(d => `<button class="pill" data-dom="${RPT_ESC_ARIA(d)}">${RPT_ESC(cableDomainLabel(d))} (${cables.filter(c => (c.domain || '') === d).length})</button>`).join('') +
-      `</div>` : '';
-  const ep = e => {
-    const d = resolveEndpoint(ws, e);
-    return d ? `<b>${RPT_ESC(d.rack.name)}</b> · ${RPT_ESC(d.inst.name)} · <b>${RPT_ESC(d.port.name)}</b>${d.port.label ? `<div class="meta">${RPT_ESC(d.port.label)}</div>` : ''}` : '—';
-  };
-  const rows = cables.map(c => {
-    const search = [c.name, cableDomainLabel(c.domain), c.color].join(' ').toLowerCase();
-    return `<tr data-search="${RPT_ESC_ARIA(search)}" data-dom="${RPT_ESC_ARIA(c.domain || '')}">
-      <td class="nowrap"><b>${RPT_ESC(c.name || '')}</b></td>
-      <td class="nowrap">${rptCableChip(c.color)}</td>
-      <td>${RPT_ESC(cableDomainLabel(c.domain))}</td>
-      <td>${ep(c.a)}</td><td class="arrow">⟶</td><td>${ep(c.b)}</td></tr>`;
-  }).join('');
-  return filt + `<table class="sortable" id="cab-table">
-    <thead><tr><th>ID câble</th><th>Couleur</th><th>Domaine</th><th>Extrémité A</th><th></th><th>Extrémité B</th></tr></thead>
-    <tbody>${rows}</tbody></table>`;
+  const L = normLldInfo(ws);
+  if ((L.cab15 || []).length) {
+    return rptSub('15 — Tableau de câblage', rptLldGrid(
+      lldExportCols(L, 'cab15', LLD_CAB15_COLS).map(c => [c[0], String(c[1])]), L.cab15));
+  }
+  return '<p class="muted">Aucun câble dans le sommaire 📘 — bouton 🔎 sur le chapitre 15.</p>';
 }
 
 // Garanties : tableau trié selon échéance + pastilles (code couleur de l'app)
@@ -445,7 +428,9 @@ function rptSystem(ws) {
     lldExportCols(L, 'cctvEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.cctvEquip));
   const cams = rptSub('12.2 — Caméras', rptLldGrid(
     lldExportCols(L, 'cams', LLD_CAM_COLS).map(c => [c[0], String(c[1])]), L.cams));
-  return zones + swHtml + srv + vms + sto + vols + ids + nvr + cams || '';
+  const spo = rptSub('13.1 — Pointeuses', rptLldGrid(
+    lldExportCols(L, 'spoEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.spoEquip));
+  return zones + swHtml + srv + vms + sto + vols + ids + nvr + cams + spo || '';
 }
 
 // Équipements & licences hors baie (table 3.1 du dossier)
@@ -527,8 +512,9 @@ const RPT_FREE_SEC = {
   '10': 'sec-sys', '10.1': 'sec-sys', '10.2': 'sec-sys',
   '11': 'sec-sys', '11.1': 'sec-sys',
   '12': 'sec-sys', '12.1': 'sec-sys', '12.2': 'sec-sys',
-  '13': 'sec-sys',
-  '14': 'sec-flux', '15': 'sec-cab', '15.1': 'sec-elev'
+  '13': 'sec-sys', '13.1': 'sec-sys',
+  '14': 'sec-flux', '14.1': 'sec-flux',
+  '15': 'sec-cab', '15.1': 'sec-elev'
 };
 function rptFreeBySection(ws) {
   const L = normLldInfo(ws);
