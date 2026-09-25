@@ -989,6 +989,31 @@ body.cabling .port.connectable {
 .lld-dlg-btns .lld-dlg-danger { background: #dc2626; border-color: #dc2626; color: #fff; }
 .lld-dlg-btns .lld-dlg-danger:hover { background: #b91c1c; }
 
+/* Sélecteur de rubriques d'export (HTML / Excel / PDF LLD) */
+.lld-pick { width: min(460px, 100%); }
+.lld-pick-all {
+  display: flex; align-items: center; gap: 8px;
+  margin: 10px 0 8px; padding: 8px 10px;
+  background: #eef4ff; border: 1px solid #cfe0fb; border-radius: 8px;
+  font-size: 13px; cursor: pointer; user-select: none;
+}
+.lld-pick-all input { accent-color: #2563eb; width: 15px; height: 15px; }
+.lld-pick-count { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lld-pick-list {
+  max-height: 300px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 8px;
+  display: flex; flex-direction: column;
+}
+.lld-pick-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 11px; font-size: 13px; cursor: pointer; user-select: none;
+  border-bottom: 1px solid #eef1f6;
+}
+.lld-pick-item:last-child { border-bottom: none; }
+.lld-pick-item:hover { background: #f4f8ff; }
+.lld-pick-item input { accent-color: #2563eb; width: 14px; height: 14px; flex: none; }
+.lld-pick-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Bâti : montants verticaux avec trous (cage nuts) */
 .rack-body {
   position: relative;

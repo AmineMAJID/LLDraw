@@ -3712,6 +3712,63 @@ const lldConfirm = (message, opts) => lldDialog(Object.assign({ message, okLabel
 const lldPrompt  = (message, value, opts) => lldDialog(Object.assign({ message, input: value ?? '', okLabel: 'Créer' }, opts));
 const lldAlert   = (message, opts) => lldDialog(Object.assign({ message, okLabel: 'OK', cancelLabel: 'OK', hideCancel: true }, opts));
 
+/* ---- Sélecteur de rubriques d'export ----
+   items = [[clé, libellé], …] affichés en cases à cocher (toutes cochées par
+   défaut, case « Tout sélectionner » en tête). Résout :
+     • un Set des clés cochées  → Exporter
+     • null → Annuler / Échap / clic dehors. */
+function lldPickSections({ title, items, hint = '' }) {
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'lld-dlg-overlay';
+    ov.innerHTML = `
+      <div class="lld-dlg lld-pick" role="dialog" aria-modal="true">
+        <h3>${escapeHtml(title)}</h3>
+        ${hint ? `<p class="lld-dlg-msg">${escapeHtml(hint)}</p>` : ''}
+        <label class="lld-pick-all"><input type="checkbox" checked> <b>Tout sélectionner</b>
+          <span class="lld-pick-count">${items.length}/${items.length}</span></label>
+        <div class="lld-pick-list">
+          ${items.map(([k, lbl]) => `
+            <label class="lld-pick-item"><input type="checkbox" value="${escapeHtml(k)}" checked>
+              <span>${escapeHtml(lbl)}</span></label>`).join('')}
+        </div>
+        <div class="lld-dlg-btns">
+          <button class="btn lld-dlg-cancel" type="button">Annuler</button>
+          <button class="btn lld-dlg-ok" type="button">⬇ Exporter</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const all = ov.querySelector('.lld-pick-all input');
+    const boxes = [...ov.querySelectorAll('.lld-pick-item input')];
+    const cnt = ov.querySelector('.lld-pick-count');
+    const sync = () => {
+      const n = boxes.filter(b => b.checked).length;
+      cnt.textContent = `${n}/${boxes.length}`;
+      all.checked = n === boxes.length;
+      all.indeterminate = n > 0 && n < boxes.length;
+    };
+    all.addEventListener('change', () => {
+      boxes.forEach(b => { b.checked = all.checked; });
+      sync();
+    });
+    boxes.forEach(b => b.addEventListener('change', sync));
+    let closed = false;
+    const done = val => { if (closed) return; closed = true; ov.remove(); resolve(val); };
+    ov.querySelector('.lld-dlg-cancel').addEventListener('click', () => done(null));
+    ov.querySelector('.lld-dlg-ok').addEventListener('click', () => {
+      const sel = new Set(boxes.filter(b => b.checked).map(b => b.value));
+      done(sel);
+    });
+    ov.addEventListener('mousedown', e => { if (e.target === ov) done(null); });
+    ov.addEventListener('keydown', e => {
+      e.stopPropagation();
+      if (e.key === 'Escape') done(null);
+      if (e.key === 'Enter') ov.querySelector('.lld-dlg-ok').click();
+    });
+    ov.querySelector('.lld-dlg-ok').focus();
+  });
+}
+
 function formatDate(ts) {
   if (!ts) return 'Jamais modifié';
   const d = new Date(ts);
@@ -9148,10 +9205,25 @@ const DX = (() => {
   const groupRow = label => ({ __group: true, label });
   const dataRow = (cells, outline = false) => ({ cells, outline });
 
+  // Onglets exportables (ordre d'affichage du sélecteur d'export)
+  const SHEET_ITEMS = [
+    ['Inventaire', '📦 Inventaire — équipements regroupés par baie (repliable)'],
+    ['Ports', '🗂️ Ports & adressage'],
+    ['Câblage', '🔌 Câblage — couleurs réelles des cordons'],
+    ['Garanties', '🛡️ Garanties — triées par échéance, colorées'],
+    ['Racks', '🗄️ Racks — capacités & budgets'],
+    ['Sites', '🏢 Sites'],
+    ['VLANs', '🏷️ Registre VLANs & subnets'],
+    ['Nomenclature', '📛 Nomenclature'],
+    ['Flux', '🔄 Matrice des flux réseau']
+  ];
+
   // ---------- Construction des feuilles ----------
-  function sheets(ws) {
+  function sheets(ws, keep = () => true) {
     const L = normLldInfo(ws);
     const out = [];
+    // Sélecteur d'export : ne pousse que les feuilles cochées
+    const add = sheetObj => { if (keep(sheetObj.name)) out.push(sheetObj); };
     const totalDev = sortedRackInstances(ws).length;
     const totalPorts = portsRows(ws).length - 1;
     const wsum = warrantySummary(ws);
@@ -9193,7 +9265,7 @@ const DX = (() => {
         zeb = !zeb;
       }
     }
-    out.push(dataSheet('Inventaire', `📦 Inventaire des équipements — ${totalDev} équipements`,
+    add(dataSheet('Inventaire', `📦 Inventaire des équipements — ${totalDev} équipements`,
       `${meta} — regroupé par baie : repliez/dépliez avec les boutons ± à gauche, filtrez avec les flèches d'en-tête.`,
       invHead, invBody));
 
@@ -9222,7 +9294,7 @@ const DX = (() => {
           }
         }
       }
-      out.push(dataSheet('Ports', `🗂️ Ports & adressage — ${totalPorts} ports étiquetés`,
+      add(dataSheet('Ports', `🗂️ Ports & adressage — ${totalPorts} ports étiquetés`,
         `${meta} — regroupé par baie (boutons ±), filtrable.`,
         portHead, portBody));
     }
@@ -9246,7 +9318,7 @@ const DX = (() => {
         })));
         zeb = !zeb;
       }
-      out.push(dataSheet('Câblage', `🔌 Tableau de câblage — ${cabRows.length - 1} câbles`,
+      add(dataSheet('Câblage', `🔌 Tableau de câblage — ${cabRows.length - 1} câbles`,
         `${meta} — la colonne Couleur reprend la couleur réelle du cordon ; filtrez par Domaine, Rack…`,
         cabRows[0], cabBody));
     }
@@ -9260,7 +9332,7 @@ const DX = (() => {
         garBody.push(dataRow(line(r, zeb, { 7: v => wStyle(v, zeb) })));
         zeb = !zeb;
       }
-      out.push(dataSheet('Garanties', `🛡️ Suivi des garanties — ${garRows.length - 1} équipements suivis`,
+      add(dataSheet('Garanties', `🛡️ Suivi des garanties — ${garRows.length - 1} équipements suivis`,
         `${meta} — trié de l'échéance la plus proche à la plus lointaine.`,
         garRows[0], garBody));
     }
@@ -9281,7 +9353,7 @@ const DX = (() => {
         })));
         zeb = !zeb;
       }
-      out.push(dataSheet('Racks', `🗄️ Baies — capacités & budgets`,
+      add(dataSheet('Racks', `🗄️ Baies — capacités & budgets`,
         `${meta} — occupation, puissance et charge par baie (« % U occupés » calculé sur la taille).`,
         [...rr[0], '% U occupés'], rackBody));
     }
@@ -9297,7 +9369,7 @@ const DX = (() => {
       if (rows.length < 2) continue;
       zeb = false;
       const b = rows.slice(1).map(r => dataRow(line(r, (zeb = !zeb))));
-      out.push(dataSheet(sheetName, `${title} — ${rows.length - 1} lignes`, meta, rows[0], b));
+      add(dataSheet(sheetName, `${title} — ${rows.length - 1} lignes`, meta, rows[0], b));
     }
     return out;
   }
@@ -9335,21 +9407,29 @@ const DX = (() => {
     return { name: 'Sommaire', rows, opts: { freeze: false, autoHeader: false } };
   }
 
-  function buildAll(ws) {
-    const data = sheets(ws);
+  function buildAll(ws, only = null) {
+    const keep = only ? name => only.has(name) : () => true;
+    const data = sheets(ws, keep);
     return XLSX.build([summarySheet(ws, data), ...data]);
   }
-  return { buildAll };
+  return { buildAll, SHEET_ITEMS };
 })();
 
-$('#export-xlsx-data').addEventListener('click', () => {
+$('#export-xlsx-data').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
   const ws = lldWorkspaceForExport();
   if (!ws || !ws.racks.length) {
     lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Excel — vue données' });
     return;
   }
-  downloadBlob(DX.buildAll(ws), exportFileBase() + '-donnees.xlsx');
+  const only = await lldPickSections({
+    title: '📊 Excel « vue données » — que voulez-vous exporter ?',
+    hint: 'Chaque rubrique cochée devient un onglet du classeur. L\u2019onglet Sommaire (avec liens) est toujours inclus.',
+    items: DX.SHEET_ITEMS.map(([k, lbl]) => [k, lbl])
+  });
+  if (!only) return;
+  if (!only.size) { lldAlert("Cochez au moins un onglet à exporter.", { title: '📊 Excel — vue données' }); return; }
+  downloadBlob(DX.buildAll(ws, only), exportFileBase() + '-donnees.xlsx');
 });
 
 /* ============================================================
@@ -10764,7 +10844,10 @@ const LLD_TPL = (() => {
                   '13': chapterEquip(['pointage'], '13.1. Pointeuses', null, 'pointage'),
                   '14': ch14, '15': ch15, '15.1': ch151 };
 
-  function buildAll(ws, layout, stylesXml, themeXml) {
+  function buildAll(ws, layout, stylesXml, themeXml, only = null) {
+    // Sélecteur de rubriques : racines de chapitres cochées (null = tout).
+    // Feuilles « chapter » filtrées par racine (« 8 » garde 8, 8.1…8.5).
+    const keepRoot = only ? (num => only.has(String(num).split('.')[0])) : () => true;
     // Sommaire (modale 📘) : index des chapitres + titres renommés
     BUILD_TOC = new Map();
     const tocNodes = [];
@@ -10772,7 +10855,10 @@ const LLD_TPL = (() => {
       (ns || []).forEach(x => { BUILD_TOC.set(String(x.num), x); tocNodes.push(x); walk(x.subs); });
     })(normLldInfo(ws).toc);
     const isCustom = n => !!(n && n.custom);
-    const sheets = layout.map(sheet => {
+    const numPrefix = /^\d+(?:\.\d+)?$/;
+    const layoutKept = layout.filter(sheet =>
+      numPrefix.test(String(sheet.name)) ? keepRoot(sheet.name) : true);
+    const sheets = layoutKept.map(sheet => {
       const fill = FILLS[sheet.name];
       let s;
       if (fill) s = fill(sheet, ws);
@@ -10790,8 +10876,16 @@ const LLD_TPL = (() => {
           const n = BUILD_TOC.get(m[1]);
           if (n && !isCustom(n) && !n.cover) cell.v = `${m[1]}. ${n.title}`;
         }));
+        if (only) {
+          // Sélecteur : retirer du sommaire les chapitres non exportés
+          s.rows = s.rows.filter(row => {
+            const first = row.find(cell => cell && typeof cell.v === 'string' && re.exec(cell.v));
+            if (!first) return true;
+            return keepRoot(re.exec(first.v)[1]);
+          });
+        }
         // … puis les chapitres/sous-chapitres ajoutés, en fin de liste
-        tocNodes.filter(isCustom).forEach(n => {
+        tocNodes.filter(n => isCustom(n) && keepRoot(n.num)).forEach(n => {
           const isSub = String(n.num).includes('.');
           s.rows.push(isSub
             ? [{ v: '', s: 50 }, { v: `${n.num}. ${n.title}`, s: 47 }]
@@ -10810,7 +10904,7 @@ const LLD_TPL = (() => {
     });
     // Chapitres / sous-chapitres AJOUTÉS au sommaire -> feuilles en plus
     const reserved = new Set(layout.map(x => String(x.name)));
-    tocNodes.filter(isCustom).forEach(n => {
+    tocNodes.filter(n => isCustom(n) && keepRoot(n.num)).forEach(n => {
       let name = String(n.num).slice(0, 31);
       if (reserved.has(name)) name = (name + ' bis').slice(0, 31);
       reserved.add(name);
@@ -10841,6 +10935,13 @@ $('#export-xlsx').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
   const ws = lldWorkspaceForExport();
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Export Excel' }); return; }
+  const only = await lldPickSections({
+    title: '📗 Classeur Excel — que voulez-vous exporter ?',
+    hint: 'Décochez les chapitres à exclure. Les pages de garde (LLD, Governance, Contenu) sont toujours incluses.',
+    items: lldChapterPickItems(ws)
+  });
+  if (!only) return;
+  if (!only.size) { lldAlert('Cochez au moins un chapitre à exporter.', { title: '📗 Classeur Excel' }); return; }
   try {
     const [layout, stylesXml, themeXml] = await Promise.all([
       fetch('assets/lld/layout.json').then(r => { if (!r.ok) throw new Error('layout'); return r.json(); }),
@@ -10851,7 +10952,7 @@ $('#export-xlsx').addEventListener('click', async () => {
     if (typeof lldRenderDiagExportImgs === 'function') {
       try { await lldRenderDiagExportImgs(ws); } catch (_) { globalThis.__LLD_DIAG_IMGS = {}; }
     }
-    downloadBlob(LLD_TPL.buildAll(ws, layout, stylesXml, themeXml), exportFileBase() + '.xlsx');
+    downloadBlob(LLD_TPL.buildAll(ws, layout, stylesXml, themeXml, only), exportFileBase() + '.xlsx');
   } catch (e) {
     lldAlert("Impossible de charger le template Excel (assets/lld/) : l'export XLSX nécessite ces fichiers à côté de l'application.", { title: '📊 Export Excel' });
   }
@@ -10895,10 +10996,14 @@ const strBytes = s => {
   return u;
 };
 
-function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
+function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = {}) {
   const PW = 595.28, PH = 841.89, M = 42;
   const pagesOps = [];
   let cur = null, y = 0;
+  // Sélecteur de rubriques : racines de chapitres à imprimer (null = tout).
+  const onlyRoots = (opts.only && typeof opts.only.has === 'function')
+    ? new Set([...opts.only].map(String)) : null;
+  let SKIP = false;   // true tant qu'un chapitre non sélectionné est parcouru
 
   // Opérations PDF réutilisables (permettent d'ajouter des pieds de page a posteriori)
   const textOp = (x, yy, s, size = 10, bold = false, color = [0.13, 0.16, 0.22]) =>
@@ -10906,11 +11011,12 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   const lineOp = (x1, yy, x2, color = [0.82, 0.85, 0.89], lw = 0.7) =>
     `${color.map(c => (+c).toFixed(2)).join(' ')} RG ${lw} w ${(+x1).toFixed(2)} ${(+yy).toFixed(2)} m ${(+x2).toFixed(2)} ${(+yy).toFixed(2)} l S`;
 
-  const txt = (x, yy, s, size, bold, color) => cur.push(textOp(x, yy, s, size, bold, color));
+  const txt = (x, yy, s, size, bold, color) => { if (!SKIP) cur.push(textOp(x, yy, s, size, bold, color)); };
   const rectFill = (x, yy, w, h, color) => {
+    if (SKIP) return;
     cur.push(`${color.map(c => (+c).toFixed(2)).join(' ')} rg ${(+x).toFixed(2)} ${(+yy).toFixed(2)} ${(+w).toFixed(2)} ${(+h).toFixed(2)} re f`);
   };
-  const hline = (x1, x2, yy) => cur.push(lineOp(x1, yy, x2));
+  const hline = (x1, x2, yy) => { if (!SKIP) cur.push(lineOp(x1, yy, x2)); };
   // Ligne libre (2 points) + contour de rectangle — diagrammes ch. 5/6/7
   const hexToRgb = hex => {
     const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
@@ -10923,13 +11029,18 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   const strokeRect = (x, yy, w, h, color = [0.4, 0.6, 0.9], lw = 1.2) =>
     `${color.map(c => (+c).toFixed(2)).join(' ')} RG ${lw} w ${(+x).toFixed(2)} ${(+yy).toFixed(2)} ${(+w).toFixed(2)} ${(+h).toFixed(2)} re S`;
 
-  const newPage = () => { cur = []; pagesOps.push(cur); y = PH - M; };
+  const newPage = () => { if (SKIP) return; cur = []; pagesOps.push(cur); y = PH - M; };
 
   // ---- Structure du dossier : sommaire piloté par L.toc (modale 📘) ----
   // Les titres renommés dans la modale remplacent les titres d'origine
   // (sommaire + en-têtes de chapitres) ; les contenus rattachés aux
   // nœuds (L.toc[].blocks) décident de ce qui est effectivement imprimé.
   const L = normLldInfo(ws);
+  // Sélecteur de rubriques : seuls les chapitres racine cochés (+ la page de
+  // garde et leurs sous-chapitres) sont imprimés.
+  if (opts.only && typeof opts.only.has === 'function') {
+    L.toc = L.toc.filter(n => n.cover || opts.only.has(String(n.num)));
+  }
   const tocByNum = new Map();
   (function walkToc(ns) {
     (ns || []).forEach(n => {
@@ -10968,6 +11079,11 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   const tocEntries = [];   // {label, title, level, pageIdx} — pageIdx AVANT insertion du sommaire
   const GRAY = [0.45, 0.5, 0.58];
   function chapter(label, title, opts = {}) {
+    // Rubrique décochée à l'export → chapitre entièrement masqué :
+    // SKIP rend toutes les primitives de dessin inertes jusqu'au prochain
+    // chapitre sélectionné.
+    SKIP = !!(onlyRoots && !onlyRoots.has(String(label).split('.')[0]));
+    if (SKIP) return;
     title = tocTitle(label, title);
     if (opts.flow) {          // chapitre compact : peut rester sur la page en cours
       if (y < M + 110) newPage(); else y -= 12;
@@ -11075,6 +11191,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   // Imprime une information rattachée à un nœud du sommaire (synchrone
   // avec la modale : même stockage ws.lld.* que l'interface).
   function pdfDrawBlock(key) {
+    if (SKIP) return;   // chapitre masqué par le sélecteur d'export
     const def = LLD_INFOS[key];
     if (!def) return;
     miniTitle(def.label);
@@ -11648,7 +11765,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     } else note('Aucun flux défini (info « Matrice des flux » du sommaire).');
   }
   miniTitle('Diagramme de topologie');
-  if (topoJpeg && topoW && topoH) {
+  if (!SKIP && topoJpeg && topoW && topoH) {
     const availW = PW - 2 * M, availH = y - M - 10;
     const k = Math.min(availW / topoW, availH / topoH);
     const iw = topoW * k, ih = topoH * k;
@@ -11668,7 +11785,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   if (cr.length > 1) drawTable(cr, [1.1, 0.8, 1.15, 1.3, 1.55, 1.3, 1.5, 1.3, 1.55, 1.3, 1.5]);
   else note('Aucun câble.');
   endNode('15');
-  if (planJpeg && planW && planH) {
+  if (!SKIP && planJpeg && planW && planH) {
     newPage();
     miniTitle('\u00c9l\u00e9vations des racks');
     const availW = PW - 2 * M, availH = y - M - 10;
@@ -11686,9 +11803,11 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     drawCustomSubs(n.num);
   }
 
-  // Toute fin du dossier : détail du câblage pour chaque device posé.
+  // Toute fin du dossier : détail du câblage pour chaque device posé
+  // (rattaché au chapitre 15 « Câblage / Rack » du sélecteur d'export).
+  SKIP = false;
   const placedDevices = sortedRackInstances(ws);
-  if (placedDevices.length) {
+  if (placedDevices.length && (!onlyRoots || onlyRoots.has('15'))) {
     newPage();
     txt(M, y - 13, 'Détail des connexions par device', 15, true, [0.12, 0.31, 0.47]);
     hline(M, PW - M, y - 21);
@@ -11826,10 +11945,23 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   return out;
 }
 
+// Rubriques = chapitres racine du sommaire 📘 (page de garde toujours incluse)
+function lldChapterPickItems(ws) {
+  return normLldInfo(ws).toc.filter(n => !n.cover)
+    .map(n => [String(n.num), `${n.num}. ${n.title}`]);
+}
+
 $('#export-lld').addEventListener('click', async () => {
   $('#export-menu').classList.add('hidden');
   const ws = lldWorkspaceForExport();
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📄 Export LLD (PDF)' }); return; }
+  const only = await lldPickSections({
+    title: '📕 Document LLD (PDF) — que voulez-vous exporter ?',
+    hint: 'Décochez les chapitres à exclure. La page de garde et le sommaire sont toujours inclus.',
+    items: lldChapterPickItems(ws)
+  });
+  if (!only) return;
+  if (!only.size) { lldAlert('Cochez au moins un chapitre à exporter.', { title: '📕 Document LLD (PDF)' }); return; }
   const c = await renderPlanCanvas();
   let jpeg = null, w = 0, h = 0;
   if (c) {
@@ -11842,7 +11974,7 @@ $('#export-lld').addEventListener('click', async () => {
     tj = dataURLBytes(tc.toDataURL('image/jpeg', 0.9));
     tw = tc.width; th = tc.height;
   }
-  const u8 = buildLldPdf(ws, jpeg, w, h, tj, tw, th);
+  const u8 = buildLldPdf(ws, jpeg, w, h, tj, tw, th, { only });
   downloadBlob(new Blob([u8], { type: 'application/pdf' }), exportFileBase() + '-LLD.pdf');
 });
 

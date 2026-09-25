@@ -437,13 +437,33 @@ function rptOutOfRack(ws) {
 }
 
 /* ---------- Assemblage du document ---------- */
-function buildHtmlReportFile(ws, images = {}) {
+// Rubriques proposées au sélecteur d'export (ordre = ordre du rapport)
+const RPT_SECTION_ITEMS = [
+  ['sec-sites', '🏢 Sites & baies'],
+  ['sec-elev', '🧱 Élévations des baies (une image par baie + vue d’ensemble)'],
+  ['sec-topo', '🕸️ Topologie réseau (image)'],
+  ['sec-contexte', '📝 Contexte, architecture, équipements hors baie & notes'],
+  ['sec-inv', '📦 Inventaire des équipements'],
+  ['sec-cab', '🔌 Câblage'],
+  ['sec-ports', '🗂️ Ports & adressage'],
+  ['sec-gar', '🛡️ Garanties'],
+  ['sec-addr', '🏷️ VLANs & nomenclature'],
+  ['sec-fai', '🌍 FAI & accès Internet'],
+  ['sec-ic', '🔗 Interconnexion site à site'],
+  ['sec-fw', '🔥 Firewall & sécurité'],
+  ['sec-sys', '🖥️ Système, stockage & supervision'],
+  ['sec-flux', '🔄 Flux réseau'],
+  ['sec-gov', '📑 Gouvernance du document']
+];
+
+function buildHtmlReportFile(ws, images = {}, picked = null) {
   const L = normLldInfo(ws);
-  const { plan = null, topo = null, rackShots = new Map() } = images;
+  const { plan = null, topo = null, rackShots = new Map(), logoSvg = '' } = images;
   const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
   const title = `${ws.name} — Rapport LLD`;
 
-  // Sommaire : seules les sections ayant du contenu y figurent
+  // Sommaire : seules les sections cochées au sélecteur ET ayant du contenu
+  // y figurent. Page de garde + synthèse (KPIs) toujours incluses.
   const secs = [
     ['sec-sites', '🏢', 'Sites & baies', rptSitesBlocks(ws)],
     ['sec-elev', '🧱', 'Élévations des baies', rptElevations(ws, rackShots, plan)],
@@ -463,7 +483,9 @@ function buildHtmlReportFile(ws, images = {}) {
     ['sec-gov', '📑', 'Gouvernance du document', rptGovernance(ws)],
   // (sec-topo n'entre dans la liste que si une topologie existe — son contenu
   // est construit plus bas, donc elle échappe au filtre sur contenu vide.)
-  ].filter(([id, , , content]) => id === 'sec-topo' || String(content).trim() !== '');
+  ].filter(([id, , , content]) =>
+      (id === 'sec-topo' || String(content).trim() !== '') &&
+      (!picked || picked.has(id)));
   const nav = secs.map(([id, ico, t]) =>
     `<a class="nav-a" href="#${id}"><span>${ico}</span>${RPT_ESC(t)}</a>`).join('');
   const body = secs.map(([id, ico, t, content]) => {
@@ -481,28 +503,42 @@ function buildHtmlReportFile(ws, images = {}) {
 *{box-sizing:border-box}html{scroll-behavior:smooth}
 body{margin:0;font:14px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink)}
 a{color:var(--acc);text-decoration:none}
-#top{position:sticky;top:0;z-index:30;display:flex;gap:14px;align-items:center;padding:10px 22px;
-  background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
-#top .brand{font-weight:700;font-size:15px;white-space:nowrap}
-#top .brand small{display:block;font-weight:400;color:var(--mut);font-size:11px}
+#top{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);box-shadow:0 2px 14px rgba(20,28,45,.05)}
+.bar1{display:flex;gap:14px;align-items:center;padding:10px 22px 9px}
+.brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:15px;white-space:nowrap}
+.brand .logo{display:flex;align-items:center;height:30px}
+.brand .logo svg,.brand .logo img{height:30px;width:auto;display:block}
+.brand .logo .fb{font-size:24px;line-height:1}
+.brand-txt small{display:block;font-weight:400;color:var(--mut);font-size:11px}
 #q{flex:1;max-width:460px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px}
-#top nav{display:flex;gap:2px;overflow-x:auto;flex:1}
-.nav-a{padding:7px 11px;border-radius:8px;color:var(--ink);font-size:12.5px;white-space:nowrap}
-.nav-a span{margin-right:5px}.nav-a:hover,.nav-a.cur{background:#e8eefb}
-#top button{padding:8px 14px;border:1px solid var(--acc);background:var(--acc);color:#fff;
+.bar2{display:flex;gap:3px;overflow-x:auto;padding:7px 16px 9px;border-top:1px solid var(--line);
+  background:rgba(248,250,253,.85)}
+.nav-a{padding:6px 11px;border-radius:8px;color:var(--ink);font-size:12.5px;white-space:nowrap}
+.nav-a span{margin-right:5px}.nav-a:hover,.nav-a.cur{background:#e2ebfb}
+#top button{margin-left:auto;padding:8px 14px;border:1px solid var(--acc);background:var(--acc);color:#fff;
   border-radius:8px;cursor:pointer;font-size:12.5px;white-space:nowrap}
 main{max-width:1180px;margin:0 auto;padding:26px 22px 80px}
 .cover{background:linear-gradient(135deg,#16233d,#1f4e79 60%,#2563eb);color:#fff;border-radius:16px;
-  padding:34px 36px;margin-bottom:22px}
+  padding:32px 36px 30px;margin-bottom:22px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .cover h1{margin:0 0 6px;font-size:26px}
-.cover .sub{opacity:.85;margin-bottom:18px}
-.cover .meta{display:flex;flex-wrap:wrap;gap:22px;font-size:13px}
-.cover .meta div{opacity:.92}.cover .meta b{display:block;font-size:15px}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:18px 0}
-.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--rad);padding:12px 14px}
-.kpi-num{font-size:22px;font-weight:700}
-.kpi-lbl{color:var(--mut);font-size:12px}
-.k-ok .kpi-num{color:var(--ok)}.k-soon .kpi-num{color:var(--soon)}.k-ko .kpi-num{color:var(--ko)}
+.cover .sub{opacity:.85;margin-bottom:20px}
+.cover .meta{display:flex;flex-wrap:wrap;gap:10px;font-size:13px}
+.cover .meta>div{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.17);
+  border-radius:10px;padding:9px 15px;min-width:150px;backdrop-filter:blur(4px);
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cover .meta span{display:block;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;
+  color:rgba(255,255,255,.62);margin-bottom:3px}
+.cover .meta b{font-size:14px;font-weight:600;color:#fff}
+.kpis{display:flex;flex-wrap:wrap;margin-top:22px;background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.16);border-radius:14px;overflow:hidden;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.kpi{flex:1 1 96px;padding:12px 16px;background:none;border:none;border-radius:0;
+  border-right:1px solid rgba(255,255,255,.12);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.kpi:last-child{border-right:none}
+.kpi-num{font-size:22px;font-weight:700;color:#fff}
+.kpi-lbl{color:rgba(255,255,255,.72);font-size:11.5px;margin-top:1px}
+.k-ok .kpi-num{color:#86efac}.k-soon .kpi-num{color:#fcd34d}.k-ko .kpi-num{color:#fca5a5}
 .section{background:var(--panel);border:1px solid var(--line);border-radius:var(--rad);
   padding:22px 24px;margin-bottom:18px}
 .section h2{margin:0 0 14px;font-size:18px;padding-bottom:10px;border-bottom:2px solid var(--line)}
@@ -534,7 +570,7 @@ table.kv th{background:#f1f5f9;color:var(--ink);width:240px;font-weight:600;bord
 .shot img{display:block;width:100%;cursor:zoom-in;background:#101318}
 .shot figcaption{background:#fff;padding:7px 11px;font-size:12px;border-top:1px solid var(--line)}
 table{width:100%;border-collapse:collapse;font-size:12.8px;margin:8px 0}
-th{background:#16233d;color:#fff;text-align:left;padding:8px 10px;font-size:12px;position:sticky;top:54px;z-index:5}
+th{background:#16233d;color:#fff;text-align:left;padding:8px 10px;font-size:12px;position:sticky;top:96px;z-index:5}
 .sortable th{cursor:pointer;user-select:none}.sortable th:hover{background:#1f3a63}
 .sortable th .dir::after{content:" ⇅";opacity:.5}
 .sortable th.asc::after{content:" ↑"}.sortable th.desc::after{content:" ↓"}
@@ -568,7 +604,7 @@ details.grp th{top:0;position:static}
 #lb img{max-width:96vw;max-height:94vh;border-radius:6px;box-shadow:0 8px 60px #000c}
 #lb .hint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);color:#cbd5e1;font-size:12px;background:#0008;padding:6px 12px;border-radius:99px}
 footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
-@media(max-width:820px){#top{flex-wrap:wrap}#top nav{order:3;width:100%}th{top:0;position:static}}
+@media(max-width:820px){.bar1{flex-wrap:wrap}.bar2{overflow-x:auto}th{top:0;position:static}}
 @media print{
   body{background:#fff}#top,.no-print,#lb{display:none!important}
   main{max-width:none;padding:0}
@@ -578,12 +614,11 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
   thead{display:table-header-group}
   tr{break-inside:avoid}
   details.grp{border:1px solid var(--line)}
-  details.grp>summary{background:#eef2f7}
+  details.grp>summary{background:#eef2f7;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .elev{break-inside:avoid}
   .elev img{max-height:88vh;object-fit:contain}
-  .cover{border-radius:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .kpis{grid-template-columns:repeat(4,1fr)}
-  .kpi,.site-block,.rack-card,.badge,.gauge,.gauge-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cover{border-radius:0}
+  .site-block,.rack-card,.badge,.gauge,.gauge-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   a{color:var(--ink)}
 }`;
 
@@ -638,20 +673,23 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
     + `<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${RPT_ESC(title)}</title>\n`
     + `<style>${css}</style>\n</head>\n<body>\n`
     + `<div id="top">
-  <div class="brand">🗄️ LLDraw<small>Rapport interactif — ${RPT_ESC(today)}</small></div>
-  <input id="q" type="search" placeholder="🔎 Recherche instantanée : device, IP, VLAN, câble, série…" class="no-print">
-  <nav class="no-print">${nav}</nav>
-  <button type="button" class="no-print" onclick="window.print()">🖨️ Imprimer / PDF</button>
+  <div class="bar1">
+    <div class="brand"><span class="logo">${logoSvg || '<span class="fb">🗄️</span>'}</span>
+      <span class="brand-txt">LLDraw<small>Rapport interactif — ${RPT_ESC(today)}</small></span></div>
+    <input id="q" type="search" placeholder="🔎 Recherche instantanée : device, IP, VLAN, câble, série…" class="no-print">
+    <button type="button" class="no-print" onclick="window.print()">🖨️ Imprimer / PDF</button>
+  </div>
+  <nav class="bar2 no-print">${nav}</nav>
 </div>\n<main>\n`
     + `<header class="cover">
   <h1>${RPT_ESC(ws.name)}</h1>
   <div class="sub">Dossier de conception bas niveau (LLD) — datacenter & infrastructure</div>
   <div class="meta">
-    ${L.client ? `<div>Client<b>${RPT_ESC(L.client)}</b></div>` : ''}
-    <div>Auteur<b>${RPT_ESC(L.author)}</b></div>
-    <div>Version<b>${RPT_ESC(L.version)}</b></div>
-    ${(L.date || '').trim() ? `<div>Date du dossier<b>${RPT_ESC(fmtDateFr(L.date) || L.date)}</b></div>` : ''}
-    <div>Généré le<b>${RPT_ESC(today)}</b></div>
+    ${L.client ? `<div><span>Client</span><b>${RPT_ESC(L.client)}</b></div>` : ''}
+    <div><span>Auteur</span><b>${RPT_ESC(L.author)}</b></div>
+    <div><span>Version</span><b>${RPT_ESC(L.version)}</b></div>
+    ${(L.date || '').trim() ? `<div><span>Date du dossier</span><b>${RPT_ESC(fmtDateFr(L.date) || L.date)}</b></div>` : ''}
+    <div><span>Généré le</span><b>${RPT_ESC(today)}</b></div>
   </div>
   ${rptKpis(ws)}
 </header>\n`
@@ -696,12 +734,27 @@ $('#export-html').addEventListener('click', async () => {
     lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '🌐 Rapport HTML' });
     return;
   }
+  const only = await lldPickSections({
+    title: '🌐 Rapport interactif — que voulez-vous exporter ?',
+    hint: 'Page de garde et synthèse toujours incluses ; les rubriques vides (ex : pas de flux, pas de topologie) sont ignorées automatiquement.',
+    items: RPT_SECTION_ITEMS
+  });
+  if (!only) return;   // annulé
+  if (!only.size) {
+    lldAlert('Cochez au moins une rubrique à exporter.', { title: '🌐 Rapport HTML' });
+    return;
+  }
+  // Vrai logo (assets/logo.svg) embarqué en SVG inline dans le fichier généré
+  const logoSvg = await fetch('assets/logo.svg')
+    .then(r => (r.ok ? r.text() : ''))
+    .catch(() => '');
   const c = await renderPlanCanvas();
   const tc = renderTopoCanvas();
   const html = buildHtmlReportFile(ws, {
     plan: c ? c.toDataURL('image/jpeg', 0.88) : null,
     topo: tc ? tc.toDataURL('image/jpeg', 0.92) : null,
-    rackShots: rptCropRacks(c, ws)
-  });
+    rackShots: rptCropRacks(c, ws),
+    logoSvg
+  }, only);
   downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), exportFileBase() + '-rapport.html');
 });
