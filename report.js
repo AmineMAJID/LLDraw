@@ -513,14 +513,14 @@ a{color:var(--acc);text-decoration:none}
 .brand .logo .fb{font-size:24px;line-height:1}
 .brand-txt small{display:block;font-weight:400;color:var(--mut);font-size:11px}
 #q{flex:1;max-width:460px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px}
-/* Boutons de chapitres : TOUJOURS collés en haut, aucun fond de bloc
-   (flou seul pour rester lisible au-dessus du contenu), retour à la ligne
-   automatique sur deux lignes si nécessaire — jamais de scroll horizontal. */
+/* Boutons de chapitres : TOUJOURS collés en haut, bloc SANS aucun fond ni
+   effet (transparence totale), retour à la ligne automatique sur deux lignes
+   si nécessaire — jamais de scroll horizontal. Les boutons sont blancs opaques
+   pour rester parfaitement nets au-dessus du contenu qui défile. */
 #chapnav{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:5px;
-  padding:10px 20px 9px;
-  backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4)}
+  padding:10px 20px 9px}
 .nav-a{padding:6px 11px;border-radius:99px;color:var(--ink);font-size:12.5px;white-space:nowrap;
-  background:rgba(255,255,255,.85);border:1px solid rgba(226,232,240,.95);box-shadow:0 1px 4px rgba(20,28,45,.07)}
+  background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 1px 4px rgba(20,28,45,.09)}
 .nav-a span{margin-right:5px}
 .nav-a:hover{background:#e2ebfb}
 .nav-a.cur{background:#e2ebfb;border-color:#b9cffb;color:#123e8f;font-weight:600}
