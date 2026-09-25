@@ -709,7 +709,7 @@ function normLldInfo(w) {
       hcMethod: '', hcDns: '', hcTimeout: '', hcInterval: '',
       hcRetries: '', hcRecovery: '',
       provider: String(f.operator || '').slice(0, 60),
-      dynDns: '', ipv6: '', doh: '', qos: ''
+      ipv6: '', doh: '', qos: ''
     })).filter(r => Object.values(r).some(v => String(v ?? '').trim()));
     L.icWan = (Array.isArray(L.icWan) ? L.icWan : []).slice();
     if (!L.icWan.length && seed.length) L.icWan = seed;
@@ -4928,7 +4928,6 @@ const LLD_IC_WAN_COLS = [
   ['hcRetries', 'Health Check Retries', 95],
   ['hcRecovery', 'Recovery Retries', 85],
   ['provider', 'Service Provider', 90],
-  ['dynDns', 'Dynamic DNS Settings', 95],
   ['ipv6', 'WAN / IP v6', 85],
   ['doh', 'WAN / DNS over HTTPS', 95],
   ['qos', 'WAN / Quality Monitoring', 105]
@@ -10509,22 +10508,23 @@ const LLD_TPL = (() => {
     // la feuille du template ne porte que le titre (la ligne « Config: Voir
     // CMDB », placeholder à 30 lignes du titre, est remplacée par le contenu)
     rows.length = 1;
-    const title = String(rows[0][0] && rows[0][0].v || '');
+    const Lw = ws.lld || {};
+    const meta = (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : [])
+      .find(x => x[2] === String(sheet.name));
+    // Zone : tag LLD_SW_SHEETS (8.5 = BID), pas le titre A1 du template
+    // (la feuille 8.5 est encore libellée « (LAN) » dans le classeur gelé).
+    const tag = meta ? meta[5] : '';
     const zones = (ws.lld && ws.lld.swZones) || [];
-    /* 8.3/8.4 portent le même titre « (AP) » (idem 8.2/8.5 « (LAN) ») :
-       on les distingue par l'ORDINAL de la feuille -> nième zone AP / LAN
-       déclarée dans la fiche LLD (8.2 = 1re zone LAN, 8.5 = 2e, etc.). */
     const nth = (arr, n) => arr[n] || arr[0] || null;
     const apZones = zones.filter(z => /\bAP\b/i.test(z.name));
     const lanZones = zones.filter(z => /lan/i.test(z.name) && !/infra/i.test(z.name));
     let zone = null;
-    if (/INFRA/i.test(title)) zone = zones.find(z => /infra/i.test(z.name));
-    else if (/\(AP\)/i.test(title)) zone = nth(apZones, sheet.name === '8.4' ? 1 : 0);
-    else if (/\(LAN\)/i.test(title)) zone = nth(lanZones, sheet.name === '8.5' ? 1 : 0);
-    const catList = /\(AP\)/i.test(title) ? ['switch', 'ap'] : ['switch'];
-    const Lw = ws.lld || {};
-    const meta = (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : [])
-      .find(x => x[2] === String(sheet.name));
+    if (tag === 'infra') zone = zones.find(z => /infra/i.test(z.name));
+    else if (tag === 'ap0') zone = nth(apZones, 0);
+    else if (tag === 'ap1') zone = nth(apZones, 1);
+    else if (tag === 'lan0') zone = nth(lanZones, 0);
+    else if (tag === 'bid') zone = zones.find(z => /bid/i.test(z.name)) || nth(lanZones, 1);
+    else if (tag === 'ha') zone = zones.find(z => /\bHA\b/i.test(z.name));
     const eqKey = meta ? meta[0] : null;
     const poKey = meta ? meta[1] : null;
     const eqRows = tocTbl(ws, eqKey, eqKey && hasB(sheet.name, eqKey));
@@ -11359,12 +11359,12 @@ const LLD_TPL = (() => {
     const icWan = tocTbl(ws, 'icWan', hasB('6.1', 'icWan') || hasB('6', 'icWan'));
     const wanCols = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
                      'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
-                     'Y', 'Z', 'AA', 'AB'];
+                     'Y', 'Z', 'AA'];
     const wanKeys = ['name', 'enable', 'connMethod', 'routingMode', 'ip', 'mask',
                      'gw', 'dns', 'priority', 'up', 'down', 'portSpeed',
                      'mtu', 'mss', 'macClone', 'vlan', 'hcMethod', 'hcDns',
                      'hcTimeout', 'hcInterval', 'hcRetries', 'hcRecovery',
-                     'provider', 'dynDns', 'ipv6', 'doh', 'qos'];
+                     'provider', 'ipv6', 'doh', 'qos'];
     if (icWan.length) {
       for (let i = 0; i < 3; i++) {
         const r = 45 + i;
@@ -11875,7 +11875,13 @@ const LLD_TPL = (() => {
       if (n && !isCustom(n) && !n.cover) {
         const cell = s.rows[0] && s.rows[0][0];
         const re = new RegExp('^' + String(sheet.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.\\s');
-        if (cell && re.test(String(cell.v || ''))) cell.v = `${sheet.name}. ${n.title}`;
+        if (cell && re.test(String(cell.v || ''))) {
+          const next = `${sheet.name}. ${n.title}`;
+          const cur = String(cell.v || '');
+          // Garde un suffixe du template (ex. feuille 8 « (HA) ») si le
+          // titre du sommaire en est le préfixe — Contenu Excel gelé.
+          if (cur === next || !cur.startsWith(next)) cell.v = next;
+        }
       }
       // Tableau / paragraphe / capture ajoutés dans 📘 → fin de feuille
       if (n && !isCustom(n) && numPrefix.test(String(sheet.name))) {
