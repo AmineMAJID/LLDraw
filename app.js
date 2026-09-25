@@ -693,11 +693,53 @@ function normLldInfo(w) {
     { id: uid(), name: 'Aruba AP Site B' },
     { id: uid(), name: 'LAN Site A' }
   ];
+  // Libellés des blocs libres (chapitres ajoutés au sommaire)
+  if (!L.customMeta || typeof L.customMeta !== 'object' || Array.isArray(L.customMeta)) {
+    L.customMeta = {};
+  } else {
+    const meta = {};
+    Object.entries(L.customMeta).forEach(([k, v]) => {
+      if (!lldIsCustomKey(k) || !v || typeof v !== 'object') return;
+      const lab = String(v.label || '').trim().slice(0, 80);
+      if (lab) meta[k] = { label: lab };
+    });
+    L.customMeta = meta;
+  }
+  // Données des blocs libres (paragraphe / tableau / captures)
+  const normCustomShots = arr => (Array.isArray(arr) ? arr : [])
+    .filter(s => s && typeof s === 'object' && typeof s.dataUrl === 'string'
+      && s.dataUrl.startsWith('data:image/'))
+    .slice(0, 10)
+    .map(s => ({
+      id: String(s.id || uid()),
+      name: String(s.name || 'capture').slice(0, 80),
+      dataUrl: s.dataUrl.slice(0, 2_500_000),
+      w: Number(s.w) > 0 ? Math.min(Number(s.w), 4000) : 0,
+      h: Number(s.h) > 0 ? Math.min(Number(s.h), 4000) : 0
+    }));
+  Object.keys(L).forEach(k => {
+    if (!lldIsCustomKey(k)) return;
+    if (k.startsWith('cpara:')) {
+      L[k] = typeof L[k] === 'string' ? L[k].slice(0, 8000) : '';
+    } else if (k.startsWith('ctable:')) {
+      L[k] = Array.isArray(L[k])
+        ? L[k].filter(r => r && typeof r === 'object').slice(0, 200).map(r => {
+            const o = {};
+            Object.keys(r).forEach(ck => {
+              if (typeof r[ck] === 'string') o[ck] = r[ck].slice(0, 400);
+            });
+            return o;
+          })
+        : [];
+    } else if (k.startsWith('cshots:')) {
+      L[k] = normCustomShots(L[k]);
+    }
+  });
   // Colonnes personnalisées des tableaux (ajouts/suppressions dans la modale)
   if (L.gridCols && typeof L.gridCols === 'object' && !Array.isArray(L.gridCols)) {
     const out = {};
     Object.entries(L.gridCols).forEach(([id, cols]) => {
-      if (typeof id !== 'string' || id.length > 40 || !Array.isArray(cols)) return;
+      if (typeof id !== 'string' || id.length > 48 || !Array.isArray(cols)) return;
       const clean = cols.map(c => {
         const a = Array.isArray(c) ? c : null;
         if (!a || typeof a[0] !== 'string' || !a[0] || typeof a[1] !== 'string') return null;
@@ -4519,8 +4561,11 @@ function setCablingMode(on) {
      de ce chapitre (les sections automatiques restent listées) ;
    - une information ajoutée dans plusieurs chapitres est SYNCHRONISÉE
      (stockage unique + badge « 🔄 Synchronisé avec … ») ;
-   - les exports PDF / Excel lisent ces mêmes clés (ws.lld.*) et
-     reprennent les titres du sommaire → tout reste synchronisé.
+   - les exports HTML / PDF / Excel lisent ces mêmes clés (ws.lld.*) et
+     reprennent les titres du sommaire → tout reste synchronisé ;
+   - un chapitre / sous-chapitre AJOUTÉ accepte des blocs libres
+     (tableau + colonnes/lignes, paragraphe, captures d’écran),
+     repris automatiquement dans tous les exports.
    ============================================================ */
 
 const LLD_REV_COLS = [['rev', 'Rév', 52], ['date', 'Date', 108], ['author', 'Auteur', 128], ['note', 'Modifications', 'flex']];
@@ -4934,6 +4979,45 @@ const LLD_INFOS = {
     hint: 'Source, destination, protocole/ports, sens et usage de chaque flux — repris dans le PDF (ch. 14) et en surbrillance depuis la vue Topologie (sélecteur 🔄).'
   }
 };
+
+// ---- Blocs libres des chapitres ajoutés au sommaire ----
+// Clés stables : cpara:<id> (paragraphe), ctable:<id> (tableau),
+// cshots:<id> (captures). Stockage = ws.lld[key] ; libellé optionnel
+// dans ws.lld.customMeta[key].label ; colonnes dans ws.lld.gridCols[key].
+const LLD_CUSTOM_TABLE_COLS = [
+  ['col1', 'Colonne 1', 160],
+  ['col2', 'Colonne 2', 160],
+  ['col3', 'Colonne 3', 200]
+];
+function lldIsCustomKey(key) {
+  return typeof key === 'string' && /^(cpara|ctable|cshots):/.test(key);
+}
+function lldInfoDef(key, L0) {
+  if (typeof key !== 'string') return null;
+  if (LLD_INFOS[key]) return LLD_INFOS[key];
+  const m = /^(cpara|ctable|cshots):/.exec(key);
+  if (!m) return null;
+  const L = L0 || (lldDraft && lldDraft.lld) || {};
+  const meta = (L.customMeta && typeof L.customMeta === 'object' && L.customMeta[key]) || {};
+  const label = String(meta.label || '').trim().slice(0, 80);
+  if (m[1] === 'cpara') {
+    return {
+      label: label || 'Paragraphe', kind: 'textarea', rows: 6, max: 8000, custom: true,
+      ph: 'Rédigez un paragraphe… Il sera repris tel quel dans les exports HTML, PDF et Excel.'
+    };
+  }
+  if (m[1] === 'ctable') {
+    return {
+      label: label || 'Tableau', kind: 'table', cols: LLD_CUSTOM_TABLE_COLS,
+      addLabel: '＋ Ajouter une ligne', custom: true,
+      hint: 'Ajoutez des colonnes (＋ Colonne) et des lignes. Double-clic sur un en-tête pour le renommer — le tableau est repris dans les exports HTML, PDF et Excel.'
+    };
+  }
+  return {
+    label: label || 'Captures d’écran', kind: 'shots', custom: true,
+    hint: 'Glissez-déposez des captures (PNG/JPG) : elles sont embarquées dans les exports HTML, PDF et Excel.'
+  };
+}
 
 // Sections générées automatiquement à l'export (indiquées sous le détail
 // d'un chapitre pour rappeler que ces données ne se saisissent pas ici).
@@ -5505,7 +5589,7 @@ function lldFlushDetail() {
   const body = $('#lld-detail-body');
   if (!body || body.classList.contains('hidden')) return;
   body.querySelectorAll('.lld-info[data-key]').forEach(sec => {
-    const def = LLD_INFOS[sec.dataset.key];
+    const def = lldInfoDef(sec.dataset.key);
     if (!def) return;
     const box = sec.querySelector('.lld-info-body');
     if (box) lldInfoFlush(box, def, sec.dataset.key);
@@ -6690,6 +6774,34 @@ function lldInfoRender(box, def, key) {
   }
 }
 
+// Ajoute un bloc libre (tableau / paragraphe / captures) au nœud courant.
+function lldAddCustomBlock(node, type) {
+  if (!lldDraft || !node) return;
+  lldFlushDetail();
+  const prefixes = { para: 'cpara', table: 'ctable', shots: 'cshots' };
+  const labels = { para: 'Paragraphe', table: 'Tableau', shots: 'Captures d’écran' };
+  const prefix = prefixes[type];
+  if (!prefix) return;
+  const key = prefix + ':' + uid();
+  lldPushUndo(true);
+  node.blocks = node.blocks || [];
+  node.blocks.push(key);
+  const L = lldDraft.lld;
+  L.customMeta = L.customMeta || {};
+  // Numérote si le chapitre a déjà un bloc du même type
+  const same = node.blocks.filter(k => k !== key && k.startsWith(prefix + ':')).length;
+  L.customMeta[key] = { label: same ? `${labels[type]} ${same + 1}` : labels[type] };
+  if (type === 'para') L[key] = '';
+  else if (type === 'table') {
+    L[key] = [{}];
+    lldSetGridCols(key, LLD_CUSTOM_TABLE_COLS.map(c => c.slice()));
+  } else {
+    L[key] = [];
+  }
+  lldRenderToc();
+  lldRenderDetail(node);
+}
+
 // ---- Détail du chapitre sélectionné (colonne de droite) ----
 function lldRenderDetail(node) {
   lldFlushDetail();   // garde les saisies du panneau précédent avant re-rendu
@@ -6720,12 +6832,14 @@ function lldRenderDetail(node) {
 
   const hint = document.createElement('p');
   hint.className = 'lld-hint';
-  hint.textContent = 'Ces saisies alimentent directement les exports PDF et Excel du dossier, '
-    + 'avec le titre du sommaire (double-clic dessus pour le modifier).';
+  hint.textContent = node.custom
+    ? 'Ajoutez un tableau, un paragraphe ou une capture. Ils sont repris automatiquement dans les exports HTML, PDF et Excel (double-clic sur un titre de bloc pour le renommer).'
+    : ('Ces saisies alimentent directement les exports PDF et Excel du dossier, '
+      + 'avec le titre du sommaire (double-clic dessus pour le modifier).');
   body.appendChild(hint);
 
   (node.blocks || []).forEach(key => {
-    const def = LLD_INFOS[key];
+    const def = lldInfoDef(key);
     if (!def) return;              // clé inconnue (ancien état) : ignorée
     const sec = document.createElement('div');
     sec.className = 'lld-info';
@@ -6736,6 +6850,23 @@ function lldRenderDetail(node) {
     const lbl = document.createElement('span');
     lbl.className = 'lld-info-label';
     lbl.textContent = def.label;
+    if (def.custom) {
+      lbl.dataset.rename = '1';
+      lbl.title = 'Double-clic pour renommer ce bloc';
+      lbl.addEventListener('dblclick', async () => {
+        if (!lldDraft) return;
+        const nv = await lldPrompt('Titre de ce bloc :', def.label, {
+          title: '✏️ Renommer le bloc', okLabel: 'Renommer'
+        });
+        if (nv == null) return;
+        const lab = String(nv).trim().slice(0, 80);
+        if (!lab) return;
+        lldPushUndo(true);
+        lldDraft.lld.customMeta = lldDraft.lld.customMeta || {};
+        lldDraft.lld.customMeta[key] = Object.assign({}, lldDraft.lld.customMeta[key], { label: lab });
+        lldRenderDetail(node);
+      });
+    }
     hb.appendChild(lbl);
 
     const others = lldNodesWithKey(key).filter(n => n.id !== node.id);
@@ -6752,10 +6883,17 @@ function lldRenderDetail(node) {
       detach.type = 'button';
       detach.className = 'lld-info-detach';
       detach.textContent = '✕';
-      detach.title = 'Retirer cette information de ce chapitre (la donnée reste stockée et utilisée ailleurs)';
+      detach.title = def.custom
+        ? 'Retirer ce bloc de ce chapitre'
+        : 'Retirer cette information de ce chapitre (la donnée reste stockée et utilisée ailleurs)';
       detach.addEventListener('click', () => {
         lldPushUndo(true);
         node.blocks = (node.blocks || []).filter(k => k !== key);
+        if (def.custom && lldDraft && lldDraft.lld) {
+          delete lldDraft.lld[key];
+          if (lldDraft.lld.customMeta) delete lldDraft.lld.customMeta[key];
+          if (lldDraft.lld.gridCols) delete lldDraft.lld.gridCols[key];
+        }
         lldRenderToc();
         lldRenderDetail(node);
       });
@@ -6771,35 +6909,54 @@ function lldRenderDetail(node) {
   });
 
   if (!node.cover) {
-    // Ajout d'une information — si elle existe déjà ailleurs, elle est
-    // rattachée au MÊME stockage → les deux chapitres sont synchronisés.
-    const addWrap = document.createElement('div');
-    addWrap.className = 'lld-info-add';
-    const sel = document.createElement('select');
-    sel.id = 'lld-info-pick';
-    sel.title = 'Choisir une information à insérer dans ce chapitre';
-    const have = new Set(node.blocks || []);
-    Object.entries(LLD_INFOS).forEach(([k, def]) => {
-      if (have.has(k)) return;
-      const op = document.createElement('option');
-      op.value = k;
-      const elsewhere = lldNodesWithKey(k).filter(n => n.id !== node.id);
-      op.textContent = def.label +
-        (elsewhere.length ? ` — déjà insérée : ${elsewhere.map(lldNodeLabel).join(', ')}` : '');
-      sel.appendChild(op);
-    });
-    const addBtn = lldBtn('＋ Ajouter cette info', () => {
-      const k = sel.value;
-      if (!k) return;
-      lldPushUndo(true);
-      node.blocks = node.blocks || [];
-      node.blocks.push(k);
-      lldRenderToc();
-      lldRenderDetail(node);
-    }, 'Ajouter l’information à ce chapitre — si elle est déjà dans un autre chapitre, les deux seront synchronisés');
-    addWrap.appendChild(sel);
-    addWrap.appendChild(addBtn);
-    body.appendChild(addWrap);
+    if (node.custom) {
+      // Chapitre / sous-chapitre ajouté : blocs libres (tableau, paragraphe, capture)
+      const addWrap = document.createElement('div');
+      addWrap.className = 'lld-info-add lld-info-add-custom';
+      const addHint = document.createElement('span');
+      addHint.className = 'lld-info-add-hint';
+      addHint.textContent = (node.blocks || []).length
+        ? 'Ajouter un autre contenu :'
+        : 'Ce chapitre est vide — ajoutez du contenu :';
+      addWrap.appendChild(addHint);
+      addWrap.appendChild(lldBtn('＋ Tableau', () => lldAddCustomBlock(node, 'table'),
+        'Ajouter un tableau (colonnes et lignes éditables, repris dans les exports)'));
+      addWrap.appendChild(lldBtn('＋ Paragraphe', () => lldAddCustomBlock(node, 'para'),
+        'Ajouter un champ texte pour rédiger un paragraphe'));
+      addWrap.appendChild(lldBtn('＋ Capture', () => lldAddCustomBlock(node, 'shots'),
+        'Ajouter un emplacement pour glisser-déposer des captures d’écran'));
+      body.appendChild(addWrap);
+    } else {
+      // Ajout d'une information — si elle existe déjà ailleurs, elle est
+      // rattachée au MÊME stockage → les deux chapitres sont synchronisés.
+      const addWrap = document.createElement('div');
+      addWrap.className = 'lld-info-add';
+      const sel = document.createElement('select');
+      sel.id = 'lld-info-pick';
+      sel.title = 'Choisir une information à insérer dans ce chapitre';
+      const have = new Set(node.blocks || []);
+      Object.entries(LLD_INFOS).forEach(([k, def]) => {
+        if (have.has(k)) return;
+        const op = document.createElement('option');
+        op.value = k;
+        const elsewhere = lldNodesWithKey(k).filter(n => n.id !== node.id);
+        op.textContent = def.label +
+          (elsewhere.length ? ` — déjà insérée : ${elsewhere.map(lldNodeLabel).join(', ')}` : '');
+        sel.appendChild(op);
+      });
+      const addBtn = lldBtn('＋ Ajouter cette info', () => {
+        const k = sel.value;
+        if (!k) return;
+        lldPushUndo(true);
+        node.blocks = node.blocks || [];
+        node.blocks.push(k);
+        lldRenderToc();
+        lldRenderDetail(node);
+      }, 'Ajouter l’information à ce chapitre — si elle est déjà dans un autre chapitre, les deux seront synchronisés');
+      addWrap.appendChild(sel);
+      addWrap.appendChild(addBtn);
+      body.appendChild(addWrap);
+    }
   }
 
   const auto = LLD_TOC_AUTO[node.num];
@@ -10548,7 +10705,11 @@ const LLD_TPL = (() => {
   };
 
   /* Métadonnées des blocs diagramme/captures (LLD_INFOS si présent, sinon repli). */
-  function lldBlockDef(key) {
+  function lldBlockDef(key, L) {
+    if (typeof lldInfoDef === 'function') {
+      const d = lldInfoDef(key, L);
+      if (d) return d;
+    }
     if (typeof LLD_INFOS !== 'undefined' && LLD_INFOS && LLD_INFOS[key]) return LLD_INFOS[key];
     const m = {
       diag5: { label: 'Diagramme d’accès FAI (avant 5.1)', kind: 'diagram', mode: 'fai' },
@@ -10696,10 +10857,32 @@ const LLD_TPL = (() => {
       } else out.push(NOTE('Aucune révision.'));
       return out;
     }
+    // Blocs libres (chapitre ajouté) : paragraphe / tableau
+    {
+      const cdef = lldBlockDef(key, L);
+      if (cdef && cdef.custom && cdef.kind === 'textarea') {
+        out.push([]); out.push(SEC(cdef.label));
+        const lines = proseLines(L[key], 40);
+        if (lines.length) lines.forEach(t => out.push(NOTE(t)));
+        else out.push(NOTE('Section à compléter.'));
+        return out;
+      }
+      if (cdef && cdef.custom && cdef.kind === 'table') {
+        const cols = lldExportCols(L, key, cdef.cols || LLD_CUSTOM_TABLE_COLS);
+        const tbl = (L[key] || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim()));
+        out.push([]);
+        if (tbl.length) {
+          out.push(SEC(cdef.label)); out.push([]);
+          out.push(H(cols.map(c => String(c[1]))));
+          tbl.forEach((r, i) => out.push(D(cols.map(c => String(r[c[0]] ?? '')), i % 2)));
+        } else out.push(NOTE(`${cdef.label} : aucune ligne renseignée.`));
+        return out;
+      }
+    }
     // Diagramme ch. 5/6/7 — image du schéma (JPEG pré-rasterisé) si dispo ;
     // sinon tableaux texte De/Liaison/Vers (repli harnais / rendu échoué).
-    if (lldBlockDef(key) && lldBlockDef(key).kind === 'diagram') {
-      const def = lldBlockDef(key);
+    if (lldBlockDef(key, L) && lldBlockDef(key, L).kind === 'diagram') {
+      const def = lldBlockDef(key, L);
       const mode = def.mode || 'fai';
       const d = (L.diagrams || {})[mode];
       out.push([]);
@@ -10745,8 +10928,8 @@ const LLD_TPL = (() => {
       return out;
     }
     // Captures d'écran — légende + image embarquée (opts.images)
-    if (lldBlockDef(key) && lldBlockDef(key).kind === 'shots') {
-      const def = lldBlockDef(key);
+    if (lldBlockDef(key, L) && lldBlockDef(key, L).kind === 'shots') {
+      const def = lldBlockDef(key, L);
       const shots = (L[key] || []).slice(0, 8);
       out.push([]);
       out.push(SEC(def.label));
@@ -10780,7 +10963,7 @@ const LLD_TPL = (() => {
     const imgs = [];
     const chunks = [];
     n.blocks.forEach(k => {
-      const def = lldBlockDef(k);
+      const def = lldBlockDef(k, ws.lld);
       if (!def || (def.kind !== 'diagram' && def.kind !== 'shots')) return;
       const local = [];
       blockRows(k, ws, imgs).forEach(r => local.push(r));
@@ -11054,12 +11237,16 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     const n = tocByNum.get(String(num));
     return !!(n && Array.isArray(n.blocks) && n.blocks.includes(key));
   };
-  // Captures d'écran rattachées à un chapitre (ch. 5/6/7…) → images JPEG
-  // dont le numéro d'objet est fixé maintenant (dessin + assemblage PDF).
+  // Captures d'écran rattachées à un chapitre (ch. 5/6/7 + blocs libres
+  // cshots:… des chapitres ajoutés) → images JPEG dont le numéro d'objet
+  // est fixé maintenant (dessin + assemblage PDF).
   const shotImgs = [];   // { ref: '/ImS0', key, bytes, w, h, name }
-  const SHOT_SLOTS = [['shots5', '5'], ['shots6', '6'], ['shots7', '7']];
-  SHOT_SLOTS.forEach(([k, num]) => {
-    if (!hasB(num, k)) return;
+  const shotKeys = new Set();
+  tocByNum.forEach(n => (n.blocks || []).forEach(k => {
+    const d = lldInfoDef(k, L);
+    if (d && d.kind === 'shots') shotKeys.add(k);
+  }));
+  shotKeys.forEach(k => {
     (L[k] || []).slice(0, 8).forEach(s => {
       if (!s || typeof s.dataUrl !== 'string' || !s.dataUrl.startsWith('data:image/')) return;
       let bytes = null;
@@ -11192,7 +11379,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   // avec la modale : même stockage ws.lld.* que l'interface).
   function pdfDrawBlock(key) {
     if (SKIP) return;   // chapitre masqué par le sélecteur d'export
-    const def = LLD_INFOS[key];
+    const def = lldInfoDef(key, L);
     if (!def) return;
     miniTitle(def.label);
     if (def.kind === 'textarea') {

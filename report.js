@@ -436,6 +436,64 @@ function rptOutOfRack(ws) {
     lldExportCols(L, 'equip', LLD_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.equip));
 }
 
+// Un bloc d'un chapitre ajouté (paragraphe / tableau / captures / infos liées)
+function rptBlock(ws, key) {
+  const L = normLldInfo(ws);
+  const def = typeof lldInfoDef === 'function' ? lldInfoDef(key, L) : null;
+  if (!def) return '';
+  if (def.kind === 'textarea') {
+    const v = def.catKey ? String((L.catNotes || {})[def.catKey] || '') : String(L[key] || '');
+    const t = v.trim();
+    if (!t) return '';
+    return `<div class="prose"><h3>${RPT_ESC(def.label)}</h3>${
+      t.split(/\n+/).map(p => `<p>${RPT_ESC(p)}</p>`).join('')}</div>`;
+  }
+  if (def.kind === 'table') {
+    const cols = lldExportCols(L, key, def.cols || []);
+    return rptSub(def.label, rptLldGrid(cols.map(c => [c[0], String(c[1])]), L[key]));
+  }
+  if (def.kind === 'shots') {
+    const shots = rptShots(ws, key);
+    return shots ? `<h3>${RPT_ESC(def.label)}</h3>${shots}` : '';
+  }
+  if (def.kind === 'fields') {
+    const tgt = def.path ? (L[def.path] || {}) : L;
+    return rptSub(def.label, rptKv(def.fields || [], tgt));
+  }
+  return '';
+}
+function rptCustomNodeContent(ws, node, nestSubs) {
+  let html = '';
+  (node.blocks || []).forEach(k => { html += rptBlock(ws, k); });
+  if (nestSubs) {
+    (node.subs || []).filter(s => s.custom).forEach(s => {
+      const inner = rptCustomNodeContent(ws, s, true);
+      html += `<h3>${RPT_ESC(`${s.num}. ${s.title}`)}</h3>` +
+        (inner || '<p class="muted">Section à compléter.</p>');
+    });
+  }
+  return html;
+}
+function rptCustomSections(ws) {
+  const L = normLldInfo(ws);
+  const out = [];
+  (L.toc || []).forEach(n => {
+    if (n.cover) return;
+    if (n.custom) {
+      const content = rptCustomNodeContent(ws, n, true)
+        || '<p class="muted">Chapitre sans contenu — ajoutez un tableau, un paragraphe ou une capture dans le sommaire 📘.</p>';
+      out.push(['sec-c-' + n.id, '📌', `${n.num}. ${n.title}`, content]);
+    } else {
+      (n.subs || []).filter(s => s.custom).forEach(s => {
+        const content = rptCustomNodeContent(ws, s, true)
+          || '<p class="muted">Chapitre sans contenu — ajoutez un tableau, un paragraphe ou une capture dans le sommaire 📘.</p>';
+        out.push(['sec-c-' + s.id, '📌', `${s.num}. ${s.title}`, content]);
+      });
+    }
+  });
+  return out;
+}
+
 /* ---------- Assemblage du document ---------- */
 // Rubriques proposées au sélecteur d'export (ordre = ordre du rapport)
 const RPT_SECTION_ITEMS = [
@@ -481,10 +539,12 @@ function buildHtmlReportFile(ws, images = {}, picked = null) {
     ['sec-sys', '🖥️', 'Système, stockage & supervision', rptSystem(ws)],
     ['sec-flux', '🔄', 'Flux réseau', rptFlows(ws)],
     ['sec-gov', '📑', 'Gouvernance du document', rptGovernance(ws)],
+    ...rptCustomSections(ws),
   // (sec-topo n'entre dans la liste que si une topologie existe — son contenu
-  // est construit plus bas, donc elle échappe au filtre sur contenu vide.)
+  // est construit plus bas, donc elle échappe au filtre sur contenu vide.
+  // Les chapitres ajoutés au sommaire 📘 sont toujours proposés.)
   ].filter(([id, , , content]) =>
-      (id === 'sec-topo' || String(content).trim() !== '') &&
+      (id === 'sec-topo' || String(id).startsWith('sec-c-') || String(content).trim() !== '') &&
       (!picked || picked.has(id)));
   const nav = secs.map(([id, ico, t]) =>
     `<a class="nav-a" href="#${id}"><span>${ico}</span>${RPT_ESC(t)}</a>`).join('');
@@ -514,11 +574,11 @@ a{color:var(--acc);text-decoration:none}
 .brand-txt small{display:block;font-weight:400;color:var(--mut);font-size:11px}
 #q{flex:1;max-width:460px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px}
 /* Boutons de chapitres : TOUJOURS collés en haut, bloc SANS aucun fond ni
-   effet (transparence totale), retour à la ligne automatique sur deux lignes
-   si nécessaire — jamais de scroll horizontal. Les boutons sont blancs opaques
-   pour rester parfaitement nets au-dessus du contenu qui défile. */
+   effet (transparence totale), centrés au milieu, retour à la ligne
+   automatique sur deux lignes si nécessaire — jamais de scroll horizontal.
+   Les boutons sont blancs opaques pour rester nets au-dessus du contenu. */
 #chapnav{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:5px;
-  padding:10px 20px 9px}
+  padding:10px 20px 9px;justify-content:center;width:100%}
 .nav-a{padding:6px 11px;border-radius:99px;color:var(--ink);font-size:12.5px;white-space:nowrap;
   background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 1px 4px rgba(20,28,45,.09)}
 .nav-a span{margin-right:5px}
@@ -749,8 +809,8 @@ $('#export-html').addEventListener('click', async () => {
   }
   const only = await lldPickSections({
     title: '🌐 Rapport interactif — que voulez-vous exporter ?',
-    hint: 'Page de garde et synthèse toujours incluses ; les rubriques vides (ex : pas de flux, pas de topologie) sont ignorées automatiquement.',
-    items: RPT_SECTION_ITEMS
+    hint: 'Page de garde et synthèse toujours incluses ; les rubriques vides (ex : pas de flux, pas de topologie) sont ignorées automatiquement. Les chapitres ajoutés au sommaire 📘 figurent en fin de liste.',
+    items: RPT_SECTION_ITEMS.concat(rptCustomSections(ws).map(([id, , title]) => [id, '📌 ' + title]))
   });
   if (!only) return;   // annulé
   if (!only.size) {
