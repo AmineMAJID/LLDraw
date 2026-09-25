@@ -299,6 +299,15 @@ function normLldToc(raw) {
       }
       blocksSeeded2 = true;
     }
+    // 6.1 : ordre calqué sur la feuille Excel à chaque passage
+    // (extrémités → Admin Security → WAN → LAN → fiche interco).
+    // Ne réintroduit jamais un bloc absent/détaché.
+    if (seedNum === '6.1') {
+      const ORDER = ['ic61', 'adminSec', 'icWan', 'icLan', 'interco'];
+      const known = ORDER.filter(k => blocks.includes(k));
+      const rest = blocks.filter(k => !ORDER.includes(k));
+      if (known.length) blocks = [...known, ...rest];
+    }
     return {
       id: String(r.id || d.id || uid()),
       num: String(r.num ?? d.num),
