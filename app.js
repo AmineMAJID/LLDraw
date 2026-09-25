@@ -10716,12 +10716,12 @@ const LLD_TPL = (() => {
       : (sites.map(s => s.name).join(' / ') || ws.name);
     set(rows, 'E1', project);
     // valeurs directes : jamais de cellule à côté de « Auteur »/« Version » vide
-    set(rows, 'E3', (L.author || '').trim() || 'Amine MJID', 104);
+    set(rows, 'E3', (L.author || '').trim(), 104);
     // ligne « Version » (absente du template, ajoutée avec ses styles)
     rows[3] = new Array(17).fill('');
     rows[3][0] = { v: 'Version', s: 14 };
     for (let c = 4; c < 17; c++) {
-      rows[3][c] = { v: c === 4 ? ((L.version || '').trim() || '1.0') : '', s: 104 };
+      rows[3][c] = { v: c === 4 ? (L.version || '').trim() : '', s: 104 };
     }
     heights[4] = 28.5;
     return out(sheet, rows, heights);
@@ -10870,7 +10870,6 @@ const LLD_TPL = (() => {
   function ch2(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
     const L = ws.lld || {};
-    const fai = L.fai || {};
     // 2.1 : tableau des sites = mêmes colonnes que l'app / le PDF (schéma
     // dynamique, gridCols compris), un site par ligne. Remplace le formulaire
     // gravé du template (Nom/Adresse/… + « Capacité Total de FAI » +
@@ -10911,19 +10910,12 @@ const LLD_TPL = (() => {
       const r = 16 + i;
       rows[r - 1][1] = { v: t, s: 129 };
     });
-    // 2.2 : tableau des dispositifs (r51-59) : FAI + un dispositif par modèle
-    const { byModel, totalModels } = invGroups(ws);
-    const models = [...byModel.entries()];
-    set(rows, 'D51', fai.operator
-      ? `${fai.operator}${fai.down ? ' — ' + fai.down : ''}` : '');
-    models.slice(0, 8).forEach(([model, n], i) => {
-      const r = 52 + i;
-      set(rows, `B${r}`, model);
-      set(rows, `D${r}`, `x${n}`);
-    });
-    for (let r = 52 + Math.min(models.length, 8); r <= 59; r++) { set(rows, `B${r}`, ''); set(rows, `D${r}`, ''); }
-    if (totalModels > 8)
-      rows[60] = [{ v: `+ ${totalModels - 8} autres modèles — voir chapitre 3.1 (Equipments)`, s: 129 }];
+    // 2.2 « Dispositifs » du template : plus de repli élévation.
+    // L’inventaire se saisit en 3.1 (sommaire) — on efface les exemples gravés.
+    for (let r = 51; r <= 59; r++) {
+      set(rows, `B${r}`, '');
+      set(rows, `D${r}`, '');
+    }
     const colsOv = tblW
       ? tblW.concat([{ min: 2 + siteCols.length, max: 16384, width: sheet.dcw || 11.57 }])
       : null;
@@ -11004,40 +10996,44 @@ const LLD_TPL = (() => {
     /* — Matrice du haut : remplie depuis l'app (identités + IP) — */
     const ipFrom = s => { const m = /((?:\d{1,3}\.){3}\d{1,3}(?:\/\d+)?)/.exec(String(s || '')); return m ? m[1] : ''; };
     const shortName = s => String(s || '').split(/[ (—]/)[0].trim();
-    const fais = (L.fais && L.fais.length) ? L.fais : (L.fai && L.fai.operator ? [L.fai] : []);
-    // FAI (FTTH 1-3) et WAN 1-3 : adressage WAN complet
-    // (sans IP fixe : affiche le mode de connexion, ex. « DHCP » pour la 5G)
-    fais.slice(0, 3).forEach((f, i) => {
-      set(rows, `D${6 + i}`, f.wanIp || (f.ipMode ? f.ipMode : ''));
+    const fais = tocTbl(ws, 'fais', hasB('5.1', 'fais') || hasB('5', 'fais'));
+    // FAI (FTTH 1-3) et WAN 1-3 : adressage WAN — uniquement le tableau 5.1
+    for (let i = 0; i < 3; i++) {
+      const f = fais[i] || {};
+      const ip = f.wanIp || (f.ipMode ? f.ipMode : '');
+      set(rows, `D${6 + i}`, ip);
       set(rows, `E${6 + i}`, f.wanMask || '');
       set(rows, `F${6 + i}`, f.wanGw || '');
       set(rows, `G${6 + i}`, f.wanDns || '');
-      set(rows, `D${12 + i}`, f.wanIp || (f.ipMode ? f.ipMode : ''));
+      set(rows, `D${12 + i}`, ip);
       set(rows, `E${12 + i}`, f.wanMask || '');
       set(rows, `F${12 + i}`, f.wanGw || '');
       set(rows, `G${12 + i}`, f.wanDns || '');
-    });
+    }
     // VPN S2S 1-4 (r15-18) : tunnels saisis dans la fiche LLD
     (L.vpns || []).slice(0, 4).forEach((v, i) => {
       set(rows, `C${15 + i}`, v.name || '');
       set(rows, `D${15 + i}`, v.peer || '');
     });
     for (let r = 15 + Math.min((L.vpns || []).length, 4); r <= 18; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
-    // Interconnexion S2S : extrémités, VIP
+    // Interconnexion S2S : extrémités / VIP depuis 6.1 (ic61), pas l'élévation
+    const ic61m = tocTbl(ws, 'ic61', hasB('6.1', 'ic61') || hasB('6', 'ic61'));
     const ic = L.interco || {};
-    const srvs = byCat(ws, ['server']);
-    const stos = byCat(ws, ['storage']);
-    if (ic.epA) { set(rows, 'C9', shortName(ic.epA)); set(rows, 'D9', ipFrom(ic.epA)); }
-    if (ic.epB) { set(rows, 'C10', shortName(ic.epB)); set(rows, 'D10', ipFrom(ic.epB)); }
-    if (ic.vipA) set(rows, 'D11', ic.vipA);
-    // Firewall : équipements + première règle NAT
-    const fws = byCat(ws, ['firewall']);
-    fws.slice(0, 2).forEach((x, i) => {
-      set(rows, `C${19 + i}`, x.inst.name || '');
-      set(rows, `D${19 + i}`, x.inst.ipMgmt || '');
-    });
-    const nat = (L.fw || []).find(r0 => /nat/i.test(r0.type || ''));
+    const eqOf = (row, fallback) => (row && (row.equip || row.nomen)) || fallback || '';
+    set(rows, 'C9', eqOf(ic61m[0], ic.epA ? shortName(ic.epA) : ''));
+    set(rows, 'D9', (ic61m[0] && ic61m[0].ip) || (ic.epA ? ipFrom(ic.epA) : ''));
+    set(rows, 'C10', eqOf(ic61m[1], ic.epB ? shortName(ic.epB) : ''));
+    set(rows, 'D10', (ic61m[1] && ic61m[1].ip) || (ic.epB ? ipFrom(ic.epB) : ''));
+    set(rows, 'D11', (ic61m[0] && ic61m[0].vip) || ic.vipA || '');
+    // Firewall : tableau 7.1 + première règle NAT du sommaire
+    const fe = tocTbl(ws, 'fwEquip', hasB('7.1', 'fwEquip') || hasB('7', 'fwEquip'));
+    for (let i = 0; i < 2; i++) {
+      set(rows, `C${19 + i}`, (fe[i] && fe[i].name) || '');
+      set(rows, `D${19 + i}`, (fe[i] && fe[i].ip) || '');
+    }
+    const nat = tocTbl(ws, 'fw', hasB('7.3', 'fw') || hasB('7', 'fw')).find(r0 => /nat/i.test(r0.type || ''));
     if (nat) { set(rows, 'C21', nat.name || ''); set(rows, 'D21', nat.dst || ''); }
+    else { set(rows, 'C21', ''); set(rows, 'D21', ''); }
     // Alias firewall (r24-32) : table alias de la fiche LLD
     (L.aliases || []).slice(0, 9).forEach((a, i) => {
       set(rows, `C${24 + i}`, a.name || '');
@@ -11051,7 +11047,7 @@ const LLD_TPL = (() => {
     set(rows, 'C36', fp.webBlocker || '');
     set(rows, 'C37', fp.httpProxy || '');
     // VLANs firewall (r38-49 et r50-63) : appariement par mots-clés du registre VLAN
-    const vlansAll = L.vlans || [];
+    const vlansAll = tocTbl(ws, 'vlans', hasB('4', 'vlans'));
     const KW = [
       [/dmz/i, /dmz/i, /dmz/i],
       [/storage/i, /storage/i, /storage|stg|backup|sauvegarde|nas|san/i],
@@ -11105,8 +11101,8 @@ const LLD_TPL = (() => {
     for (let r = 38; r <= 49; r++) putVlanRow(r, 'A');
     for (let r = 50; r <= 63; r++) putVlanRow(r, 'B');
     // Master/Slave mgmt (r64-65) et interfaces cluster (r66-69)
-    set(rows, 'C64', ic.mgmtA || '');
-    set(rows, 'C65', ic.mgmtB || '');
+    set(rows, 'C64', (ic61m[0] && ic61m[0].mgmt) || ic.mgmtA || '');
+    set(rows, 'C65', (ic61m[1] && ic61m[1].mgmt) || ic.mgmtB || '');
     set(rows, 'C66', ic.clusterA || '');
     set(rows, 'C67', '');
     set(rows, 'C68', ic.clusterB || '');
@@ -11123,37 +11119,36 @@ const LLD_TPL = (() => {
     };
     fillVlanRows(zoneLists[0] || [], 76, 86);
     fillVlanRows(zoneLists[1] || [], 88, 99);
-    // Ports du 1er serveur (r101-107) et du SAN (r109-112)
-    const ports = list0 => (list0[0] && list0[0].inst.ports || []);
-    ports(srvs).slice(0, 7).forEach((p, i) => {
-      set(rows, `C${101 + i}`, p.label || p.name || '');
-      set(rows, `D${101 + i}`, p.ip || '');
-    });
-    for (let r = 101 + Math.min(ports(srvs).length, 7); r <= 107; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
-    ports(stos).slice(0, 4).forEach((p, i) => {
-      set(rows, `C${109 + i}`, p.label || p.name || '');
-      set(rows, `D${109 + i}`, p.ip || '');
-    });
-    for (let r = 109 + Math.min(ports(stos).length, 4); r <= 112; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
-    // Imprimantes (r127-130) et clime (r137) : devices par nom
-    const byNameRe = re => sortedRackInstances(ws).filter(x => re.test(x.inst.name || ''));
-    byNameRe(/^PR[NT]/i).slice(0, 4).forEach((x, i) => {
-      set(rows, `C${127 + i}`, x.inst.name || '');
-      set(rows, `D${127 + i}`, x.inst.ipMgmt || '');
-    });
-    for (let r = 127 + Math.min(byNameRe(/^PR[NT]/i).length, 4); r <= 130; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
-    byNameRe(/CLIM|FROID/i).slice(0, 1).forEach(x => {
-      set(rows, 'C137', x.inst.name || '');
-      set(rows, 'D137', x.inst.ipMgmt || '');
-    });
-    // Switch 1-6 : IP de mgmt
-    const sws = byCat(ws, ['switch']);
-    sws.slice(0, 6).forEach((x, i) => set(rows, `D${70 + i}`, x.inst.ipMgmt || ''));
+    // Helper : nom/IP depuis un tableau du sommaire (jamais l'élévation)
+    const putCD = (list, r0, n) => {
+      for (let i = 0; i < n; i++) {
+        const r = list[i] || {};
+        set(rows, `C${r0 + i}`, r.name || '');
+        set(rows, `D${r0 + i}`, r.ip || '');
+      }
+    };
+    // Ports serveur / SAN / imprimantes / clim / UPS : pas de tableau sommaire → vides
+    for (let r = 101; r <= 107; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    for (let r = 109; r <= 112; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    for (let r = 127; r <= 130; r++) { set(rows, `C${r}`, ''); set(rows, `D${r}`, ''); }
+    set(rows, 'C137', ''); set(rows, 'D137', '');
+    set(rows, 'C131', ''); set(rows, 'D131', '');
+    set(rows, 'C132', ''); set(rows, 'D132', '');
+    // Switch 1-6 : IP de mgmt des tableaux 8 / 8.1–8.5
+    const swAll = [];
+    [['sw8equip', '8'], ['sw81equip', '8.1'], ['sw82equip', '8.2'],
+     ['sw83equip', '8.3'], ['sw84equip', '8.4'], ['sw85equip', '8.5']]
+      .forEach(([k, n]) => swAll.push(...tocTbl(ws, k, hasB(n, k) || hasB('8', k))));
+    for (let i = 0; i < 6; i++) set(rows, `D${70 + i}`, (swAll[i] && swAll[i].ip) || '');
     // Serveur physique 1 / SAN
-    if (srvs[0]) { set(rows, 'C100', srvs[0].inst.name || ''); set(rows, 'D100', srvs[0].inst.ipMgmt || ''); }
-    if (stos[0]) { set(rows, 'C108', stos[0].inst.name || ''); set(rows, 'D108', stos[0].inst.ipMgmt || ''); }
-    // VM NX (BI/BC/AD/Web ×2) : appariement par mots-clés sur nom + rôle
-    const vms = L.vms || [];
+    const se = tocTbl(ws, 'srvEquip', hasB('9.1', 'srvEquip') || hasB('9', 'srvEquip'));
+    const ste = tocTbl(ws, 'stoEquip', hasB('10.1', 'stoEquip') || hasB('10', 'stoEquip'));
+    set(rows, 'C100', (se[0] && se[0].name) || '');
+    set(rows, 'D100', (se[0] && se[0].ip) || '');
+    set(rows, 'C108', (ste[0] && ste[0].name) || '');
+    set(rows, 'D108', (ste[0] && ste[0].ip) || '');
+    // VM NX (BI/BC/AD/Web ×2) : appariement par mots-clés sur le tableau 9.2
+    const vms = tocTbl(ws, 'vms', hasB('9.2', 'vms') || hasB('9', 'vms'));
     const pick = (re, idx) => vms.filter(v => re.test(`${v.name} ${v.role}`))[idx];
     [['113', /\bBI\b|BI[-_ ]/i, 0], ['114', /\bBC\b|BC[-_ ]|VEEAM|backup|sauvegarde/i, 0],
      ['115', /\bAD\b|AD[-_ ]|DC[-_ ]|Active.?Directory/i, 0], ['116', /WEB|proxy/i, 0],
@@ -11161,20 +11156,17 @@ const LLD_TPL = (() => {
      ['119', /\bAD\b|AD[-_ ]|DC[-_ ]|Active.?Directory/i, 1], ['120', /WEB|proxy/i, 1]]
       .forEach(([r, re, idx]) => {
         const v = pick(re, idx);
-        if (v) { set(rows, `C${r}`, v.name || ''); set(rows, `D${r}`, v.ip || ''); }
+        set(rows, `C${r}`, v ? (v.name || '') : '');
+        set(rows, `D${r}`, v ? (v.ip || '') : '');
       });
-    // Points d'accès, onduleurs, IDS, NVR, pointeuses
-    const fillRows = (list, r0, n) => list.slice(0, n).forEach((x, i) => {
-      set(rows, `C${r0 + i}`, x.inst.name || '');
-      set(rows, `D${r0 + i}`, x.inst.ipMgmt || '');
-    });
-    fillRows(byCat(ws, ['ap']), 121, 6);
-    fillRows(byCat(ws, ['ups']), 131, 2);
-    fillRows(byCat(ws, ['ids']), 133, 2);
-    fillRows(byCat(ws, ['cctv']), 135, 1);
-    fillRows(byCat(ws, ['pointage']), 136, 1);
+    // AP / IDS / NVR / pointeuses : tableaux 8.3-8.4 / 11.1 / 12.1 / 13.1
+    putCD(tocTbl(ws, 'sw83equip', hasB('8.3', 'sw83equip') || hasB('8', 'sw83equip'))
+      .concat(tocTbl(ws, 'sw84equip', hasB('8.4', 'sw84equip') || hasB('8', 'sw84equip'))), 121, 6);
+    putCD(tocTbl(ws, 'idsEquip', hasB('11.1', 'idsEquip') || hasB('11', 'idsEquip')), 133, 2);
+    putCD(tocTbl(ws, 'cctvEquip', hasB('12.1', 'cctvEquip') || hasB('12', 'cctvEquip')), 135, 1);
+    putCD(tocTbl(ws, 'spoEquip', hasB('13.1', 'spoEquip') || hasB('13', 'spoEquip')), 136, 1);
 
-    const vlans = L.vlans || [];
+    const vlans = vlansAll;
     vlans.slice(0, 27).forEach((v, i) => {
       const r = 143 + i;
       set(rows, `B${r}`, v.vid ? `VLAN ${v.vid} — ${v.name || ''}` : (v.name || ''), 6);
@@ -11188,7 +11180,7 @@ const LLD_TPL = (() => {
       if (rows[r - 1][3]) set(rows, `D${r}`, '', 1);
     }
     // Nomenclature : le registre saisi dans l'app est ajouté sous le tableau
-    const nomen = L.nomen || [];
+    const nomen = tocTbl(ws, 'nomen', hasB('4', 'nomen'));
     if (nomen.length) {
       const put = (r, col, v, s) => {
         while (rows.length < r) rows.push([]);
@@ -11275,16 +11267,7 @@ const LLD_TPL = (() => {
   function ch6(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
     const L = ws.lld || {};
-    const ic = L.interco || {};
-    const fais = (L.fais && L.fais.length) ? L.fais
-      : (L.fai && (L.fai.operator || L.fai.down) ? [L.fai] : []);
     const short = s => String(s || '').split(' — ')[0];
-    const ipOf = s => { const m = /(\d{1,3}(?:\.\d{1,3}){3})/.exec(String(s || '')); return m ? m[1] : ''; };
-    // FAI rattaché à chaque extrémité : IP WAN trouvée dans le libellé, sinon par ordre
-    const faiOf = (ep, idx) => {
-      const ip = ipOf(ep);
-      return fais.find(f => ip && f.wanIp === ip) || fais[idx] || {};
-    };
     // 6.1 — extrémités (r30/31) : identité, SN, firmware, adressage WAN du FAI,
     // HA (J→P), VIP partagée (N30/31), commentaire
     // Source UNIQUE : tableau 6.1 du sommaire (pas de repli interco / élévation).
@@ -11337,8 +11320,9 @@ const LLD_TPL = (() => {
     const vipB = (ic61[1] && ic61[1].vip) || '';
     if (vipA) set(rows, 'N30', vipA);
     if (vipB) set(rows, 'N31', vipB);
-    // System — Admin Security (r37-38) : comptes d'administration saisis dans la fiche LLD
-    (L.adminSec || []).slice(0, 2).forEach((a, i) => {
+    // System — Admin Security (r37-38) : tableau sommaire « adminSec »
+    const admin = tocTbl(ws, 'adminSec', hasB('6.1', 'adminSec') || hasB('6', 'adminSec'));
+    admin.slice(0, 2).forEach((a, i) => {
       const r = 37 + i;
       set(rows, `B${r}`, a.user || '');
       set(rows, `C${r}`, a.auth || '');
@@ -11351,7 +11335,7 @@ const LLD_TPL = (() => {
       set(rows, `K${r}`, a.webB || '');
       set(rows, `M${r}`, a.note || '');
     });
-    for (let r = 37 + Math.min((L.adminSec || []).length, 2); r <= 38; r++)
+    for (let r = 37 + Math.min(admin.length, 2); r <= 38; r++)
       ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'M'].forEach(c2 => set(rows, `${c2}${r}`, ''));
     // WAN Connection Settings (r45-47) — source prioritaire : tableau L.icWan
     // du sommaire ; sinon dérivation FAI (comportement historique).
