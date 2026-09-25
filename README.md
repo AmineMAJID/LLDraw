@@ -121,7 +121,13 @@ via localStorage, en secours).
    menu, les deux formats **recommandés** (lisibles et intuitifs) :
    - **🌐 Rapport interactif (.html)** — un seul fichier HTML **autonome**
      (zéro dépendance, fonctionne hors-ligne) à ouvrir dans un navigateur ou
-     à envoyer par mail : barre de **recherche instantanée** (device, IP,
+     à envoyer par mail, et **complet** : toutes les données du dossier LLD y
+     figurent (gouvernance — approbateurs/réviseurs/révisions, FAI 5.1 & 5.2,
+     interconnexion S2S, règles & profils firewall, alias, comptes d'admin,
+     tunnels VPN, VMs, volumes, caméras, zones de switching, équipements hors
+     baie, notes de configuration et **captures d'écran** des chapitres,
+     en plus des baies, devices, ports, câbles, VLANs, nomenclature et flux).
+     Côté lecture : barre de **recherche instantanée** (device, IP,
      VLAN, câble, série…), sommaire cliquable avec suivi de section, bandeau
      de chiffres clés (équipements, câbles, garanties), cartes de sites avec
      **jauges de capacité** par baie (U / W / kg), **une élévation recadrée

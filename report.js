@@ -315,6 +315,127 @@ function rptRevisions(ws) {
     <tbody>${rows}</tbody></table>`;
 }
 
+/* ---------- Blocs du dossier LLD (mêmes données que le PDF / l'Excel) ----------
+   Toutes les grilles saisies dans la fiche 📘 sont reprises ici, AVEC leurs
+   colonnes personnalisées éventuelles (lldExportCols), comme les exports
+   historiques. Un bloc vide n'est tout simplement pas affiché. */
+
+// Tableau générique à partir de colonnes [[clé, libellé], …] + lignes objets
+function rptLldGrid(cols, rows, { searchable = true } = {}) {
+  const data = (rows || []).filter(r =>
+    r && cols.some(([k]) => String(r[k] ?? '').trim() !== ''));
+  if (!data.length) return '';
+  const head = cols.map(([, lbl]) => `<th>${RPT_ESC(lbl)}</th>`).join('');
+  const body = data.map(r => {
+    const search = searchable ? cols.map(([k]) => String(r[k] ?? '')).join(' ').toLowerCase() : '';
+    return `<tr${searchable ? ` data-search="${RPT_ESC_ARIA(search)}"` : ''}>${
+      cols.map(([k]) => `<td>${RPT_ESC(r[k] ?? '').replace(/\n/g, '<br>')}</td>`).join('')}</tr>`;
+  }).join('');
+  return `<table class="sortable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+// Sous-titre + grille (vide si aucune ligne)
+const rptSub = (title, grid) => grid ? `<h3>${RPT_ESC(title)}</h3>${grid}` : '';
+// Paires « libellé : valeur » pour les fiches (profils FW, interco…) — lignes vides omises
+function rptKv(fields, obj) {
+  const rows = fields.map(f => ({ k: f.k, label: f.label, v: obj?.[f.k] }))
+    .filter(r => String(r.v ?? '').trim() !== '');
+  if (!rows.length) return '';
+  return '<table class="kv"><tbody>' + rows.map(r =>
+    `<tr data-search="${RPT_ESC_ARIA((r.label + ' ' + r.v).toLowerCase())}">` +
+    `<th>${RPT_ESC(r.label)}</th><td>${RPT_ESC(r.v)}</td></tr>`).join('') + '</tbody></table>';
+}
+// Captures d'écran d'un chapitre (glissées dans la fiche 📘) — embarquées telles quelles
+function rptShots(ws, key) {
+  const L = normLldInfo(ws);
+  const shots = (L[key] || []).filter(s => s && /^data:image\//.test(s.dataUrl || ''));
+  if (!shots.length) return '';
+  return `<div class="shots">${shots.map(s =>
+    `<figure class="shot"><img src="${s.dataUrl}" alt="${RPT_ESC_ARIA(s.name)}" loading="lazy">` +
+    `<figcaption>${RPT_ESC(s.name)}</figcaption></figure>`).join('')}</div>`;
+}
+
+// Gouvernance (page de garde du PDF) : approbateurs, réviseurs, révisions
+function rptGovernance(ws) {
+  const L = normLldInfo(ws);
+  const appr = rptSub('Approbateurs', rptLldGrid(
+    lldExportCols(L, 'approvers', LLD_SIGNATORY_COLS).map(c => [c[0], String(c[1])]), L.approvers));
+  const rev = rptSub('Réviseurs', rptLldGrid(
+    lldExportCols(L, 'reviewers', LLD_SIGNATORY_COLS).map(c => [c[0], String(c[1])]), L.reviewers));
+  const revs = rptSub('Historique des révisions', rptLldGrid(
+    lldExportCols(L, 'revs', LLD_REV_COLS).map(c => [c[0], String(c[1])]), L.revs));
+  return appr + rev + revs || '';
+}
+
+// Notes de configuration par catégorie (ch. 7 → 13 du dossier LLD)
+function rptCatNotes(ws) {
+  const L = normLldInfo(ws);
+  const order = ['firewall', 'switching', 'server', 'storage', 'ids', 'cctv', 'pointage'];
+  return order.filter(k => (L.catNotes?.[k] || '').trim()).map(k =>
+    `<div class="prose"><h3>${catIcon(k)} Notes de configuration — ${RPT_ESC(catLabel(k))}</h3>${
+      L.catNotes[k].trim().split(/\n+/).map(p => `<p>${RPT_ESC(p)}</p>`).join('')}</div>`).join('');
+}
+
+// 🌍 FAI & accès Internet (ch. 5) : tableau 5.1, câblage 5.2, captures
+function rptFai(ws) {
+  const L = normLldInfo(ws);
+  const t51 = rptSub('5.1 — Informations & configuration (FAI)', rptLldGrid(
+    lldExportCols(L, 'fais', LLD_FAI51_COLS).map(c => [c[0], String(c[1])]), L.fais));
+  const cab = rptSub('5.2 — Câblage FAI', rptLldGrid(
+    lldExportCols(L, 'faiCab', LLD_FAI_CAB_COLS).map(c => [c[0], String(c[1])]), L.faiCab));
+  return t51 + cab + rptShots(ws, 'shots5') || '';
+}
+
+// 🔗 Interconnexion site à site (ch. 6) : fiche, extrémités, WAN/LAN, câblage, VPN
+function rptInterco(ws) {
+  const L = normLldInfo(ws);
+  const kv = rptSub('6.1 — Liaison site à site', rptKv(LLD_IC_FIELDS, L.interco));
+  const t61 = rptSub('6.1 — Extrémités / HA', rptLldGrid(
+    lldExportCols(L, 'ic61', LLD_IC61_COLS).map(c => [c[0], String(c[1])]), L.ic61));
+  const wan = rptSub('WAN Connection Settings', rptLldGrid(
+    lldExportCols(L, 'icWan', LLD_IC_WAN_COLS).map(c => [c[0], String(c[1])]), L.icWan));
+  const lan = rptSub('LAN / Network Settings', rptLldGrid(
+    lldExportCols(L, 'icLan', LLD_IC_LAN_COLS).map(c => [c[0], String(c[1])]), L.icLan));
+  const cab = rptSub('6.2 — Câblage interconnexion', rptLldGrid(
+    lldExportCols(L, 'icCab', LLD_IC_CAB_COLS).map(c => [c[0], String(c[1])]), L.icCab));
+  const vpn = rptSub('Tunnels VPN site à site', rptLldGrid(
+    lldExportCols(L, 'vpns', LLD_VPN_COLS).map(c => [c[0], String(c[1])]), L.vpns));
+  return kv + t61 + wan + lan + cab + vpn + rptShots(ws, 'shots6') || '';
+}
+
+// 🔥 Firewall & sécurité (ch. 7 + admin) : règles/NAT, profils, alias, comptes
+function rptFirewall(ws) {
+  const L = normLldInfo(ws);
+  const rules = rptSub('Règles & NAT', rptLldGrid(
+    lldExportCols(L, 'fw', LLD_FW_COLS).map(c => [c[0], String(c[1])]), L.fw));
+  const prof = rptSub('Profils firewall', rptKv(LLD_FWP_FIELDS, L.fwProfiles));
+  const aliases = rptSub('Alias firewall', rptLldGrid(
+    lldExportCols(L, 'aliases', LLD_ALIAS_COLS).map(c => [c[0], String(c[1])]), L.aliases));
+  const admin = rptSub("Comptes d'administration (Admin Security)", rptLldGrid(
+    lldExportCols(L, 'adminSec', LLD_ADMIN_COLS).map(c => [c[0], String(c[1])]), L.adminSec));
+  return rules + prof + aliases + admin + rptShots(ws, 'shots7') || '';
+}
+
+// 🖥️ Système, stockage & supervision : VMs, volumes, caméras, zones de switching
+function rptSystem(ws) {
+  const L = normLldInfo(ws);
+  const zones = rptSub('Zones de switching (ch. 8)', rptLldGrid(
+    lldExportCols(L, 'zones', LLD_ZONE_COLS).map(c => [c[0], String(c[1])]), L.swZones));
+  const vms = rptSub('Machines virtuelles (ch. 9)', rptLldGrid(
+    lldExportCols(L, 'vms', LLD_VM_COLS).map(c => [c[0], String(c[1])]), L.vms));
+  const vols = rptSub('Volumes / LUN (ch. 10)', rptLldGrid(
+    lldExportCols(L, 'vols', LLD_VOL_COLS).map(c => [c[0], String(c[1])]), L.vols));
+  const cams = rptSub('Caméras CCTV (ch. 12)', rptLldGrid(
+    lldExportCols(L, 'cams', LLD_CAM_COLS).map(c => [c[0], String(c[1])]), L.cams));
+  return zones + vms + vols + cams || '';
+}
+
+// Équipements & licences hors baie (table 3.1 du dossier)
+function rptOutOfRack(ws) {
+  const L = normLldInfo(ws);
+  return rptSub('Équipements & licences hors baie', rptLldGrid(
+    lldExportCols(L, 'equip', LLD_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.equip));
+}
+
 /* ---------- Assemblage du document ---------- */
 function buildHtmlReportFile(ws, images = {}) {
   const L = normLldInfo(ws);
@@ -327,14 +448,22 @@ function buildHtmlReportFile(ws, images = {}) {
     ['sec-sites', '🏢', 'Sites & baies', rptSitesBlocks(ws)],
     ['sec-elev', '🧱', 'Élévations des baies', rptElevations(ws, rackShots, plan)],
     ...(topo ? [['sec-topo', '🕸️', 'Topologie réseau', '']] : []),
-    ['sec-contexte', '📝', 'Contexte & architecture', rptContext(ws)],
+    ['sec-contexte', '📝', 'Contexte & architecture',
+      rptContext(ws) + rptOutOfRack(ws) + rptCatNotes(ws)],
     ['sec-inv', '📦', 'Inventaire des équipements', rptInventory(ws)],
     ['sec-cab', '🔌', 'Câblage', rptCabling(ws)],
     ['sec-ports', '🗂️', 'Ports & adressage', rptPorts(ws)],
     ['sec-gar', '🛡️', 'Garanties', rptWarranties(ws)],
     ['sec-addr', '🏷️', 'VLANs & nomenclature', rptAddressing(ws)],
+    ['sec-fai', '🌍', 'FAI & accès Internet', rptFai(ws)],
+    ['sec-ic', '🔗', 'Interconnexion site à site', rptInterco(ws)],
+    ['sec-fw', '🔥', 'Firewall & sécurité', rptFirewall(ws)],
+    ['sec-sys', '🖥️', 'Système, stockage & supervision', rptSystem(ws)],
     ['sec-flux', '🔄', 'Flux réseau', rptFlows(ws)],
-  ];
+    ['sec-gov', '📑', 'Gouvernance du document', rptGovernance(ws)],
+  // (sec-topo n'entre dans la liste que si une topologie existe — son contenu
+  // est construit plus bas, donc elle échappe au filtre sur contenu vide.)
+  ].filter(([id, , , content]) => id === 'sec-topo' || String(content).trim() !== '');
   const nav = secs.map(([id, ico, t]) =>
     `<a class="nav-a" href="#${id}"><span>${ico}</span>${RPT_ESC(t)}</a>`).join('');
   const body = secs.map(([id, ico, t, content]) => {
@@ -398,12 +527,19 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 80px}
 .elev img{display:block;width:100%;cursor:zoom-in;transition:transform .2s}
 .elev img:hover{transform:scale(1.015)}
 .prose p{margin:7px 0}.prose{border-left:3px solid var(--line);padding-left:14px;margin-bottom:14px}
+table.kv th{background:#f1f5f9;color:var(--ink);width:240px;font-weight:600;border-bottom:1px solid var(--line);
+  position:static;text-align:left;font-size:12.8px}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:10px}
+.shot{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#101318}
+.shot img{display:block;width:100%;cursor:zoom-in;background:#101318}
+.shot figcaption{background:#fff;padding:7px 11px;font-size:12px;border-top:1px solid var(--line)}
 table{width:100%;border-collapse:collapse;font-size:12.8px;margin:8px 0}
 th{background:#16233d;color:#fff;text-align:left;padding:8px 10px;font-size:12px;position:sticky;top:54px;z-index:5}
 .sortable th{cursor:pointer;user-select:none}.sortable th:hover{background:#1f3a63}
 .sortable th .dir::after{content:" ⇅";opacity:.5}
 .sortable th.asc::after{content:" ↑"}.sortable th.desc::after{content:" ↓"}
-td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+.section{overflow-x:auto}
 tbody tr:nth-child(even){background:#f6f8fb}
 tbody tr:hover{background:#eaf1fc}
 .nowrap,.nw-num{white-space:nowrap}.nw-num{text-align:right;font-variant-numeric:tabular-nums}
@@ -482,7 +618,7 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
       rows.forEach(function(r){tb.appendChild(r)})})})});
   var lb=document.getElementById('lb'),lbImg=document.getElementById('lb-img');
   document.addEventListener('click',function(e){
-    var img=e.target.closest&&e.target.closest('.elev img');
+    var img=e.target.closest&&e.target.closest('.elev img, .shot img');
     if(img&&lbImg){lbImg.src=img.src;lb.style.display='flex';return}
     if(e.target===lb||e.target===lbImg){lb.style.display='none';lbImg.src=''}});
   document.addEventListener('keydown',function(e){if(e.key==='Escape'&&lb){lb.style.display='none';lbImg.src=''}});
@@ -514,17 +650,12 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
     ${L.client ? `<div>Client<b>${RPT_ESC(L.client)}</b></div>` : ''}
     <div>Auteur<b>${RPT_ESC(L.author)}</b></div>
     <div>Version<b>${RPT_ESC(L.version)}</b></div>
+    ${(L.date || '').trim() ? `<div>Date du dossier<b>${RPT_ESC(fmtDateFr(L.date) || L.date)}</b></div>` : ''}
     <div>Généré le<b>${RPT_ESC(today)}</b></div>
   </div>
   ${rptKpis(ws)}
 </header>\n`
     + body + '\n'
-    + (() => {
-        const rev = rptRevisions(ws);
-        return rev
-          ? `<section class="section" id="sec-rev"><h2>📋 Révisions</h2>${rev.replace('<h3 style="margin-top:26px">Historique des révisions</h3>', '')}</section>`
-          : '';
-      })()
     + `\n</main>\n<footer class="no-print">Rapport généré par LLDraw — fichier autonome, consultable hors-ligne. `
     + `Cherchez avec la barre 🔎, triez les tableaux en cliquant les en-têtes, cliquez une image pour zoomer.</footer>\n`
     + `<div id="lb"><img id="lb-img" alt=""><span class="hint">Cliquez n'importe où (ou Échap) pour fermer</span></div>\n`
