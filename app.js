@@ -6209,6 +6209,55 @@ function lldRenderDiagSvg(diag) {
   return svg;
 }
 
+/* Rasterise les diagrammes (schéma modal) en JPEG pour l'export XLSX :
+   globalThis.__LLD_DIAG_IMGS[mode] = { dataUrl, widthPx, heightPx }.
+   L'appelant (bouton Export Excel) attend la promesse avant LLD_TPL.buildAll. */
+function lldRenderDiagExportImgs(ws) {
+  globalThis.__LLD_DIAG_IMGS = {};
+  const diagrams = (ws && ws.lld && ws.lld.diagrams) || {};
+  const modes = ['fai', 'interco', 'fw'];
+  return Promise.all(modes.map(mode => {
+    const d = diagrams[mode];
+    if (!d || !(d.nodes || []).length) return null;
+    try {
+      const svg = lldRenderDiagSvg(d);
+      let maxX = 720, maxY = 420;
+      (d.nodes || []).forEach(n => {
+        maxX = Math.max(maxX, (n.x || 0) + (n.w || 150) + 24);
+        maxY = Math.max(maxY, (n.y || 0) + (n.h || 56) + 24);
+      });
+      const vbW = Math.max(maxX, 720), vbH = Math.max(maxY, 360);
+      svg.setAttribute('width', String(vbW));
+      svg.setAttribute('height', String(vbH));
+      const xml = new XMLSerializer().serializeToString(svg);
+      const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+      return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const scale = Math.min(2, 1400 / vbW);
+            const c = document.createElement('canvas');
+            c.width = Math.max(1, Math.round(vbW * scale));
+            c.height = Math.max(1, Math.round(vbH * scale));
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#0b1220';
+            ctx.fillRect(0, 0, c.width, c.height);
+            ctx.drawImage(img, 0, 0, c.width, c.height);
+            globalThis.__LLD_DIAG_IMGS[mode] = {
+              dataUrl: c.toDataURL('image/jpeg', 0.9),
+              widthPx: c.width,
+              heightPx: c.height
+            };
+          } catch (_) { /* repli tableaux texte */ }
+          resolve(null);
+        };
+        img.onerror = () => resolve(null);
+        img.src = url;
+      });
+    } catch (_) { return null; }
+  })).then(() => globalThis.__LLD_DIAG_IMGS);
+}
+
 // Lecture image large (captures d'écran lisibles dans le PDF)
 function lldReadShot(file) {
   return new Promise(resolve => {
@@ -10258,7 +10307,8 @@ const LLD_TPL = (() => {
       } else out.push(NOTE('Aucune révision.'));
       return out;
     }
-    // Diagramme ch. 5/6/7 — tableau De/Liaison/Vers (même données que le SVG modal)
+    // Diagramme ch. 5/6/7 — image du schéma (JPEG pré-rasterisé) si dispo ;
+    // sinon tableaux texte De/Liaison/Vers (repli harnais / rendu échoué).
     if (lldBlockDef(key) && lldBlockDef(key).kind === 'diagram') {
       const def = lldBlockDef(key);
       const mode = def.mode || 'fai';
@@ -10266,8 +10316,20 @@ const LLD_TPL = (() => {
       out.push([]);
       out.push(SEC(def.label));
       if (def.hint) out.push(NOTE(String(def.hint).split('\n')[0]));
-      if (d && (d.nodes || []).length) {
-        const byId = Object.fromEntries(d.nodes.map(n => [n.id, n]));
+      const pre = (typeof globalThis !== 'undefined' && globalThis.__LLD_DIAG_IMGS)
+        ? globalThis.__LLD_DIAG_IMGS[mode] : null;
+      if (d && (d.nodes || []).length && imgSink && pre
+          && typeof pre.dataUrl === 'string' && pre.dataUrl.startsWith('data:image/')) {
+        out.push(NOTE('Schéma embarqué ci-dessous — mêmes nœuds et liens que dans la modale 📘.'));
+        imgSink.push({
+          dataUrl: pre.dataUrl,
+          widthPx: Math.min(1400, pre.widthPx || 960),
+          heightPx: Math.min(900, pre.heightPx || 560),
+          name: 'diagramme-' + mode
+        });
+        return out;
+      }
+      if (d && (d.nodes || []).length) {ect.fromEntries(d.nodes.map(n => [n.id, n]));
         out.push([]);
         out.push(H(['Élément', 'Type', 'Détail']));
         d.nodes.forEach((n, i) => out.push(D([
@@ -10475,6 +10537,10 @@ $('#export-xlsx').addEventListener('click', async () => {
       fetch('assets/lld/styles.xml').then(r => { if (!r.ok) throw new Error('styles'); return r.text(); }),
       fetch('assets/lld/theme1.xml').then(r => { if (!r.ok) throw new Error('theme'); return r.text(); })
     ]);
+    // Schéma ch.5/6/7 : rasterise en JPEG (sinon seuls des tableaux texte partent)
+    if (typeof lldRenderDiagExportImgs === 'function') {
+      try { await lldRenderDiagExportImgs(ws); } catch (_) { globalThis.__LLD_DIAG_IMGS = {}; }
+    }
     downloadBlob(LLD_TPL.buildAll(ws, layout, stylesXml, themeXml), exportFileBase() + '.xlsx');
   } catch (e) {
     lldAlert("Impossible de charger le template Excel (assets/lld/) : l'export XLSX nécessite ces fichiers à côté de l'application.", { title: '📊 Export Excel' });
