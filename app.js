@@ -90,20 +90,20 @@ function defaultLldToc() {
     ch('1', 'Objectif du document', ['objectif']),
     ch('2', 'Aperçu du site', [], [
       sub('2.1', 'Information sur le site', ['sites']),
-      sub('2.2', 'L’infrastructure existante', ['existant'])
+      sub('2.2', "L'infrastructure existante", ['existant'])
     ]),
     ch('3', 'Architecture cible', ['architecture'], [
-      sub('3.1', 'Équipements', ['equip'])
+      sub('3.1', 'Equipments', ['equip'])
     ]),
     ch('4', 'Conception Nomenclature et Adressage IP Global',
        ['addrMatrix', 'vlans', 'nomen']),
     ch('5', 'Conception et Configuration FAI', ['diag5', 'shots5'], [
       sub('5.1', 'Informations & Configuration', ['fais']),
-      sub('5.2', 'Câblage', ['faiCab'])
+      sub('5.2', 'Cablage', ['faiCab'])
     ]),
     ch('6', 'Conception et Configuration Interconnexion site 2 site', ['diag6', 'shots6'], [
       sub('6.1', 'Informations & Configuration', ['ic61', 'adminSec', 'icWan', 'icLan']),
-      sub('6.2', 'Câblage', ['icCab'])
+      sub('6.2', 'Cablage', ['icCab'])
     ]),
     ch('7', 'Conception et Configuration Firewall', ['diag7', 'shots7', 'note:firewall'], [
       sub('7.1', 'Équipements Firewall / Routeurs', ['fwEquip']),
@@ -138,7 +138,7 @@ function defaultLldToc() {
     ch('14', 'Flux réseau et diagram', [], [
       sub('14.1', 'Flux applicatifs', ['flows'])
     ]),
-    ch('15', 'Câblage / Rack', ['cab15'], [
+    ch('15', 'Cablage/Rack', ['cab15'], [
       sub('15.1', 'Élévations des baies', ['elev15'])
     ]),
   ];
@@ -382,10 +382,22 @@ function normLldToc(raw) {
     if (seedNum === '15') {
       blocks = blocks.filter(k => k !== 'elev15');
     }
+    // Titre : on conserve un renommage utilisateur. Si c’est encore
+    // l’ancien libellé par défaut, on le ramène au libellé Excel (Contenu).
+    let title = String(r.title ?? d.title).slice(0, 120) || d.title;
+    const TITLE_SYNC = {
+      '2.2': ["L’infrastructure existante", "L'infrastructure existante"],
+      '3.1': ['Équipements', 'Equipments'],
+      '5.2': ['Câblage', 'Cablage'],
+      '6.2': ['Câblage', 'Cablage'],
+      '15':  ['Câblage / Rack', 'Cablage/Rack']
+    };
+    const sync = TITLE_SYNC[String(d.num)];
+    if (sync && title === sync[0]) title = sync[1];
     return {
       id: String(r.id || d.id || uid()),
       num: String(r.num ?? d.num),
-      title: String(r.title ?? d.title).slice(0, 120) || d.title,
+      title,
       blocks,
       subs,
       ...(d.cover ? { cover: true } : {}),
@@ -4660,7 +4672,12 @@ function setCablingMode(on) {
      repris automatiquement dans tous les exports.
    ============================================================ */
 
-const LLD_REV_COLS = [['rev', 'Rév', 52], ['date', 'Date', 108], ['author', 'Auteur', 128], ['note', 'Modifications', 'flex']];
+const LLD_REV_COLS = [
+  ['rev', 'Version', 70],
+  ['author', 'Auteur', 128],
+  ['note', 'Commentaires et mises à jour', 'flex'],
+  ['date', 'Date', 108]
+];
 const LLD_SIGNATORY_COLS = [
   ['name', 'Nom', 130],
   ['position', 'Position', 130],
@@ -4748,8 +4765,8 @@ const LLD_ALIAS_COLS = [['name', 'Alias', 140], ['value', 'Définition (hosts, s
 const LLD_EQUIP_COLS = [['model', 'Élément (licence, lien, câble…)', 'flex'], ['qty', 'Quantité', 110],
                         ['remark', 'Remarque', 150], ['status', 'Statut', 110]];
 const LLD_ADMIN_COLS = [['user', 'Admin user/pwd', 150], ['auth', 'Authentification', 130],
-                        ['proto', 'Protocole', 90], ['host', 'Host', 110], ['port', 'Port', 70],
-                        ['cli', 'CLI SSH', 90], ['sec', 'Sécurité', 110],
+                        ['proto', 'Protocol', 90], ['host', 'Host', 110], ['port', 'Port', 70],
+                        ['cli', 'CLI SSH', 90], ['sec', 'Securité', 110],
                         ['webA', 'Web Admin Access (LAN)', 150], ['webB', 'Web Admin Access (WAN)', 150],
                         ['note', 'Commentaire', 'flex']];
 const LLD_VOL_COLS = [['name', 'Volume / LUN', 'flex'], ['size', 'Capacité', 90], ['type', 'Type', 90], ['srv', 'Serveur', 120]];
@@ -4941,7 +4958,7 @@ const LLD_INFOS = {
     hint: 'Mêmes colonnes que le tableau des sites du ch. 2.1 (PDF & Excel) : Nom, Adresse, Contacts, Description… '      + 'Les sites structurent aussi le board (rattachement des racks, pastille colorée).'
   },
   existant: {
-    label: '2.2. Infrastructure existante', kind: 'textarea', rows: 4, max: 4000,
+    label: "2.2. L'infrastructure existante", kind: 'textarea', rows: 4, max: 4000,
     ph: 'Ex : Site A — 1 baie 12U, LAN non redondant…'
   },
   architecture: {
@@ -4949,7 +4966,7 @@ const LLD_INFOS = {
     ph: 'Ex : Architecture deux sites interconnectés en IPsec via Internet, pare-feu en chaque site…'
   },
   equip: {
-    label: 'Équipements & licences hors baie (ch. 3)', kind: 'table', cols: LLD_EQUIP_COLS,
+    label: 'Equipments & licences hors baie (ch. 3)', kind: 'table', cols: LLD_EQUIP_COLS,
     addLabel: '＋ Ajouter un élément', filter: r => r.model.trim(),
     hint: 'Ces lignes alimentent seules le tableau 3.1 de l\'Excel (et le PDF) : '
       + 'bouton 🔎 pour les pré-remplir depuis l\'élévation, puis éditez/supprimez librement.',
@@ -5022,7 +5039,7 @@ const LLD_INFOS = {
     extra: 'gen-fai51'
   },
   faiCab: {
-    label: '5.2 — Câblage FAI',
+    label: '5.2 — Cablage FAI',
     kind: 'table', cols: LLD_FAI_CAB_COLS, def: { cat: 'FAI' },
     addLabel: '＋ Ajouter une liaison',
     hint: 'Section 5.2 de la feuille Excel « 5 » (Categorie / Description / Connecté a). '
@@ -5044,7 +5061,7 @@ const LLD_INFOS = {
     extra: 'gen-ic61'
   },
   icCab: {
-    label: '6.2 — Câblage interconnexion',
+    label: '6.2 — Cablage interconnexion',
     kind: 'table', cols: LLD_IC_CAB_COLS, def: { cat: 'Interconnexion S2S' },
     addLabel: '＋ Ajouter une liaison',
     hint: 'Section 6.2 de la feuille Excel « 6 » (Categorie / Description / Port / Connecté a). '
@@ -5155,7 +5172,7 @@ const LLD_INFOS = {
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
   },
   cab15: {
-    label: '15 — Tableau de câblage',
+    label: '15 — Cablage/Rack',
     kind: 'table', cols: LLD_CAB15_COLS,
     addLabel: '＋ Ajouter un câble',
     extra: 'gen-cab15',
@@ -12506,7 +12523,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     note('Aucun rack dans ce workspace.');
   }
   endNode('2.1');
-  sub('2.2', 'L\u2019infrastructure existante');
+  sub('2.2', "L'infrastructure existante");
   if (hasB('2.2', 'existant')) {
     if (L.existant.trim()) paragraph(L.existant);
     else placeholder();
@@ -12520,7 +12537,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     if (L.architecture.trim()) paragraph(L.architecture);
     else placeholder();
   }
-  sub('3.1', 'Équipements');
+  sub('3.1', 'Equipments');
   miniTitle('Récapitulatif par catégorie');
   const csr = catSummaryRows(ws);
   if (csr.length > 1) drawTable(csr, [2.3, 0.5, 3.3, 2.1, 0.9], 8);
@@ -12596,7 +12613,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     } else placeholder();
   }
   endNode('5.1');
-  sub('5.2', 'Câblage');
+  sub('5.2', 'Cablage');
   const cabTable5 = (Array.isArray(L.faiCab) && L.faiCab.length)
     ? L.faiCab.filter(r => r && ((r.desc || '').trim() || (r.conn || '').trim()))
     : [];
@@ -12666,7 +12683,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     } else placeholder();
   }
   endNode('6.1');   // extras : comptes Admin Security (et toute info ajoutée)
-  sub('6.2', 'Câblage');
+  sub('6.2', 'Cablage');
   const icCabRows = (Array.isArray(L.icCab) && L.icCab.length)
     ? L.icCab.filter(r => r && ((r.desc || '').trim() || (r.port || '').trim() || (r.conn || '').trim()))
     : [];
@@ -12767,7 +12784,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   drawCustomSubs('14');
 
   // ---- 15. Câblage / Rack ----
-  chapter('15', 'C\u00e2blage / Rack');
+  chapter('15', 'Cablage/Rack');
   if (hasB('15', 'cab15')) pdfDrawBlock('cab15');
   drawOriginSubs('15');
   drawCustomSubs('15');

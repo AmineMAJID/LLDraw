@@ -291,10 +291,10 @@ function rptRevisions(ws) {
   const L = normLldInfo(ws);
   if (!L.revs.length) return '';
   const rows = L.revs.map(r =>
-    `<tr><td class="nowrap"><b>${RPT_ESC(r.rev)}</b></td><td class="nowrap">${RPT_ESC(r.date)}</td>
-     <td>${RPT_ESC(r.author)}</td><td>${RPT_ESC(r.note)}</td></tr>`).join('');
-  return `<h3 style="margin-top:26px">Historique des révisions</h3>
-    <table><thead><tr><th>Rév</th><th>Date</th><th>Auteur</th><th>Modifications</th></tr></thead>
+    `<tr><td class="nowrap"><b>${RPT_ESC(r.rev)}</b></td><td>${RPT_ESC(r.author)}</td>
+     <td>${RPT_ESC(r.note)}</td><td class="nowrap">${RPT_ESC(r.date)}</td></tr>`).join('');
+  return `<h3 style="margin-top:26px">Statut de révision du document</h3>
+    <table><thead><tr><th>Version</th><th>Auteur</th><th>Commentaires et mises à jour</th><th>Date</th></tr></thead>
     <tbody>${rows}</tbody></table>`;
 }
 
@@ -363,7 +363,7 @@ function rptFai(ws) {
   const L = normLldInfo(ws);
   const t51 = rptSub('5.1 — Informations & configuration (FAI)', rptLldGrid(
     lldExportCols(L, 'fais', LLD_FAI51_COLS).map(c => [c[0], String(c[1])]), L.fais));
-  const cab = rptSub('5.2 — Câblage FAI', rptLldGrid(
+  const cab = rptSub('5.2 — Cablage FAI', rptLldGrid(
     lldExportCols(L, 'faiCab', LLD_FAI_CAB_COLS).map(c => [c[0], String(c[1])]), L.faiCab));
   return t51 + cab + rptShots(ws, 'shots5') || '';
 }
@@ -378,7 +378,7 @@ function rptInterco(ws) {
     lldExportCols(L, 'icWan', LLD_IC_WAN_COLS).map(c => [c[0], String(c[1])]), L.icWan));
   const lan = rptSub('LAN / Network Settings', rptLldGrid(
     lldExportCols(L, 'icLan', LLD_IC_LAN_COLS).map(c => [c[0], String(c[1])]), L.icLan));
-  const cab = rptSub('6.2 — Câblage interconnexion', rptLldGrid(
+  const cab = rptSub('6.2 — Cablage interconnexion', rptLldGrid(
     lldExportCols(L, 'icCab', LLD_IC_CAB_COLS).map(c => [c[0], String(c[1])]), L.icCab));
   const vpn = rptSub('Tunnels VPN site à site', rptLldGrid(
     lldExportCols(L, 'vpns', LLD_VPN_COLS).map(c => [c[0], String(c[1])]), L.vpns));
@@ -436,7 +436,7 @@ function rptSystem(ws) {
 // Équipements & licences hors baie (table 3.1 du dossier)
 function rptOutOfRack(ws) {
   const L = normLldInfo(ws);
-  return rptSub('Équipements & licences hors baie', rptLldGrid(
+  return rptSub('Equipments & licences hors baie', rptLldGrid(
     lldExportCols(L, 'equip', LLD_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.equip));
 }
 
