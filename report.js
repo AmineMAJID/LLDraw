@@ -494,6 +494,39 @@ function rptCustomSections(ws) {
   return out;
 }
 
+// Blocs libres (tableau / paragraphe / capture) saisis sur les chapitres
+// d'origine du sommaire 📘 → injectés dans la rubrique HTML correspondante.
+const RPT_FREE_SEC = {
+  '1': 'sec-contexte', '2': 'sec-sites', '2.1': 'sec-sites', '2.2': 'sec-contexte',
+  '3': 'sec-contexte', '3.1': 'sec-inv', '4': 'sec-addr',
+  '5': 'sec-fai', '5.1': 'sec-fai', '5.2': 'sec-fai',
+  '6': 'sec-ic', '6.1': 'sec-ic', '6.2': 'sec-ic',
+  '7': 'sec-fw', '8': 'sec-sys', '9': 'sec-sys', '10': 'sec-sys',
+  '11': 'sec-sys', '12': 'sec-sys', '13': 'sec-sys',
+  '14': 'sec-flux', '15': 'sec-cab', '15.1': 'sec-elev'
+};
+function rptFreeBySection(ws) {
+  const L = normLldInfo(ws);
+  const bySec = {};
+  const leftovers = [];
+  (function walk(ns) {
+    (ns || []).forEach(n => {
+      if (n.cover || n.custom) { walk(n.subs); return; }
+      let html = '';
+      (n.blocks || []).forEach(k => {
+        if (typeof lldIsCustomKey === 'function' && lldIsCustomKey(k)) html += rptBlock(ws, k);
+      });
+      if (html) {
+        const sec = RPT_FREE_SEC[String(n.num)];
+        if (sec) bySec[sec] = (bySec[sec] || '') + html;
+        else leftovers.push(['sec-c-' + n.id, '📌', `${n.num}. ${n.title}`, html]);
+      }
+      walk(n.subs);
+    });
+  })(L.toc);
+  return { bySec, leftovers };
+}
+
 /* ---------- Assemblage du document ---------- */
 // Rubriques proposées au sélecteur d'export (ordre = ordre du rapport)
 const RPT_SECTION_ITEMS = [
@@ -522,23 +555,26 @@ function buildHtmlReportFile(ws, images = {}, picked = null) {
 
   // Sommaire : seules les sections cochées au sélecteur ET ayant du contenu
   // y figurent. Page de garde + synthèse (KPIs) toujours incluses.
+  const free = rptFreeBySection(ws);
+  const plus = id => free.bySec[id] || '';
   const secs = [
-    ['sec-sites', '🏢', 'Sites & baies', rptSitesBlocks(ws)],
-    ['sec-elev', '🧱', 'Élévations des baies', rptElevations(ws, rackShots, plan)],
+    ['sec-sites', '🏢', 'Sites & baies', rptSitesBlocks(ws) + plus('sec-sites')],
+    ['sec-elev', '🧱', 'Élévations des baies', rptElevations(ws, rackShots, plan) + plus('sec-elev')],
     ...(topo ? [['sec-topo', '🕸️', 'Topologie réseau', '']] : []),
     ['sec-contexte', '📝', 'Contexte & architecture',
-      rptContext(ws) + rptOutOfRack(ws) + rptCatNotes(ws)],
-    ['sec-inv', '📦', 'Inventaire des équipements', rptInventory(ws)],
-    ['sec-cab', '🔌', 'Câblage', rptCabling(ws)],
+      rptContext(ws) + rptOutOfRack(ws) + rptCatNotes(ws) + plus('sec-contexte')],
+    ['sec-inv', '📦', 'Inventaire des équipements', rptInventory(ws) + plus('sec-inv')],
+    ['sec-cab', '🔌', 'Câblage', rptCabling(ws) + plus('sec-cab')],
     ['sec-ports', '🗂️', 'Ports & adressage', rptPorts(ws)],
     ['sec-gar', '🛡️', 'Garanties', rptWarranties(ws)],
-    ['sec-addr', '🏷️', 'VLANs & nomenclature', rptAddressing(ws)],
-    ['sec-fai', '🌍', 'FAI & accès Internet', rptFai(ws)],
-    ['sec-ic', '🔗', 'Interconnexion site à site', rptInterco(ws)],
-    ['sec-fw', '🔥', 'Firewall & sécurité', rptFirewall(ws)],
-    ['sec-sys', '🖥️', 'Système, stockage & supervision', rptSystem(ws)],
-    ['sec-flux', '🔄', 'Flux réseau', rptFlows(ws)],
-    ['sec-gov', '📑', 'Gouvernance du document', rptGovernance(ws)],
+    ['sec-addr', '🏷️', 'VLANs & nomenclature', rptAddressing(ws) + plus('sec-addr')],
+    ['sec-fai', '🌍', 'FAI & accès Internet', rptFai(ws) + plus('sec-fai')],
+    ['sec-ic', '🔗', 'Interconnexion site à site', rptInterco(ws) + plus('sec-ic')],
+    ['sec-fw', '🔥', 'Firewall & sécurité', rptFirewall(ws) + plus('sec-fw')],
+    ['sec-sys', '🖥️', 'Système, stockage & supervision', rptSystem(ws) + plus('sec-sys')],
+    ['sec-flux', '🔄', 'Flux réseau', rptFlows(ws) + plus('sec-flux')],
+    ['sec-gov', '📑', 'Gouvernance du document', rptGovernance(ws) + plus('sec-gov')],
+    ...free.leftovers,
     ...rptCustomSections(ws),
   // (sec-topo n'entre dans la liste que si une topologie existe — son contenu
   // est construit plus bas, donc elle échappe au filtre sur contenu vide.
@@ -810,7 +846,9 @@ $('#export-html').addEventListener('click', async () => {
   const only = await lldPickSections({
     title: '🌐 Rapport interactif — que voulez-vous exporter ?',
     hint: 'Page de garde et synthèse toujours incluses ; les rubriques vides (ex : pas de flux, pas de topologie) sont ignorées automatiquement. Les chapitres ajoutés au sommaire 📘 figurent en fin de liste.',
-    items: RPT_SECTION_ITEMS.concat(rptCustomSections(ws).map(([id, , title]) => [id, '📌 ' + title]))
+    items: RPT_SECTION_ITEMS.concat(
+      rptFreeBySection(ws).leftovers.concat(rptCustomSections(ws))
+        .map(([id, , title]) => [id, '📌 ' + title]))
   });
   if (!only) return;   // annulé
   if (!only.size) {

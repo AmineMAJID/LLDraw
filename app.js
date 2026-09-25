@@ -6834,8 +6834,7 @@ function lldRenderDetail(node) {
   hint.className = 'lld-hint';
   hint.textContent = node.custom
     ? 'Ajoutez un tableau, un paragraphe ou une capture. Ils sont repris automatiquement dans les exports HTML, PDF et Excel (double-clic sur un titre de bloc pour le renommer).'
-    : ('Ces saisies alimentent directement les exports PDF et Excel du dossier, '
-      + 'avec le titre du sommaire (double-clic dessus pour le modifier).');
+    : 'Ces saisies alimentent les exports. Vous pouvez aussi ajouter un tableau, un paragraphe ou une capture — repris dans HTML, PDF et Excel (double-clic sur un titre de bloc pour le renommer).';
   body.appendChild(hint);
 
   (node.blocks || []).forEach(key => {
@@ -6909,54 +6908,22 @@ function lldRenderDetail(node) {
   });
 
   if (!node.cover) {
-    if (node.custom) {
-      // Chapitre / sous-chapitre ajouté : blocs libres (tableau, paragraphe, capture)
-      const addWrap = document.createElement('div');
-      addWrap.className = 'lld-info-add lld-info-add-custom';
-      const addHint = document.createElement('span');
-      addHint.className = 'lld-info-add-hint';
-      addHint.textContent = (node.blocks || []).length
-        ? 'Ajouter un autre contenu :'
-        : 'Ce chapitre est vide — ajoutez du contenu :';
-      addWrap.appendChild(addHint);
-      addWrap.appendChild(lldBtn('＋ Tableau', () => lldAddCustomBlock(node, 'table'),
-        'Ajouter un tableau (colonnes et lignes éditables, repris dans les exports)'));
-      addWrap.appendChild(lldBtn('＋ Paragraphe', () => lldAddCustomBlock(node, 'para'),
-        'Ajouter un champ texte pour rédiger un paragraphe'));
-      addWrap.appendChild(lldBtn('＋ Capture', () => lldAddCustomBlock(node, 'shots'),
-        'Ajouter un emplacement pour glisser-déposer des captures d’écran'));
-      body.appendChild(addWrap);
-    } else {
-      // Ajout d'une information — si elle existe déjà ailleurs, elle est
-      // rattachée au MÊME stockage → les deux chapitres sont synchronisés.
-      const addWrap = document.createElement('div');
-      addWrap.className = 'lld-info-add';
-      const sel = document.createElement('select');
-      sel.id = 'lld-info-pick';
-      sel.title = 'Choisir une information à insérer dans ce chapitre';
-      const have = new Set(node.blocks || []);
-      Object.entries(LLD_INFOS).forEach(([k, def]) => {
-        if (have.has(k)) return;
-        const op = document.createElement('option');
-        op.value = k;
-        const elsewhere = lldNodesWithKey(k).filter(n => n.id !== node.id);
-        op.textContent = def.label +
-          (elsewhere.length ? ` — déjà insérée : ${elsewhere.map(lldNodeLabel).join(', ')}` : '');
-        sel.appendChild(op);
-      });
-      const addBtn = lldBtn('＋ Ajouter cette info', () => {
-        const k = sel.value;
-        if (!k) return;
-        lldPushUndo(true);
-        node.blocks = node.blocks || [];
-        node.blocks.push(k);
-        lldRenderToc();
-        lldRenderDetail(node);
-      }, 'Ajouter l’information à ce chapitre — si elle est déjà dans un autre chapitre, les deux seront synchronisés');
-      addWrap.appendChild(sel);
-      addWrap.appendChild(addBtn);
-      body.appendChild(addWrap);
-    }
+    // Tous les chapitres (d’origine ou ajoutés) : tableau / paragraphe / capture
+    const addWrap = document.createElement('div');
+    addWrap.className = 'lld-info-add lld-info-add-custom';
+    const addHint = document.createElement('span');
+    addHint.className = 'lld-info-add-hint';
+    addHint.textContent = (node.blocks || []).length
+      ? 'Ajouter un autre contenu :'
+      : 'Ce chapitre est vide — ajoutez du contenu :';
+    addWrap.appendChild(addHint);
+    addWrap.appendChild(lldBtn('＋ Tableau', () => lldAddCustomBlock(node, 'table'),
+      'Ajouter un tableau (colonnes et lignes éditables, repris dans les exports)'));
+    addWrap.appendChild(lldBtn('＋ Paragraphe', () => lldAddCustomBlock(node, 'para'),
+      'Ajouter un champ texte pour rédiger un paragraphe'));
+    addWrap.appendChild(lldBtn('＋ Capture', () => lldAddCustomBlock(node, 'shots'),
+      'Ajouter un emplacement pour glisser-déposer des captures d’écran'));
+    body.appendChild(addWrap);
   }
 
   const auto = LLD_TOC_AUTO[node.num];
@@ -10964,7 +10931,11 @@ const LLD_TPL = (() => {
     const chunks = [];
     n.blocks.forEach(k => {
       const def = lldBlockDef(k, ws.lld);
-      if (!def || (def.kind !== 'diagram' && def.kind !== 'shots')) return;
+      if (!def) return;
+      // Les blocs libres (tableau / paragraphe / capture ajoutés dans 📘)
+      // sont appendus en fin de feuille par appendFreeBlocks — pas ici.
+      if (def.custom || (typeof lldIsCustomKey === 'function' && lldIsCustomKey(k))) return;
+      if (def.kind !== 'diagram' && def.kind !== 'shots') return;
       const local = [];
       blockRows(k, ws, imgs).forEach(r => local.push(r));
       if (local.length) chunks.push(local);
@@ -10987,6 +10958,36 @@ const LLD_TPL = (() => {
       imgRowBase = firstOcc;
     }
     imgs.forEach((im, i) => { im.row = Math.max(0, imgRowBase + 1 + i * 16); });
+    return imgs;
+  }
+
+  /* Blocs libres (cpara / ctable / cshots) ajoutés dans la modale 📘
+     sur un chapitre d’origine → collés en fin de feuille Excel.
+     `sheetNames` évite de dupliquer un sous-chapitre qui a sa propre feuille. */
+  function appendFreeBlocks(rows, ws, num, sheetNames) {
+    const n = BUILD_TOC.get(String(num));
+    if (!n || n.custom) return null;
+    const imgs = [];
+    const extra = [];
+    const take = node => {
+      if (!node) return;
+      (node.blocks || []).forEach(k => {
+        if (typeof lldIsCustomKey === 'function' ? !lldIsCustomKey(k) : !/^(cpara|ctable|cshots):/.test(k)) return;
+        blockRows(k, ws, imgs).forEach(r => extra.push(r));
+      });
+    };
+    take(n);
+    (n.subs || []).forEach(s => {
+      if (!s || s.custom) return;
+      if (sheetNames && sheetNames.has(String(s.num))) return;
+      take(s);
+    });
+    if (!extra.length && !imgs.length) return null;
+    if (extra.length) {
+      rows.push([]);
+      extra.forEach(r => rows.push(r));
+    }
+    imgs.forEach((im, i) => { im.row = rows.length + 1 + i * 16; });
     return imgs;
   }
 
@@ -11041,6 +11042,7 @@ const LLD_TPL = (() => {
     const numPrefix = /^\d+(?:\.\d+)?$/;
     const layoutKept = layout.filter(sheet =>
       numPrefix.test(String(sheet.name)) ? keepRoot(sheet.name) : true);
+    const sheetNames = new Set(layoutKept.map(x => String(x.name)));
     const sheets = layoutKept.map(sheet => {
       const fill = FILLS[sheet.name];
       let s;
@@ -11082,6 +11084,14 @@ const LLD_TPL = (() => {
         const cell = s.rows[0] && s.rows[0][0];
         const re = new RegExp('^' + String(sheet.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.\\s');
         if (cell && re.test(String(cell.v || ''))) cell.v = `${sheet.name}. ${n.title}`;
+      }
+      // Tableau / paragraphe / capture ajoutés dans 📘 → fin de feuille
+      if (n && !isCustom(n) && numPrefix.test(String(sheet.name))) {
+        const extraImgs = appendFreeBlocks(s.rows, ws, sheet.name, sheetNames);
+        if (extraImgs && extraImgs.length) {
+          s.opts = s.opts || {};
+          s.opts.images = (s.opts.images || []).concat(extraImgs);
+        }
       }
       return s;
     });
