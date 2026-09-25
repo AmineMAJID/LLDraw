@@ -102,7 +102,7 @@ function defaultLldToc() {
       sub('5.2', 'Câblage', ['faiCab'])
     ]),
     ch('6', 'Conception et Configuration Interconnexion site 2 site', ['diag6', 'shots6'], [
-      sub('6.1', 'Informations & Configuration', ['ic61', 'adminSec', 'icWan', 'icLan', 'interco']),
+      sub('6.1', 'Informations & Configuration', ['ic61', 'adminSec', 'icWan', 'icLan']),
       sub('6.2', 'Câblage', ['icCab'])
     ]),
     ch('7', 'Conception et Configuration Firewall', ['diag7', 'shots7', 'fw', 'note:firewall']),
@@ -300,10 +300,13 @@ function normLldToc(raw) {
       blocksSeeded2 = true;
     }
     // 6.1 : ordre calqué sur la feuille Excel à chaque passage
-    // (extrémités → Admin Security → WAN → LAN → fiche interco).
+    // (extrémités → Admin Security → WAN → LAN). La fiche « Interconnexion
+    // site 2 site » (interco) est retirée du sommaire sur demande — les
+    // valeurs L.interco restent utilisées en source pour les exports.
     // Ne réintroduit jamais un bloc absent/détaché.
     if (seedNum === '6.1') {
-      const ORDER = ['ic61', 'adminSec', 'icWan', 'icLan', 'interco'];
+      if (blocks.includes('interco')) blocks = blocks.filter(k => k !== 'interco');
+      const ORDER = ['ic61', 'adminSec', 'icWan', 'icLan'];
       const known = ORDER.filter(k => blocks.includes(k));
       const rest = blocks.filter(k => !ORDER.includes(k));
       if (known.length) blocks = [...known, ...rest];
@@ -4779,10 +4782,6 @@ const LLD_INFOS = {
       + '🔎 Générer depuis l’élévation : liaisons WAN des routeurs, CPE et câbles FAI. Généré ici d’abord, puis repris dans l’XLSX.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
     extra: 'gen-fai-cab'
-  },
-  interco: {
-    label: 'Interconnexion site 2 site (ch. 6)', kind: 'fields', path: 'interco',
-    fields: LLD_IC_FIELDS
   },
   adminSec: {
     label: "Admin Security — comptes d'administration (ch. 6)", kind: 'table', cols: LLD_ADMIN_COLS,
@@ -10691,7 +10690,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     'cover': ['meta', 'governance'],
     '1': ['objectif'], '2.1': ['sites'], '2.2': ['existant'],
     '3': ['architecture'], '4': ['nomen', 'vlans'],
-    '5.1': ['fais'], '6.1': ['interco', 'ic61', 'icWan', 'icLan'],
+    '5.1': ['fais'], '6.1': ['ic61', 'icWan', 'icLan'],
     '7': ['note:firewall'], '8': ['zones', 'note:switching'],
     '9': ['note:server'], '10': ['note:storage'], '11': ['note:ids'],
     '12': ['note:cctv'], '13': ['note:pointage'], '14': ['flows']
@@ -11146,16 +11145,18 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
       ], pdfColW(LLD_IC61_COLS), 6.5);
     } else placeholder();
   }
-  if (hasB('6.1', 'interco')) {
-    const I = L.interco;
+  // Fiche interco retirée du sommaire (demande) : le PDF imprime quand même
+  // les paramètres si des valeurs existent dans L.interco (source interne).
+  {
+    const I = L.interco || {};
     const icr = [['Technologie', I.tech], ['Endpoint public site A', I.epA], ['Endpoint public site B', I.epB],
                  ['Subnets locaux (A)', I.localSubnets], ['Subnets distants (B)', I.remoteSubnets],
                  ['Routage', I.routing], ['Chiffrement', I.encryption]]
-      .filter(([, v]) => v && v.trim());
+      .filter(([, v]) => v && String(v).trim());
     if (icr.length) {
       miniTitle('Paramètres d’interconnexion');
       drawTable([['Élément', 'Valeur'], ...icr], [1.9, 3.1], 8.5);
-      if (I.notes.trim()) { miniTitle('Notes de configuration'); paragraph(I.notes); }
+      if (I.notes && I.notes.trim()) { miniTitle('Notes de configuration'); paragraph(I.notes); }
     }
   }
   if (hasB('6.1', 'icWan')) {
