@@ -10,7 +10,7 @@
   <link rel="shortcut icon" href="assets/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#3b82f6">
-  <link rel="stylesheet" href="styles.css?v=70">
+  <link rel="stylesheet" href="styles.css?v=71">
 </head>
 <body>
   <header class="topbar">
@@ -397,6 +397,11 @@
             <span class="lld-toc-head-title">📖 Sommaire</span>
             <span class="lld-toc-head-hint" title="Double-cliquez sur un titre pour le renommer">double-clic = renommer</span>
           </div>
+          <div class="lld-toc-search-wrap">
+            <span class="lld-toc-search-ico" aria-hidden="true">🔎</span>
+            <input id="lld-toc-search" type="search" placeholder="Titre HTML / Excel…" autocomplete="off" spellcheck="false" title="Tapez un titre vu dans le rapport HTML ou l’Excel : le chapitre correspondant s’ouvre">
+            <div id="lld-toc-search-results" class="lld-toc-search-results hidden" role="listbox" aria-label="Résultats de recherche du sommaire"></div>
+          </div>
           <div id="lld-toc-tree" class="lld-toc-tree"></div>
           <div class="lld-toc-actions">
             <button id="lld-toc-add-ch" class="btn btn-ghost btn-sm" title="Ajouter un chapitre à la fin du sommaire">＋ Chapitre</button>
@@ -501,7 +506,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=102"></script>
+  <script src="app.js?v=103"></script>
   <script src="report.js?v=7"></script>
   <script type="importmap">
   {

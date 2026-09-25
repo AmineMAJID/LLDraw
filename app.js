@@ -5569,6 +5569,157 @@ function lldStartRename(item, node) {
   inp.addEventListener('click', e => e.stopPropagation());
 }
 
+// ---- Recherche dans le sommaire (titres HTML / Excel → chapitre) ----
+function lldFold(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+// Titres des rubriques du rapport HTML (et libellés Excel proches) → nœud du sommaire
+const LLD_EXPORT_ALIASES = [
+  ['Sites & baies', '2.1', 'HTML'],
+  ['Élévations des baies', '15', 'HTML'],
+  ['Topologie réseau', '14', 'HTML'],
+  ['Contexte & architecture', '1', 'HTML'],
+  ['Contexte, architecture, équipements hors baie & notes', '1', 'HTML'],
+  ['Inventaire des équipements', '3.1', 'HTML'],
+  ['Câblage', '15', 'HTML'],
+  ['Ports & adressage', '4', 'HTML'],
+  ['Garanties', '3.1', 'HTML'],
+  ['VLANs & nomenclature', '4', 'HTML'],
+  ['FAI & accès Internet', '5', 'HTML'],
+  ['Interconnexion site à site', '6', 'HTML'],
+  ['Firewall & sécurité', '7', 'HTML'],
+  ['Système, stockage & supervision', '8', 'HTML'],
+  ['Flux réseau', '14', 'HTML'],
+  ['Gouvernance du document', 'cover', 'HTML'],
+  ['Page de garde', 'cover', 'Excel']
+];
+function lldNodeByNum(num) {
+  const want = String(num);
+  return lldAllNodes().find(n =>
+    (want === 'cover' && n.cover) || String(n.num) === want || String(n.id) === want);
+}
+function lldSearchToc(query) {
+  const q = lldFold(query).trim();
+  if (!q || !lldDraft) return [];
+  const hits = [];
+  const seen = new Set();
+  const push = (hit) => {
+    const k = hit.nodeId + '\0' + (hit.blockKey || '');
+    if (seen.has(k)) return;
+    seen.add(k);
+    hits.push(hit);
+  };
+  const scoreOf = (hay, base) => {
+    const h = lldFold(hay);
+    if (!h) return 0;
+    if (h === q) return base + 40;
+    if (h.startsWith(q)) return base + 25;
+    if (h.includes(q)) return base;
+    return 0;
+  };
+  lldAllNodes().forEach(n => {
+    const label = n.cover ? n.title : `${n.num}. ${n.title}`;
+    let best = 0, why = '';
+    const tryHay = (hay, base, w) => {
+      const s = scoreOf(hay, base);
+      if (s > best) { best = s; why = w; }
+    };
+    tryHay(n.title, 80, n.custom ? 'Titre (HTML / Excel)' : 'Titre du chapitre');
+    tryHay(label, 78, 'Excel · n° + titre');
+    tryHay(n.num, 70, 'Numéro de chapitre');
+    if (best) push({ nodeId: n.id, node: n, blockKey: null, score: best, title: label, sub: why, why });
+    (n.blocks || []).forEach(key => {
+      const def = lldInfoDef(key);
+      if (!def) return;
+      const s = scoreOf(def.label, 55);
+      if (s) push({
+        nodeId: n.id, node: n, blockKey: key, score: s,
+        title: def.label, sub: 'Dans ' + label, why: 'Bloc'
+      });
+    });
+  });
+  LLD_EXPORT_ALIASES.forEach(([title, num, src]) => {
+    const s = scoreOf(title, 60);
+    if (!s) return;
+    const n = lldNodeByNum(num);
+    if (!n) return;
+    push({
+      nodeId: n.id, node: n, blockKey: null, score: s,
+      title, sub: `${src} → ${n.cover ? n.title : n.num + '. ' + n.title}`, why: src
+    });
+  });
+  hits.sort((a, b) => b.score - a.score || String(a.title).localeCompare(String(b.title), 'fr'));
+  return hits.slice(0, 12);
+}
+function lldOpenSearchHit(hit) {
+  if (!hit || !hit.nodeId) return;
+  lldSelectNode(hit.nodeId);
+  const item = $('#lld-toc-tree') && $('#lld-toc-tree').querySelector(`[data-id="${hit.nodeId}"]`);
+  if (item) item.scrollIntoView({ block: 'nearest' });
+  if (hit.blockKey) {
+    requestAnimationFrame(() => {
+      const body = $('#lld-detail-body');
+      if (!body) return;
+      let sec = null;
+      body.querySelectorAll('.lld-info[data-key]').forEach(el => {
+        if (el.dataset.key === hit.blockKey) sec = el;
+      });
+      if (!sec) return;
+      sec.classList.add('lld-info-flash');
+      sec.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      setTimeout(() => sec.classList.remove('lld-info-flash'), 1600);
+    });
+  }
+  const inp = $('#lld-toc-search');
+  if (inp) inp.value = '';
+  lldHideTocSearch();
+}
+function lldHideTocSearch() {
+  const box = $('#lld-toc-search-results');
+  if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
+  $('#lld-toc-tree') && $('#lld-toc-tree').querySelectorAll('.lld-toc-hit')
+    .forEach(el => el.classList.remove('lld-toc-hit'));
+}
+function lldRenderTocSearch(query) {
+  const box = $('#lld-toc-search-results');
+  const tree = $('#lld-toc-tree');
+  if (!box) return;
+  const q = String(query || '').trim();
+  if (!q) { lldHideTocSearch(); return; }
+  const hits = lldSearchToc(q);
+  const ids = new Set(hits.map(h => h.nodeId));
+  if (tree) {
+    tree.querySelectorAll('.lld-toc-item').forEach(it => {
+      it.classList.toggle('lld-toc-hit', ids.has(it.dataset.id));
+    });
+  }
+  box.innerHTML = '';
+  if (!hits.length) {
+    box.innerHTML = `<div class="lld-toc-sr-empty">Aucun chapitre pour « ${escapeHtml(q)} »</div>`;
+    box.classList.remove('hidden');
+    return;
+  }
+  hits.forEach((h, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'lld-toc-sr' + (i === 0 ? ' active' : '');
+    b.dataset.i = String(i);
+    const t = document.createElement('span');
+    t.className = 'lld-toc-sr-title';
+    t.textContent = h.title;
+    const s = document.createElement('span');
+    s.className = 'lld-toc-sr-sub';
+    s.textContent = h.sub || h.why || '';
+    b.appendChild(t);
+    b.appendChild(s);
+    b.addEventListener('mousedown', ev => ev.preventDefault()); // garde le focus input
+    b.addEventListener('click', () => lldOpenSearchHit(h));
+    box.appendChild(b);
+  });
+  box._hits = hits;
+  box.classList.remove('hidden');
+}
+
 function lldSelectNode(id) {
   if (!lldDraft) return;
   lldFlushDetail();                 // les saisies du panneau précédent sont gardées
@@ -7041,6 +7192,42 @@ $('#lld-toc-tree').addEventListener('dblclick', ev => {
 });
 
 // ---- Ajout de chapitres / sous-chapitres au sommaire ----
+(function lldBindTocSearch() {
+  const inp = $('#lld-toc-search');
+  const box = $('#lld-toc-search-results');
+  if (!inp || !box) return;
+  const move = dir => {
+    const items = [...box.querySelectorAll('.lld-toc-sr')];
+    if (!items.length) return;
+    let i = items.findIndex(el => el.classList.contains('active'));
+    if (i < 0) i = 0;
+    items[i].classList.remove('active');
+    i = (i + dir + items.length) % items.length;
+    items[i].classList.add('active');
+    items[i].scrollIntoView({ block: 'nearest' });
+  };
+  inp.addEventListener('input', () => lldRenderTocSearch(inp.value));
+  inp.addEventListener('focus', () => { if (inp.value.trim()) lldRenderTocSearch(inp.value); });
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const cur = box.querySelector('.lld-toc-sr.active') || box.querySelector('.lld-toc-sr');
+      const hits = box._hits || lldSearchToc(inp.value);
+      const i = cur ? +cur.dataset.i : 0;
+      if (hits[i]) lldOpenSearchHit(hits[i]);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      inp.value = '';
+      lldHideTocSearch();
+    }
+  });
+  document.addEventListener('pointerdown', e => {
+    if (!e.target.closest('.lld-toc-search-wrap')) lldHideTocSearch();
+  });
+})();
+
 $('#lld-toc-add-ch').addEventListener('click', () => {
   if (!lldDraft) return;
   lldFlushDetail();
@@ -7543,6 +7730,9 @@ function openLldModal(selectKey = null) {
   lldUndoStack = [];
   lldRedoStack = [];
   lldPushUndo(true);   // état initial = première cible d'annulation
+  const sq = $('#lld-toc-search');
+  if (sq) sq.value = '';
+  lldHideTocSearch();
   $('#lld-modal').classList.remove('hidden');
   if (selectKey) {
     const node = lldAllNodes().find(n => (n.blocks || []).includes(selectKey));
