@@ -105,11 +105,22 @@ function defaultLldToc() {
       sub('6.1', 'Informations & Configuration', ['ic61', 'adminSec', 'icWan', 'icLan']),
       sub('6.2', 'Câblage', ['icCab'])
     ]),
-    ch('7', 'Conception et Configuration Firewall', ['diag7', 'shots7', 'fw', 'note:firewall']),
-    // ch. 8 : pas de sous-chapitres ajoutés à la main — le PDF découpe
-    // 8.1, 8.2… dynamiquement selon les zones de Switching (info « zones »).
-    ch('8', 'Conception et Configuration Switching', ['zones', 'note:switching'], [], { noSubs: true }),
-    ch('9', 'Conception et Configuration Serveurs', ['vms', 'note:server']),
+    ch('7', 'Conception et Configuration Firewall', ['diag7', 'shots7', 'note:firewall'], [
+      sub('7.1', 'Équipements Firewall / Routeurs', ['fwEquip']),
+      sub('7.2', 'Interfaces VLAN', ['fwVlan']),
+      sub('7.3', 'Règles et NAT', ['fw'])
+    ]),
+    ch('8', 'Conception et Configuration Switching', ['zones', 'note:switching', 'sw8equip', 'sw8ports'], [
+      sub('8.1', 'Conception et Configuration Switching (INFRA)', ['sw81equip', 'sw81ports']),
+      sub('8.2', 'Conception et Configuration Switching (LAN)', ['sw82equip', 'sw82ports']),
+      sub('8.3', 'Conception et Configuration Switching (AP)', ['sw83equip', 'sw83ports']),
+      sub('8.4', 'Conception et Configuration Switching (AP)', ['sw84equip', 'sw84ports']),
+      sub('8.5', 'Conception et Configuration Switching (BID)', ['sw85equip', 'sw85ports'])
+    ]),
+    ch('9', 'Conception et Configuration Serveurs', ['note:server'], [
+      sub('9.1', 'Serveurs', ['srvEquip']),
+      sub('9.2', 'Machines virtuelles', ['vms'])
+    ]),
     ch('10', 'Conception et Configuration Stockage', ['vols', 'note:storage']),
     ch('11', 'Conception et Configuration Intrusion (IDS)', ['note:ids']),
     ch('12', 'Conception et Configuration CCTV', ['cams', 'note:cctv']),
@@ -281,7 +292,18 @@ function normLldToc(raw) {
         '5.1': ['fais'],
         '5.2': ['faiCab'],
         '6.1': ['ic61', 'icWan', 'icLan'],
-        '6.2': ['icCab']
+        '6.2': ['icCab'],
+        '7.1': ['fwEquip'],
+        '7.2': ['fwVlan'],
+        '7.3': ['fw'],
+        '8': ['sw8equip', 'sw8ports'],
+        '8.1': ['sw81equip', 'sw81ports'],
+        '8.2': ['sw82equip', 'sw82ports'],
+        '8.3': ['sw83equip', 'sw83ports'],
+        '8.4': ['sw84equip', 'sw84ports'],
+        '8.5': ['sw85equip', 'sw85ports'],
+        '9.1': ['srvEquip'],
+        '9.2': ['vms']
       };
       const pref = SEED[seedNum] || [];
       const need = pref.filter(k => !blocks.includes(k));
@@ -310,6 +332,14 @@ function normLldToc(raw) {
       const known = ORDER.filter(k => blocks.includes(k));
       const rest = blocks.filter(k => !ORDER.includes(k));
       if (known.length) blocks = [...known, ...rest];
+    }
+    // Ch. 7 / 9 : les tableaux 7.3 (fw) et 9.2 (vms) vivent sur les
+    // sous-chapitres — on les retire du parent s'ils y traînent (ancien sommaire).
+    if (seedNum === '7') {
+      blocks = blocks.filter(k => k !== 'fw' && k !== 'fwEquip' && k !== 'fwVlan');
+    }
+    if (seedNum === '9') {
+      blocks = blocks.filter(k => k !== 'vms' && k !== 'srvEquip');
     }
     return {
       id: String(r.id || d.id || uid()),
@@ -482,6 +512,15 @@ function normLldInfo(w) {
   L.vms = normTable(L.vms, [['name', 40], ['role', 60], ['host', 40], ['ip', 40]]);
   L.vols = normTable(L.vols, [['name', 40], ['size', 30], ['type', 30], ['srv', 40]]);
   L.cams = normTable(L.cams, [['name', 40], ['loc', 60], ['model', 40], ['ip', 40]]);
+  L.fwEquip = normTable(L.fwEquip, [['name', 80], ['model', 80], ['ip', 45], ['pos', 80]]);
+  L.fwVlan = normTable(L.fwVlan, [['vid', 20], ['name', 60], ['subnet', 45], ['gw', 45]]);
+  L.srvEquip = normTable(L.srvEquip, [['name', 80], ['model', 80], ['ip', 45], ['pos', 80]]);
+  if (typeof LLD_SW_SHEETS !== 'undefined') {
+    LLD_SW_SHEETS.forEach(([eq, po]) => {
+      L[eq] = normTable(L[eq], [['name', 80], ['model', 80], ['ip', 45], ['pos', 80]]);
+      L[po] = normTable(L[po], [['rack', 40], ['dev', 60], ['port', 40], ['label', 60], ['vlan', 40]]);
+    });
+  }
   if (typeof L.interco.notes !== 'string') L.interco.notes = '';
   L.interco.notes = L.interco.notes.slice(0, 2000);
   // Captures d’écran (ch. 5/6/7) + diagrammes générés
@@ -4619,6 +4658,37 @@ const LLD_IC_FIELDS = [
 // Tables par chapitre : règles/NAT firewall (7), VMs (9), volumes (10), caméras (12)
 const LLD_FW_COLS = [['type', 'Type', 74], ['name', 'Nom / Règle', 'flex'], ['src', 'Source', 130],
                      ['dst', 'Destination', 130], ['service', 'Service / Ports', 120], ['action', 'Action', 66]];
+/* Tableaux Excel ch. 7.1 / 8.x / 9.1 — mêmes 4 colonnes que equipTable() de l'export. */
+const LLD_CAT_EQUIP_COLS = [
+  ['name', 'Nom', 150],
+  ['model', 'Marque / Modèle', 180],
+  ['ip', 'IP mgmt', 120],
+  ['pos', 'Position', 180]
+];
+/* 7.2 Interfaces VLAN — mêmes colonnes que la section Excel 7.2. */
+const LLD_FW_VLAN_COLS = [
+  ['vid', 'VLAN', 90],
+  ['name', 'Nom', 150],
+  ['subnet', 'Sous-réseau', 150],
+  ['gw', 'Passerelle', 130]
+];
+/* Plan de ports des feuilles Excel 8 / 8.1…8.5. */
+const LLD_SW_PORT_COLS = [
+  ['rack', 'Rack', 110],
+  ['dev', 'Device', 140],
+  ['port', 'Port', 90],
+  ['label', 'Étiquette', 130],
+  ['vlan', 'VLAN', 90]
+];
+/* Feuilles Switching : clé équipement, clé ports, n° Excel, libellé, catégories, filtre de zone. */
+const LLD_SW_SHEETS = [
+  ['sw8equip',  'sw8ports',  '8',   'Switching (HA)',    ['switch'],           'ha'],
+  ['sw81equip', 'sw81ports', '8.1', 'Switching (INFRA)', ['switch'],           'infra'],
+  ['sw82equip', 'sw82ports', '8.2', 'Switching (LAN)',   ['switch'],           'lan0'],
+  ['sw83equip', 'sw83ports', '8.3', 'Switching (AP)',    ['switch', 'ap'],     'ap0'],
+  ['sw84equip', 'sw84ports', '8.4', 'Switching (AP)',    ['switch', 'ap'],     'ap1'],
+  ['sw85equip', 'sw85ports', '8.5', 'Switching (BID)',   ['switch'],           'bid']
+];
 const LLD_VM_COLS = [['name', 'VM', 120], ['role', 'Rôle', 'flex'], ['host', 'Hôte', 110], ['ip', 'IP / VLAN', 100]];
 const LLD_VPN_COLS = [['name', 'Tunnel VPN S2S', 'flex'], ['peer', 'Pair / subnet distant', 200]];
 const LLD_ALIAS_COLS = [['name', 'Alias', 140], ['value', 'Définition (hosts, subnet…)', 'flex']];
@@ -4927,16 +4997,43 @@ const LLD_INFOS = {
     extra: 'gen-ic-lan'
   },
   fw: {
-    label: 'Règles & NAT Firewall (ch. 7)', kind: 'table', cols: LLD_FW_COLS,
-    addLabel: '＋ Ajouter une règle / NAT', filter: r => r.name.trim(), def: { type: 'Règle' }
+    label: '7.3 — Règles et NAT', kind: 'table', cols: LLD_FW_COLS,
+    addLabel: '＋ Ajouter une règle / NAT', filter: r => r.name.trim(), def: { type: 'Règle' },
+    hint: 'Même tableau que la section 7.3 de la feuille Excel « 7 » (Type, Nom, Source, Destination, Service, Action).'
+  },
+  fwEquip: {
+    label: '7.1 — Équipements Firewall / Routeurs',
+    kind: 'table', cols: LLD_CAT_EQUIP_COLS,
+    addLabel: '＋ Ajouter un équipement',
+    extra: 'gen-fw-equip',
+    hint: 'Même tableau que la section 7.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 pré-remplit depuis les firewalls et routeurs de l’élévation.',
+    filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
+  },
+  fwVlan: {
+    label: '7.2 — Interfaces VLAN',
+    kind: 'table', cols: LLD_FW_VLAN_COLS,
+    addLabel: '＋ Ajouter un VLAN',
+    extra: 'gen-fw-vlan',
+    hint: 'Même tableau que la section 7.2 de l’Excel (VLAN, Nom, Sous-réseau, Passerelle). 🔎 reprend le registre VLANs (ch. 4) et les VLAN vus sur les ports.',
+    filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
   },
   zones: {
     label: 'Zones de Switching (ch. 8)', kind: 'zones', cols: LLD_ZONE_COLS, addLabel: '＋ Ajouter une zone',
-    hint: 'Les zones découpent le chapitre 8 (8.1, 8.2…) dans le PDF : rattachez chaque switch / borne WiFi à sa zone depuis sa fiche (double-clic sur « Zone »).'
+    hint: 'Rattachez chaque switch / borne WiFi à sa zone depuis sa fiche (double-clic sur « Zone »). Les tableaux 8.1…8.5 se génèrent ensuite depuis l’élévation filtrée par zone.'
   },
   vms: {
-    label: 'Machines virtuelles (ch. 9)', kind: 'table', cols: LLD_VM_COLS,
-    addLabel: '＋ Ajouter une VM', filter: r => r.name.trim()
+    label: '9.2 — Machines virtuelles', kind: 'table', cols: LLD_VM_COLS,
+    addLabel: '＋ Ajouter une VM', filter: r => r.name.trim(),
+    extra: 'gen-vms',
+    hint: 'Même tableau que la section 9.2 de l’Excel (VM, Rôle, Hôte, IP / VLAN).'
+  },
+  srvEquip: {
+    label: '9.1 — Serveurs',
+    kind: 'table', cols: LLD_CAT_EQUIP_COLS,
+    addLabel: '＋ Ajouter un serveur',
+    extra: 'gen-srv-equip',
+    hint: 'Même tableau que la section 9.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 depuis les serveurs de l’élévation.',
+    filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
   },
   vols: {
     label: 'Volumes / LUN (ch. 10)', kind: 'table', cols: LLD_VOL_COLS,
@@ -4979,6 +5076,26 @@ const LLD_INFOS = {
     hint: 'Source, destination, protocole/ports, sens et usage de chaque flux — repris dans le PDF (ch. 14) et en surbrillance depuis la vue Topologie (sélecteur 🔄).'
   }
 };
+LLD_SW_SHEETS.forEach(([eqKey, poKey, num, lab, cats]) => {
+  LLD_INFOS[eqKey] = {
+    label: `${num} — Équipements ${lab}`,
+    kind: 'table', cols: LLD_CAT_EQUIP_COLS,
+    addLabel: '＋ Ajouter un équipement',
+    extra: 'gen-sw-equip:' + num,
+    genCats: cats, genSheet: num,
+    hint: `Même tableau que la feuille Excel « ${num} » (Nom / Marque-Modèle / IP mgmt / Position). 🔎 depuis l’élévation, filtré par la zone ${lab}.`,
+    filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
+  };
+  LLD_INFOS[poKey] = {
+    label: `${num} — Plan de ports ${lab}`,
+    kind: 'table', cols: LLD_SW_PORT_COLS,
+    addLabel: '＋ Ajouter un port',
+    extra: 'gen-sw-ports:' + num,
+    genSheet: num,
+    hint: `Même tableau « Plan de ports » que la feuille Excel « ${num} » (Rack, Device, Port, Étiquette, VLAN). 🔎 depuis les ports des équipements de la zone.`,
+    filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
+  };
+});
 
 // ---- Blocs libres des chapitres ajoutés au sommaire ----
 // Clés stables : cpara:<id> (paragraphe), ctable:<id> (tableau),
@@ -5031,9 +5148,19 @@ const LLD_TOC_AUTO = {
   '6': 'Diagramme d’interconnexion + captures (si renseignées) avant 6.1',
   '6.1': 'Tableaux 6.1 extrémités/HA, WAN Connection Settings et LAN — éditables ici, export XLSX/PDF identiques',
   '6.2': 'Tableau 6.2 (Categorie / Description / Port / Connecté a) — éditable ici, + câbles interco si absents',
-  '7': 'Diagramme Firewall + captures, puis équipements firewall, interfaces VLAN, ports & câblage',
-  '8': 'Sous-chapitres 8.1… = zones de Switching ; équipements, ports & câblage',
-  '9': 'Équipements serveurs, ports & câblage du domaine',
+  '7': 'Diagramme Firewall + captures (avant 7.1)',
+  '7.1': 'Tableau Excel 7.1 — équipements firewall/routeurs (🔎 élévation)',
+  '7.2': 'Tableau Excel 7.2 — interfaces VLAN',
+  '7.3': 'Tableau Excel 7.3 — règles et NAT',
+  '8': 'Feuille Excel « 8 » Switching (HA) + zones ; 8.1…8.5 = feuilles dédiées',
+  '8.1': 'Feuille Excel 8.1 INFRA — équipements + plan de ports',
+  '8.2': 'Feuille Excel 8.2 LAN — équipements + plan de ports',
+  '8.3': 'Feuille Excel 8.3 AP — équipements + plan de ports',
+  '8.4': 'Feuille Excel 8.4 AP — équipements + plan de ports',
+  '8.5': 'Feuille Excel 8.5 BID — équipements + plan de ports',
+  '9': 'Notes de configuration serveurs',
+  '9.1': 'Tableau Excel 9.1 — serveurs physiques (🔎 élévation)',
+  '9.2': 'Tableau Excel 9.2 — machines virtuelles',
   '10': 'Équipements stockage, ports & câblage du domaine',
   '11': 'Équipements IDS, ports & câblage du domaine',
   '12': 'Équipements CCTV, ports & câblage du domaine',
@@ -5046,7 +5173,8 @@ const LLD_TOC_AUTO = {
 // un sous-chapitre sur ces numéros → feuille dupliquée à l'export).
 const LLD_RESERVED_SHEETS = new Set([
   'LLD', 'Governance', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
-  '11', '12', '13', '14', '15', '8.1', '8.2', '8.3', '8.4', '8.5', '15.1'
+  '11', '12', '13', '14', '15', '7.1', '7.2', '7.3', '8.1', '8.2', '8.3',
+  '8.4', '8.5', '9.1', '9.2', '15.1'
 ]);
 
 // Types devinés à partir des préfixes les plus courants (bouton « Générer »)
@@ -6688,6 +6816,40 @@ function lldInfoRender(box, def, key) {
           () => { lldPushUndo(true); lldGenIcLan(tbl, cols); },
           'Pré-remplit le tableau LAN (feuille Excel « 6 ») depuis interco et le registre VLANs'));
       }
+      if (def.extra === 'gen-fw-equip') {
+        acts.push(lldBtn("🔎 Générer depuis l'élévation",
+          () => { lldPushUndo(true); lldGenFwEquip(tbl, cols); },
+          'Pré-remplit le tableau 7.1 depuis les firewalls et routeurs posés dans les racks'));
+      }
+      if (def.extra === 'gen-fw-vlan') {
+        acts.push(lldBtn('🔎 Générer depuis le registre / les ports',
+          () => { lldPushUndo(true); lldGenFwVlan(tbl, cols); },
+          'Reprend les VLANs du ch. 4 et ceux vus sur les ports'));
+      }
+      if (def.extra === 'gen-srv-equip') {
+        acts.push(lldBtn("🔎 Générer depuis l'élévation",
+          () => { lldPushUndo(true); lldGenSrvEquip(tbl, cols); },
+          'Pré-remplit le tableau 9.1 depuis les serveurs de l’élévation'));
+      }
+      if (def.extra === 'gen-vms') {
+        acts.push(lldBtn("🔎 Pré-remplir depuis les serveurs",
+          () => { lldPushUndo(true); lldGenVms(tbl, cols); },
+          'Ajoute une ligne par serveur de l’élévation (colonne Hôte)'));
+      }
+      if (typeof def.extra === 'string' && def.extra.startsWith('gen-sw-equip:')) {
+        const num = def.extra.slice('gen-sw-equip:'.length);
+        const cats = def.genCats || ['switch'];
+        acts.push(lldBtn("🔎 Générer depuis l'élévation",
+          () => { lldPushUndo(true); lldGenSwEquip(tbl, cols, num, cats); },
+          'Pré-remplit depuis les switches / AP de l’élévation filtrés par la zone de cette feuille'));
+      }
+      if (typeof def.extra === 'string' && def.extra.startsWith('gen-sw-ports:')) {
+        const num = def.extra.slice('gen-sw-ports:'.length);
+        const cats = def.genCats || (num === '8.3' || num === '8.4' ? ['switch', 'ap'] : ['switch']);
+        acts.push(lldBtn("🔎 Générer depuis l'élévation",
+          () => { lldPushUndo(true); lldGenSwPorts(tbl, cols, num, cats); },
+          'Liste les ports des équipements de cette zone'));
+      }
       box.appendChild(tbl);
       box.appendChild(lldGridActions(...acts));
       break;
@@ -7177,6 +7339,160 @@ function lldGenEquip(tbl, cols) {
     + missing.slice(0, 12).map(([m, n]) => `• ${m} ×${n}`).join('\n')
     + (missing.length > 12 ? `\n… et ${missing.length - 12} autre(s)` : ''),
     { title: "🔎 Générer depuis l'élévation" });
+}
+
+// ---- Génération ch. 7 / 8 / 9 depuis l'élévation (mêmes colonnes que l'Excel) ----
+function lldSwZoneBucket(ws) {
+  const zones = (ws.lld && ws.lld.swZones) || [];
+  return {
+    ap: zones.filter(z => /\bAP\b/i.test(z.name)),
+    lan: zones.filter(z => /lan/i.test(z.name) && !/infra/i.test(z.name)),
+    bid: zones.find(z => /bid/i.test(z.name)) || null
+  };
+}
+function lldInstInSwSheet(ws, inst, sheetNum) {
+  const zName = zoneNameOf(ws, inst);
+  const b = lldSwZoneBucket(ws);
+  switch (String(sheetNum)) {
+    case '8': return true;
+    case '8.1': return /infra/i.test(zName);
+    case '8.2': return !!(b.lan[0] && inst.zone === b.lan[0].id);
+    case '8.3': return !!(b.ap[0] && inst.zone === b.ap[0].id);
+    case '8.4': return !!(b.ap[1] && inst.zone === b.ap[1].id);
+    case '8.5':
+      if (b.bid) return inst.zone === b.bid.id;
+      return !!(b.lan[1] && inst.zone === b.lan[1].id);
+    default: return true;
+  }
+}
+function lldCatEquipRows(ws, cats, sheetNum) {
+  const out = [];
+  for (const { rack, inst } of sortedRackInstances(ws)) {
+    if (!cats.includes(normCat(inst.cat))) continue;
+    if (sheetNum && String(sheetNum) !== '8' && !lldInstInSwSheet(ws, inst, sheetNum)) continue;
+    out.push({
+      name: inst.name || '',
+      model: `${inst.brand || ''} ${inst.model || ''}`.trim(),
+      ip: inst.ipMgmt || '',
+      pos: `${rack.name} — ${slotLabel(inst)}`
+    });
+  }
+  return out;
+}
+function lldFillNamedRows(tbl, cols, incoming, keyField, title) {
+  const known = new Set(lldRowsFrom(tbl)
+    .map(r => String(r[keyField] || '').trim().toLowerCase()).filter(Boolean));
+  let n = 0;
+  incoming.forEach(row => {
+    const k = String(row[keyField] || '').trim().toLowerCase();
+    if (k && known.has(k)) return;
+    lldAddRow(tbl, cols, row);
+    if (k) known.add(k);
+    n++;
+  });
+  lldAlert(n
+    ? `${n} ligne(s) ajoutée(s) depuis l'élévation (les lignes existantes sont conservées).`
+    : 'Rien de nouveau — toutes les lignes détectées sont déjà dans le tableau.',
+    { title: title || "🔎 Générer depuis l'élévation" });
+  return n;
+}
+function lldGenFwEquip(tbl, cols) {
+  const ws = active();
+  if (!ws || !tbl) return;
+  lldFillNamedRows(tbl, cols || LLD_CAT_EQUIP_COLS,
+    lldCatEquipRows(ws, ['firewall', 'router']), 'name', '🔎 7.1 Équipements');
+}
+function lldGenFwVlan(tbl, cols) {
+  const ws = active();
+  if (!ws || !lldDraft || !tbl) return;
+  const C = cols || LLD_FW_VLAN_COLS;
+  const known = new Set(lldRowsFrom(tbl).map(r => String(r.vid || '').replace(/^vlan\s*/i, '').trim()).filter(Boolean));
+  const incoming = [];
+  const add = (vid, extra) => {
+    const v = String(vid || '').replace(/^vlan\s*/i, '').trim();
+    if (!v || known.has(v)) return;
+    known.add(v);
+    incoming.push(Object.assign({ vid: v, name: '', subnet: '', gw: '' }, extra || {}));
+  };
+  ((lldDraft.lld && lldDraft.lld.vlans) || []).forEach(r => add(r.vid, {
+    name: r.name || '', subnet: r.subnet || '', gw: r.gw || ''
+  }));
+  for (const { inst } of sortedRackInstances(ws)) {
+    (inst.ports || []).forEach(p => {
+      String(p.vlan || '').split(/[^0-9]+/).forEach(tok => {
+        const n = parseInt(tok, 10);
+        if (n >= 1 && n <= 4094) add(String(n));
+      });
+    });
+  }
+  if (!incoming.length) {
+    lldAlert('Aucun VLAN nouveau (registre ch. 4 et ports déjà repris).', { title: '🔎 7.2 Interfaces VLAN' });
+    return;
+  }
+  incoming.forEach(r => lldAddRow(tbl, C, r));
+  lldAlert(`${incoming.length} VLAN(s) ajouté(s) au tableau 7.2.`, { title: '🔎 7.2 Interfaces VLAN' });
+}
+function lldGenSwEquip(tbl, cols, sheetNum, cats) {
+  const ws = active();
+  if (!ws || !tbl) return;
+  lldFillNamedRows(tbl, cols || LLD_CAT_EQUIP_COLS,
+    lldCatEquipRows(ws, cats || ['switch'], sheetNum), 'name',
+    '🔎 ' + sheetNum + ' Équipements');
+}
+function lldGenSwPorts(tbl, cols, sheetNum, cats) {
+  const ws = active();
+  if (!ws || !tbl) return;
+  const C = cols || LLD_SW_PORT_COLS;
+  const known = new Set(lldRowsFrom(tbl).map(r =>
+    `${r.rack || ''}|${r.dev || ''}|${r.port || ''}`.toLowerCase()));
+  let n = 0;
+  for (const { rack, inst } of sortedRackInstances(ws)) {
+    if (!(cats || ['switch']).includes(normCat(inst.cat))) continue;
+    if (sheetNum && String(sheetNum) !== '8' && !lldInstInSwSheet(ws, inst, sheetNum)) continue;
+    (inst.ports || []).forEach(p => {
+      const k = `${rack.name}|${inst.name}|${p.name || ''}`.toLowerCase();
+      if (known.has(k)) return;
+      known.add(k);
+      lldAddRow(tbl, C, {
+        rack: rack.name, dev: inst.name, port: p.name || '',
+        label: p.label || '', vlan: p.vlan || ''
+      });
+      n++;
+    });
+  }
+  lldAlert(n
+    ? `${n} port(s) ajouté(s) au plan de ports.`
+    : "Aucun port nouveau (ou aucun équipement de cette zone dans l'élévation).",
+    { title: '🔎 ' + sheetNum + ' Plan de ports' });
+}
+function lldGenSrvEquip(tbl, cols) {
+  const ws = active();
+  if (!ws || !tbl) return;
+  lldFillNamedRows(tbl, cols || LLD_CAT_EQUIP_COLS,
+    lldCatEquipRows(ws, ['server']), 'name', '🔎 9.1 Serveurs');
+}
+function lldGenVms(tbl, cols) {
+  const ws = active();
+  if (!ws || !tbl) return;
+  const hosts = lldCatEquipRows(ws, ['server']);
+  if (!hosts.length) {
+    lldAlert("Aucun serveur dans l'élévation pour pré-remplir la colonne Hôte.",
+      { title: '🔎 9.2 Machines virtuelles' });
+    return;
+  }
+  const known = new Set(lldRowsFrom(tbl).map(r => String(r.host || '').trim().toLowerCase()).filter(Boolean));
+  let n = 0;
+  hosts.forEach(h => {
+    const k = String(h.name || '').toLowerCase();
+    if (!k || known.has(k)) return;
+    lldAddRow(tbl, cols || LLD_VM_COLS, { name: '', role: '', host: h.name, ip: h.ip || '' });
+    known.add(k);
+    n++;
+  });
+  lldAlert(n
+    ? `${n} ligne(s) pré-remplie(s) (Hôte = serveur de l'élévation). Complétez le nom des VM.`
+    : 'Les hôtes détectés sont déjà dans le tableau.',
+    { title: '🔎 9.2 Machines virtuelles' });
 }
 
 // Renommage : dblclick délégué sur l'arbre (fonctionne même après un
@@ -9853,19 +10169,39 @@ const LLD_TPL = (() => {
   /* — 7. Firewall : équipements + interfaces VLAN — */
   function ch7(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
-    const fws = byCat(ws, ['firewall', 'router']);
-    if (fws.length) equipTable(rows, fws, { titre: '7.1. Equipements Firewall / Routeurs',
-      cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
-    const vlans = (ws.lld && ws.lld.vlans) || [];
+    const L7 = ws.lld || {};
+    const fe = (hasB('7.1', 'fwEquip') || hasB('7', 'fwEquip'))
+      ? (L7.fwEquip || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim())) : [];
+    if (fe.length) {
+      const cols = lldExportCols(L7, 'fwEquip', LLD_CAT_EQUIP_COLS);
+      rows.push([]); rows.push([]);
+      rows.push(SEC('7.1. Equipements Firewall / Routeurs'));
+      rows.push([]);
+      rows.push(H(cols.map(c => String(c[1]))));
+      fe.forEach((r0, i) => rows.push(D(cols.map(c => String(r0[c[0]] ?? '')), i % 2)));
+    } else {
+      const fws = byCat(ws, ['firewall', 'router']);
+      if (fws.length) equipTable(rows, fws, { titre: '7.1. Equipements Firewall / Routeurs',
+        cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
+    }
+    const fv = (hasB('7.2', 'fwVlan') || hasB('7', 'fwVlan'))
+      ? (L7.fwVlan || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim())) : [];
+    const vlans = fv.length ? fv : ((ws.lld && ws.lld.vlans) || []);
     if (vlans.length) {
       rows.push([]); rows.push([]);
       rows.push(SEC('7.2. Interfaces VLAN'));
       rows.push([]);
-      rows.push(H(['VLAN', 'Nom', 'Sous-réseau', 'Passerelle']));
-      vlans.forEach((v, i) => rows.push(D([
-        v.vid ? `VLAN ${v.vid}` : '', v.name || '', v.subnet || '', v.gw || ''], i % 2)));
+      if (fv.length) {
+        const cols = lldExportCols(L7, 'fwVlan', LLD_FW_VLAN_COLS);
+        rows.push(H(cols.map(c => String(c[1]))));
+        fv.forEach((v, i) => rows.push(D(cols.map(c => String(v[c[0]] ?? '')), i % 2)));
+      } else {
+        rows.push(H(['VLAN', 'Nom', 'Sous-réseau', 'Passerelle']));
+        vlans.forEach((v, i) => rows.push(D([
+          v.vid ? `VLAN ${v.vid}` : '', v.name || '', v.subnet || '', v.gw || ''], i % 2)));
+      }
     }
-    const fw = hasB('7', 'fw') ? ((ws.lld && ws.lld.fw) || []) : [];
+    const fw = (hasB('7.3', 'fw') || hasB('7', 'fw')) ? ((ws.lld && ws.lld.fw) || []) : [];
     if (fw.length) {
       const Lw = ws.lld || {};
       const dyn = lldExportCols(Lw, 'fw', LLD_FW_COLS);
@@ -9876,7 +10212,6 @@ const LLD_TPL = (() => {
       fw.forEach((r0, i) => rows.push(D(dyn.map(c => String(r0[c[0]] ?? '')), i % 2)));
     }
     /* Note dynamique : ne mentionner QUE ce qui manque vraiment */
-    const L7 = ws.lld || {};
     const fp7 = L7.fwProfiles || {};
     const missing7 = [];
     if (!(L7.fw || []).length) missing7.push('NAT et règles');
@@ -9911,12 +10246,38 @@ const LLD_TPL = (() => {
     else if (/\(AP\)/i.test(title)) zone = nth(apZones, sheet.name === '8.4' ? 1 : 0);
     else if (/\(LAN\)/i.test(title)) zone = nth(lanZones, sheet.name === '8.5' ? 1 : 0);
     const catList = /\(AP\)/i.test(title) ? ['switch', 'ap'] : ['switch'];
+    const Lw = ws.lld || {};
+    const meta = (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : [])
+      .find(x => x[2] === String(sheet.name));
+    const eqKey = meta ? meta[0] : null;
+    const poKey = meta ? meta[1] : null;
+    const eqRows = eqKey && hasB(sheet.name, eqKey)
+      ? (Lw[eqKey] || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim())) : [];
+    const poRows = poKey && hasB(sheet.name, poKey)
+      ? (Lw[poKey] || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim())) : [];
     const sws = byCat(ws, catList).filter(x => !zone || x.inst.zone === zone.id);
     const notes = (ws.lld && ws.lld.catNotes) || {};
-    if (sws.length) {
+    if (eqRows.length) {
+      const cols = lldExportCols(Lw, eqKey, LLD_CAT_EQUIP_COLS);
+      rows.push([]); rows.push([]);
+      rows.push(SEC(`Equipements Switching${zone ? ' — zone ' + zone.name : ''}`));
+      rows.push([]);
+      rows.push(H(cols.map(c => String(c[1]))));
+      eqRows.forEach((r0, i) => rows.push(D(cols.map(c => String(r0[c[0]] ?? '')), i % 2)));
+      if (zone && zone.vlans) rows.push([{ v: `VLANs de la zone : ${zone.vlans}`, s: 129 }]);
+    } else if (sws.length) {
       equipTable(rows, sws, { titre: `Equipements Switching${zone ? ' — zone ' + zone.name : ''}`,
         cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
       if (zone && zone.vlans) rows.push([{ v: `VLANs de la zone : ${zone.vlans}`, s: 129 }]);
+    }
+    if (poRows.length) {
+      const cols = lldExportCols(Lw, poKey, LLD_SW_PORT_COLS);
+      rows.push([]); rows.push([]);
+      rows.push(SEC('Plan de ports'));
+      rows.push([]);
+      rows.push(H(cols.map(c => String(c[1]))));
+      poRows.forEach((r0, i) => rows.push(D(cols.map(c => String(r0[c[0]] ?? '')), i % 2)));
+    } else if (sws.length) {
       const zoneNames = new Set(sws.map(x => x.inst.name));
       const portRows = portsRowsByCat(ws, catList).slice(1)
         .filter(p => zoneNames.has(p[3]));
@@ -9952,11 +10313,24 @@ const LLD_TPL = (() => {
   function chapterWith(cat, titre, titre2, cols2, key, note, catKey) {
     return (sheet, ws) => {
       const { rows, heights } = fromLayout(sheet);
+      const Lw = ws.lld || {};
       const list = byCat(ws, [cat]);
-      if (list.length) equipTable(rows, list, { titre, cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
-      const tbl = hasB(sheet.name, key) ? ((ws.lld && ws.lld[key]) || []) : [];
+      const eqKey = key === 'vms' ? 'srvEquip' : null;
+      const eqRows = eqKey && (hasB('9.1', eqKey) || hasB(sheet.name, eqKey))
+        ? (Lw[eqKey] || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim())) : [];
+      if (eqRows.length) {
+        const cols = lldExportCols(Lw, eqKey, LLD_CAT_EQUIP_COLS);
+        rows.push([]); rows.push([]);
+        rows.push(SEC(titre));
+        rows.push([]);
+        rows.push(H(cols.map(c => String(c[1]))));
+        eqRows.forEach((r0, i) => rows.push(D(cols.map(c => String(r0[c[0]] ?? '')), i % 2)));
+      } else if (list.length) {
+        equipTable(rows, list, { titre, cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
+      }
+      const tblOn = hasB(sheet.name, key) || (key === 'vms' && hasB('9.2', key));
+      const tbl = tblOn ? (Lw[key] || []) : [];
       if (tbl.length) {
-        const Lw = ws.lld || {};
         const dyn = lldExportCols(Lw, key, cols2.map(([lbl, k]) => [k, lbl, null]));
         rows.push([]); rows.push([]);
         rows.push(SEC(titre2));
@@ -9964,7 +10338,7 @@ const LLD_TPL = (() => {
         rows.push(H(dyn.map(c => String(c[1]))));
         tbl.forEach((r0, i) => rows.push(D(dyn.map(c => String(r0[c[0]] ?? '')), i % 2)));
       }
-      if (!list.length && !tbl.length) pushNote(rows, "Aucun équipement de cette catégorie dans l'inventaire actuel.");
+      if (!list.length && !tbl.length && !eqRows.length) pushNote(rows, "Aucun équipement de cette catégorie dans l'inventaire actuel.");
       else if (note && !tbl.length) pushNote(rows, note);
       const nkey = `note:${catKey || cat}`;
       const cfg = hasB(sheet.name, nkey)
@@ -11778,12 +12152,29 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     }
   }
   // Sous-chapitres ajoutés dans la modale sous `parentNum` (hors ch. 8 :
-  // ses 8.x sont générés depuis les zones de Switching).
+  // ses 8.x d’origine suivent le sommaire / Excel ; les custom restent ici).
   function drawCustomSubs(parentNum) {
     const p = tocByNum.get(String(parentNum));
     if (!p) return;
     for (const s of p.subs || []) {
       if (!s.custom) continue;
+      sub(s.num, s.title);
+      const builtin = PDF_BUILTIN[s.num] || [];
+      let any = false;
+      for (const key of s.blocks || []) {
+        if (builtin.includes(key)) continue;
+        pdfDrawBlock(key);
+        any = true;
+      }
+      if (!any && !(s.blocks || []).length) placeholder();
+    }
+  }
+  // Sous-chapitres d’origine (7.1…, 8.1…, 9.1…) : mêmes tableaux que le sommaire.
+  function drawOriginSubs(parentNum) {
+    const p = tocByNum.get(String(parentNum));
+    if (!p) return;
+    for (const s of p.subs || []) {
+      if (!s || s.custom) continue;
       sub(s.num, s.title);
       const builtin = PDF_BUILTIN[s.num] || [];
       let any = false;
@@ -12113,6 +12504,17 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     const notes = L.catNotes[dom] || '';
     if (hasB(num, `note:${dom}`) && notes.trim()) {
       miniTitle('Notes de configuration'); paragraph(notes);
+    }
+    if (num === '7' || num === '8' || num === '9') {
+      // Aligné Excel : tableaux du sommaire (7.1–7.3 / 8–8.5 / 9.1–9.2).
+      if (num === '8') {
+        if (hasB('8', 'zones')) pdfDrawBlock('zones');
+        drawNodeExtras('8');
+      }
+      if (num === '9') drawNodeExtras('9');
+      drawOriginSubs(num);
+      drawCustomSubs(num);
+      continue;
     }
     if (dom === 'switching' && hasB(num, 'zones') && (L.swZones || []).length) {
       // Sous-chapitres par zone de switching (8.1, 8.2… dans l'ordre des zones)

@@ -405,14 +405,18 @@ function rptInterco(ws) {
 // 🔥 Firewall & sécurité (ch. 7 + admin) : règles/NAT, profils, alias, comptes
 function rptFirewall(ws) {
   const L = normLldInfo(ws);
-  const rules = rptSub('Règles & NAT', rptLldGrid(
+  const equip = rptSub('7.1 — Équipements Firewall / Routeurs', rptLldGrid(
+    lldExportCols(L, 'fwEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.fwEquip));
+  const vlan = rptSub('7.2 — Interfaces VLAN', rptLldGrid(
+    lldExportCols(L, 'fwVlan', LLD_FW_VLAN_COLS).map(c => [c[0], String(c[1])]), L.fwVlan));
+  const rules = rptSub('7.3 — Règles & NAT', rptLldGrid(
     lldExportCols(L, 'fw', LLD_FW_COLS).map(c => [c[0], String(c[1])]), L.fw));
   const prof = rptSub('Profils firewall', rptKv(LLD_FWP_FIELDS, L.fwProfiles));
   const aliases = rptSub('Alias firewall', rptLldGrid(
     lldExportCols(L, 'aliases', LLD_ALIAS_COLS).map(c => [c[0], String(c[1])]), L.aliases));
   const admin = rptSub("Comptes d'administration (Admin Security)", rptLldGrid(
     lldExportCols(L, 'adminSec', LLD_ADMIN_COLS).map(c => [c[0], String(c[1])]), L.adminSec));
-  return rules + prof + aliases + admin + rptShots(ws, 'shots7') || '';
+  return equip + vlan + rules + prof + aliases + admin + rptShots(ws, 'shots7') || '';
 }
 
 // 🖥️ Système, stockage & supervision : VMs, volumes, caméras, zones de switching
@@ -420,13 +424,22 @@ function rptSystem(ws) {
   const L = normLldInfo(ws);
   const zones = rptSub('Zones de switching (ch. 8)', rptLldGrid(
     lldExportCols(L, 'zones', LLD_ZONE_COLS).map(c => [c[0], String(c[1])]), L.swZones));
-  const vms = rptSub('Machines virtuelles (ch. 9)', rptLldGrid(
+  let swHtml = '';
+  (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : []).forEach(([eq, po, num, lab]) => {
+    swHtml += rptSub(`${num} — Équipements ${lab}`, rptLldGrid(
+      lldExportCols(L, eq, LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L[eq]));
+    swHtml += rptSub(`${num} — Plan de ports ${lab}`, rptLldGrid(
+      lldExportCols(L, po, LLD_SW_PORT_COLS).map(c => [c[0], String(c[1])]), L[po]));
+  });
+  const srv = rptSub('9.1 — Serveurs', rptLldGrid(
+    lldExportCols(L, 'srvEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.srvEquip));
+  const vms = rptSub('9.2 — Machines virtuelles', rptLldGrid(
     lldExportCols(L, 'vms', LLD_VM_COLS).map(c => [c[0], String(c[1])]), L.vms));
   const vols = rptSub('Volumes / LUN (ch. 10)', rptLldGrid(
     lldExportCols(L, 'vols', LLD_VOL_COLS).map(c => [c[0], String(c[1])]), L.vols));
   const cams = rptSub('Caméras CCTV (ch. 12)', rptLldGrid(
     lldExportCols(L, 'cams', LLD_CAM_COLS).map(c => [c[0], String(c[1])]), L.cams));
-  return zones + vms + vols + cams || '';
+  return zones + swHtml + srv + vms + vols + cams || '';
 }
 
 // Équipements & licences hors baie (table 3.1 du dossier)
@@ -501,7 +514,10 @@ const RPT_FREE_SEC = {
   '3': 'sec-contexte', '3.1': 'sec-inv', '4': 'sec-addr',
   '5': 'sec-fai', '5.1': 'sec-fai', '5.2': 'sec-fai',
   '6': 'sec-ic', '6.1': 'sec-ic', '6.2': 'sec-ic',
-  '7': 'sec-fw', '8': 'sec-sys', '9': 'sec-sys', '10': 'sec-sys',
+  '7': 'sec-fw', '7.1': 'sec-fw', '7.2': 'sec-fw', '7.3': 'sec-fw',
+  '8': 'sec-sys', '8.1': 'sec-sys', '8.2': 'sec-sys', '8.3': 'sec-sys',
+  '8.4': 'sec-sys', '8.5': 'sec-sys',
+  '9': 'sec-sys', '9.1': 'sec-sys', '9.2': 'sec-sys', '10': 'sec-sys',
   '11': 'sec-sys', '12': 'sec-sys', '13': 'sec-sys',
   '14': 'sec-flux', '15': 'sec-cab', '15.1': 'sec-elev'
 };
