@@ -444,26 +444,11 @@ function normLldInfo(w) {
     if (typeof L[k] !== 'string') L[k] = '';
     L[k] = L[k].slice(0, 80);
   }
-  // Page de garde : informations directes (pas de libellé/placeholder vide) —
-  // l'auteur et la version sont pré-remplis tant qu'ils n'ont pas été saisis.
-  if (!L.author.trim()) L.author = 'Amine MJID';
-  if (!L.version.trim()) L.version = '1.0';
+  // Page de garde : uniquement ce qui est saisi dans le sommaire (rien d'inventé).
   // Textes documentaires (ch. 1, 2.2 et 3 du dossier LLD)
   for (const k of ['objectif', 'existant', 'architecture']) {
     if (typeof L[k] !== 'string') L[k] = '';
     L[k] = L[k].slice(0, 4000);
-  }
-  // Ch. 1 : paragraphe de présentation (texte autrefois gravé dans le
-  // template Excel) pré-rempli UNE seule fois — modifiable et supprimable ;
-  // objectifSeeded évite que la suppression soit ressuscitée au rechargement.
-  if (L.objectifSeeded !== 1) {
-    if (!L.objectif.trim()) {
-      L.objectif = 'La conception de bas niveau est une description détaillée de chaque module.\n'
-        + 'Il décrit chaque module en détail en incorporant la logique derrière chaque composant du système.\n'
-        + 'Il approfondit chaque spécification de chaque système, offrant une conception au niveau micro.\n'
-        + 'Cette conception décompose les solutions de haut niveau dans les moindres détails.';
-    }
-    L.objectifSeeded = 1;
   }
   // Nomenclature (ch. 4) : type d'objet -> préfixe -> exemple -> règle de nommage
   // Conserve les clés hors schéma (colonnes ajoutées dans la modale 📘).
@@ -691,52 +676,8 @@ function normLldInfo(w) {
       for (const [k, max] of keys) o[k] = String(r[k] ?? '').slice(0, max);
       return o;
     });
-  if (!L.icWan || !L.icWan.some(r => Object.values(r).some(v => String(v ?? '').trim()))) {
-    const faiRows = (L.fais || []).filter(f => f && (f.operator || f.wanIp || f.ipMode || f.wanLabel));
-    const seed = faiRows.slice(0, 3).map((f, i) => ({
-      name: `WAN ${i + 1}${f.operator ? ' — ' + f.operator : ''}`,
-      enable: 'Oui',
-      connMethod: String(f.ipMode || '').slice(0, 30),
-      routingMode: 'NAT',
-      ip: String(f.wanIp || '').slice(0, 45),
-      mask: String(f.wanMask || '').slice(0, 45),
-      gw: String(f.wanGw || '').slice(0, 45),
-      dns: String(f.wanDns || '').slice(0, 60),
-      priority: '',
-      up: String(f.up || '').slice(0, 40),
-      down: String(f.down || '').slice(0, 40),
-      portSpeed: '', mtu: '', mss: '', macClone: '', vlan: '',
-      hcMethod: '', hcDns: '', hcTimeout: '', hcInterval: '',
-      hcRetries: '', hcRecovery: '',
-      provider: String(f.operator || '').slice(0, 60),
-      ipv6: '', doh: '', qos: ''
-    })).filter(r => Object.values(r).some(v => String(v ?? '').trim()));
-    L.icWan = (Array.isArray(L.icWan) ? L.icWan : []).slice();
-    if (!L.icWan.length && seed.length) L.icWan = seed;
-  }
   L.icWan = icSan(Array.isArray(L.icWan) ? L.icWan : [], LLD_IC_WAN_COLS.map(c => [c[0],
     c[0] === 'name' ? 140 : c[0] === 'provider' ? 60 : 45]));
-  if (!L.icLan || !L.icLan.some(r => Object.values(r).some(v => String(v ?? '').trim()))) {
-    const ic = L.interco || {};
-    const nv = (L.vlans || []).length;
-    const seed = [];
-    if (ic.localSubnets || ic.routing || nv) {
-      seed.push({
-        lan: String(ic.localSubnets ? `LAN — ${ic.localSubnets}` : 'LAN').slice(0, 120),
-        routing: String(ic.routing || '').slice(0, 120),
-        network: String(nv ? `x${nv} VLANs routés` : '').slice(0, 120)
-      });
-    }
-    if (ic.remoteSubnets) {
-      seed.push({
-        lan: 'LAN — distant',
-        routing: '',
-        network: String(ic.remoteSubnets).slice(0, 120)
-      });
-    }
-    L.icLan = (Array.isArray(L.icLan) ? L.icLan : []).slice();
-    if (!L.icLan.length && seed.length) L.icLan = seed;
-  }
   L.icLan = icSan(Array.isArray(L.icLan) ? L.icLan : [], [['lan', 120], ['routing', 120], ['network', 120]]);
   if (!L.diagrams || typeof L.diagrams !== 'object' || Array.isArray(L.diagrams)) L.diagrams = {};
   else {
@@ -12176,7 +12117,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   const PDF_BUILTIN = {
     'cover': ['meta', 'governance'],
     '1': ['objectif'], '2.1': ['sites'], '2.2': ['existant'],
-    '3': ['architecture'], '4': ['nomen', 'vlans'],
+    '3': ['architecture'], '3.1': ['equip'], '4': ['nomen', 'vlans'],
     '5.1': ['fais'], '6.1': ['ic61', 'icWan', 'icLan'],
     '7': ['note:firewall'], '8': ['zones', 'note:switching'],
     '9': ['note:server'], '10': ['note:storage'], '11': ['note:ids'],
@@ -12544,34 +12485,14 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     else placeholder();
   }
   sub('3.1', 'Equipments');
-  miniTitle('Récapitulatif par catégorie');
-  const csr = catSummaryRows(ws);
-  if (csr.length > 1) drawTable(csr, [2.3, 0.5, 3.3, 2.1, 0.9], 8);
-  else note('Aucun équipement placé dans les racks de ce workspace.');
-  miniTitle('Inventaire détaillé');
-  const ir = invRows(ws);
-  if (ir.length > 1) {
-    drawTable(ir, [1.15, 0.75, 0.5, 0.45, 1.4, 0.95, 1.0, 1.25, 1.05, 0.95,
-                   0.8, 0.65, 0.55, 0.55, 0.9, 0.8, 1.7, 0.4], 7.5,
-              { cellColor: (ri, ci, val) => pdfWarrantyCellColor(ci, 16, val) });
-  } else note('Aucun équipement placé dans les racks de ce workspace.');
-  miniTitle('Suivi des garanties');
-  {
-    const wsm = warrantySummary(ws);
-    const wr = warrantyRows(ws);
-    if (wr.length > 1) {
-      // Bilan chiffré : équipements en garantie / hors de garantie
-      paragraph(`Sur ${wsm.known} équipement${wsm.known > 1 ? 's' : ''} dont la garantie est renseignée : `
-        + `${wsm.in} en garantie et ${wsm.out} hors de garantie.`
-        + (wsm.soon ? ` ${wsm.soon} garantie${wsm.soon > 1 ? 's arrivent' : ' arrive'} à échéance sous ${WARRANTY_SOON_DAYS} jours.` : '')
-        + (wsm.without ? ` ${wsm.without} équipement${wsm.without > 1 ? 's' : ''} sans date de garantie.` : ''));
-      // Statut coloré comme dans l'application : vert en garantie, rouge hors garantie
-      drawTable(wr, [1.0, 0.75, 0.5, 1.45, 1.1, 1.5, 0.85, 1.0, 0.7], 8,
-                { cellColor: (ri, ci, val) => pdfWarrantyCellColor(ci, 7, val) });
-      note('Légende : statut « En garantie » écrit en vert, « Hors garantie » en rouge '
-         + '(comme la pastille de garantie affichée sur chaque équipement de l\u2019application).');
+  if (hasB('3.1', 'equip')) {
+    const cols = lldExportCols(L, 'equip', LLD_EQUIP_COLS);
+    const rows31 = (L.equip || []).filter(e => e && String(e.model || '').trim());
+    if (rows31.length) {
+      drawTable([cols.map(c => String(c[1])),
+        ...rows31.map(e => cols.map(c => String(e[c[0]] ?? '')))], pdfColW(cols), 8);
     } else {
-      note("Aucune garantie renseignée : la fin de garantie et le contrat se saisissent device par device (fiche de survol, double-clic sur « Fin de garantie »).");
+      note("Aucun élément — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘.");
     }
   }
   endNode('3.1');
