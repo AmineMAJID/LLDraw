@@ -10329,7 +10329,8 @@ const LLD_TPL = (() => {
         });
         return out;
       }
-      if (d && (d.nodes || []).length) {ect.fromEntries(d.nodes.map(n => [n.id, n]));
+      if (d && (d.nodes || []).length) {
+        const byId = Object.fromEntries(d.nodes.map(n => [n.id, n]));
         out.push([]);
         out.push(H(['Élément', 'Type', 'Détail']));
         d.nodes.forEach((n, i) => out.push(D([
