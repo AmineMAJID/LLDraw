@@ -12645,7 +12645,8 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   if (hasB('15', 'cab15')) pdfDrawBlock('cab15');
   drawOriginSubs('15');
   drawCustomSubs('15');
-  if (!SKIP && planJpeg && planW && planH) {
+  const elevFilled = ((L.elev15 || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim()))).length;
+  if (!SKIP && elevFilled && planJpeg && planW && planH) {
     newPage();
     miniTitle('\u00c9l\u00e9vations des racks');
     const availW = PW - 2 * M, availH = y - M - 10;
@@ -12661,40 +12662,6 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     if ((n.blocks || []).length) n.blocks.forEach(k => pdfDrawBlock(k));
     else placeholder();
     drawCustomSubs(n.num);
-  }
-
-  // Toute fin du dossier : détail du câblage pour chaque device posé
-  // (rattaché au chapitre 15 « Câblage / Rack » du sélecteur d'export).
-  SKIP = false;
-  const placedDevices = sortedRackInstances(ws);
-  const cab15Filled = ((L.cab15 || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim()))).length;
-  if (cab15Filled && placedDevices.length && (!onlyRoots || onlyRoots.has('15'))) {
-    newPage();
-    txt(M, y - 13, 'Détail des connexions par device', 15, true, [0.12, 0.31, 0.47]);
-    hline(M, PW - M, y - 21);
-    y -= 33;
-    placedDevices.forEach(({ rack, inst }) => {
-      miniTitle(`${inst.name} — ${rack.name}${siteName(ws, rack) ? ` — ${siteName(ws, rack)}` : ''}`);
-      const rows = [['Câble', 'Port local', 'Origine', 'Destination', 'Domaine']];
-      (ws.cables || []).forEach(c => {
-        const isA = c.a?.instId === inst.id;
-        const isB = c.b?.instId === inst.id;
-        if (!isA && !isB) return;
-        const ea = resolveEndpoint(ws, c.a);
-        const eb = resolveEndpoint(ws, c.b);
-        if (!ea || !eb) return;
-        const endpointText = e => `${e.inst.name} / ${e.port.name} (${e.rack.name})`;
-        rows.push([
-          c.name || '',
-          isA ? ea.port.name : eb.port.name,
-          endpointText(ea),
-          endpointText(eb),
-          cableDomainLabel(c.domain)
-        ]);
-      });
-      if (rows.length > 1) drawTable(rows, [1.2, 1.4, 2.8, 2.8, 1.5], 7.5);
-      else note('Aucun câble branché sur ce device.');
-    });
   }
 
   // ================= Sommaire (inséré en page 2, après la garde) =================
@@ -12750,7 +12717,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
 
   push('%PDF-1.4\n%\u00E2\u00E3\u00CF\u00D3\n');
 
-  const hasPlan = !!(planJpeg && planW && planH);
+  const hasPlan = !!(elevFilled && planJpeg && planW && planH);
   const hasTopo = !!(topoJpeg && topoW && topoH);
   const firstPageObj = 5;
   const contentObjs = [];

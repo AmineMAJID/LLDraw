@@ -145,86 +145,48 @@ function rptContext(ws) {
     || '<p class="muted">Textes non renseignés (fiche 📘 du dossier, onglet Document).</p>';
 }
 
-// Inventaire : un bloc repliable par baie, table sans colonnes répétées
+// Inventaire 15.1 : élévations du sommaire, groupées par baie (comme l'Excel)
 function rptInventory(ws) {
+  const L = normLldInfo(ws);
+  const ev = (L.elev15 || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim()));
+  if (!ev.length)
+    return '<p class="muted">15.1 : aucune élévation — bouton « 🔎 Générer depuis l\'élévation » dans le sommaire 📘.</p>';
+  const cols = lldExportCols(L, 'elev15', LLD_ELEV15_COLS);
+  const dataCols = cols.filter(c => c[0] !== 'rack');
   const byRack = new Map();
-  sortedRackInstances(ws).forEach(({ rack, inst }) => {
-    if (!byRack.has(rack.id)) byRack.set(rack.id, { rack, items: [] });
-    byRack.get(rack.id).items.push(inst);
+  ev.forEach(r0 => {
+    const k = String(r0.rack || '').trim() || 'Baie';
+    if (!byRack.has(k)) byRack.set(k, []);
+    byRack.get(k).push(r0);
   });
-  if (!byRack.size) return '<p class="muted">Aucun équipement placé.</p>';
   let out = '';
-  for (const { rack, items } of byRack.values()) {
-    const rows = items.map(inst => {
-      const search = [inst.name, inst.brand, inst.model, inst.serial, inst.ipMgmt, inst.vlan,
-        catLabel(normCat(inst.cat)), slotLabel(inst)].join(' ').toLowerCase();
-      return `<tr data-search="${RPT_ESC_ARIA(search)}">
-        <td class="nowrap"><b>${RPT_ESC(slotLabel(inst))}</b></td>
-        <td class="nowrap"><b>${RPT_ESC(inst.name)}</b></td>
-        <td class="nowrap">${catIcon(normCat(inst.cat))} ${RPT_ESC(catLabel(normCat(inst.cat)))}</td>
-        <td>${RPT_ESC(inst.brand || '')}</td><td>${RPT_ESC(inst.model || '')}</td>
-        <td class="nowrap">${RPT_ESC(inst.serial || '')}</td>
-        <td class="nowrap">${RPT_ESC(inst.ipMgmt || '')}</td>
-        <td>${RPT_ESC(inst.vlan || '')}</td>
-        <td class="nw-num">${inst.watts || ''}</td><td class="nw-num">${inst.weightKg || ''}</td>
-        <td>${rptWarrantyBadge(inst)}</td></tr>`;
+  byRack.forEach((list, rackName) => {
+    const head = dataCols.map(c => `<th>${RPT_ESC(c[1])}</th>`).join('');
+    const body = list.map(r0 => {
+      const search = dataCols.map(c => r0[c[0]] ?? '').join(' ').toLowerCase();
+      return `<tr data-search="${RPT_ESC_ARIA(search)}">${
+        dataCols.map(c => `<td>${RPT_ESC(r0[c[0]] ?? '')}</td>`).join('')}</tr>`;
     }).join('');
-    // Le site n'est répété que s'il ne figure pas déjà dans le nom de la baie
-    const sName = siteName(ws, rack);
-    const showSite = sName && !rack.name.includes(sName.split('—')[0].trim());
     out += `<details class="grp" open>
-      <summary><span class="dot" style="--c:${RPT_ESC(rack.siteId ? siteColor(ws, rack) : '#94a3b8')}"></span>
-        <b>${RPT_ESC(rack.name)}</b><span class="meta">${showSite ? RPT_ESC(sName) + ' · ' : ''}${items.length} équipement${items.length > 1 ? 's' : ''} · ${rack.sizeU}U</span>
-      </summary>
-      <table class="sortable rack-table">
-        <thead><tr>
-          <th>Étage</th><th>Nom</th><th>Catégorie</th><th>Marque</th><th>Modèle</th>
-          <th>N° série</th><th>IP mgmt</th><th>VLAN(s)</th><th>W</th><th>kg</th><th>Garantie</th>
-        </tr></thead><tbody>${rows}</tbody>
-      </table>
+      <summary><b>${RPT_ESC(rackName)}</b><span class="meta">${list.length} équipement${list.length > 1 ? 's' : ''}</span></summary>
+      <table class="sortable rack-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
     </details>`;
-  }
+  });
   return out;
 }
 
-// Détail des ports d'un équipement — tableau « Ports & adressage » complet
+// Plans de ports du sommaire (feuilles Excel 8 / 8.1…8.5)
 function rptPorts(ws) {
-  const rows = [];
-  const cableOf = (instId, portId) => {
-    const c = (ws.cables || []).find(cb =>
-      (cb.a?.instId === instId && cb.a?.portId === portId) ||
-      (cb.b?.instId === instId && cb.b?.portId === portId));
-    return c ? c.name : '';
-  };
-  const byRack = new Map();
-  for (const { rack, inst } of sortedRackInstances(ws)) {
-    for (const p of (inst.ports || [])) {
-      if (!byRack.has(rack.id)) byRack.set(rack.id, { rack, rows: [] });
-      byRack.get(rack.id).rows.push({ inst, p, cable: cableOf(inst.id, p.id) });
-    }
-  }
-  if (!byRack.size) return '<p class="muted">Aucun port étiqueté.</p>';
-  let out = '';
-  for (const { rack, rows: items } of byRack.values()) {
-    rows.length = 0;
-    const trs = items.map(({ inst, p, cable }) => {
-      const search = [rack.name, inst.name, p.name, p.label, p.ip, p.vlan, cable].join(' ').toLowerCase();
-      return `<tr data-search="${RPT_ESC_ARIA(search)}">
-        <td class="nowrap"><b>${RPT_ESC(slotLabel(inst))}</b> ${RPT_ESC(inst.name)}</td>
-        <td class="nowrap"><b>${RPT_ESC(p.name)}</b></td>
-        <td>${RPT_ESC(p.label || '')}</td>
-        <td class="nowrap">${RPT_ESC(p.ip || '')}</td>
-        <td class="nowrap">${RPT_ESC(p.vlan || '')}</td>
-        <td class="nowrap">${RPT_ESC(cable)}</td></tr>`;
-    }).join('');
-    out += `<details class="grp" open>
-      <summary><span class="dot"></span><b>${RPT_ESC(rack.name)}</b><span class="meta">${items.length} ports</span></summary>
-      <table class="sortable"><thead><tr>
-        <th>Équipement</th><th>Port</th><th>Étiquette</th><th>IP</th><th>VLAN</th><th>Câble</th>
-      </tr></thead><tbody>${trs}</tbody></table>
-    </details>`;
-  }
-  return out;
+  const L = normLldInfo(ws);
+  const sheets = (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : []);
+  let html = '';
+  sheets.forEach(([, po, num, lab]) => {
+    const rows = L[po] || [];
+    if (!rows.length) return;
+    html += rptSub(`${num} — Plan de ports ${lab}`, rptLldGrid(
+      lldExportCols(L, po, LLD_SW_PORT_COLS).map(c => [c[0], String(c[1])]), rows));
+  });
+  return html || '<p class="muted">Aucun plan de ports dans le sommaire 📘 (chapitre 8).</p>';
 }
 
 // Câblage : pastille couleur, sens de lecture A → B, filtre par domaine
