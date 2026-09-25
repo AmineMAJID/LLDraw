@@ -5859,6 +5859,42 @@
       "port": "LAN",
       "conn": "Switch HA — SW-02 port 25"
      }
+    ],
+    "stoEquip": [
+     {
+      "name": "NAS-01",
+      "model": "Synology RS1221+",
+      "ip": "10.10.99.41",
+      "pos": "RACK-A — Siège Casablanca — U11–U12"
+     },
+     {
+      "name": "NAS-02",
+      "model": "Synology RS1221+",
+      "ip": "10.11.99.41",
+      "pos": "RACK-B — Agence Rabat — U6–U7"
+     }
+    ],
+    "idsEquip": [
+     {
+      "name": "IDS-01",
+      "model": "WatchGuard Dimension + TDR",
+      "ip": "10.10.99.51",
+      "pos": "RACK-A — Siège Casablanca — U19"
+     },
+     {
+      "name": "IDS-02",
+      "model": "WatchGuard Dimension + TDR",
+      "ip": "10.11.99.51",
+      "pos": "RACK-B — Agence Rabat — U11"
+     }
+    ],
+    "cctvEquip": [
+     {
+      "name": "NVR-01",
+      "model": "Hikvision DS-7732NI-K4 (32 canaux)",
+      "ip": "10.10.99.61",
+      "pos": "RACK-A — Siège Casablanca — U21"
+     }
     ]
    },
    "view": {
@@ -5868,9 +5904,9 @@
    },
    "viewTouched": false,
    "updatedAt": 1788868800000,
-   "demoVer": 6
+   "demoVer": 7
   }
  ],
  "activeWorkspaceId": "demo-dc",
- "demoVer": 6
+ "demoVer": 7
 }

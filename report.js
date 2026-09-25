@@ -435,11 +435,17 @@ function rptSystem(ws) {
     lldExportCols(L, 'srvEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.srvEquip));
   const vms = rptSub('9.2 — Machines virtuelles', rptLldGrid(
     lldExportCols(L, 'vms', LLD_VM_COLS).map(c => [c[0], String(c[1])]), L.vms));
-  const vols = rptSub('Volumes / LUN (ch. 10)', rptLldGrid(
+  const sto = rptSub('10.1 — Stockage', rptLldGrid(
+    lldExportCols(L, 'stoEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.stoEquip));
+  const vols = rptSub('10.2 — Volumes / LUN', rptLldGrid(
     lldExportCols(L, 'vols', LLD_VOL_COLS).map(c => [c[0], String(c[1])]), L.vols));
-  const cams = rptSub('Caméras CCTV (ch. 12)', rptLldGrid(
+  const ids = rptSub("11.1 — Détection d'intrusion", rptLldGrid(
+    lldExportCols(L, 'idsEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.idsEquip));
+  const nvr = rptSub('12.1 — Caméras et enregistreur (NVR)', rptLldGrid(
+    lldExportCols(L, 'cctvEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.cctvEquip));
+  const cams = rptSub('12.2 — Caméras', rptLldGrid(
     lldExportCols(L, 'cams', LLD_CAM_COLS).map(c => [c[0], String(c[1])]), L.cams));
-  return zones + swHtml + srv + vms + vols + cams || '';
+  return zones + swHtml + srv + vms + sto + vols + ids + nvr + cams || '';
 }
 
 // Équipements & licences hors baie (table 3.1 du dossier)
@@ -517,8 +523,11 @@ const RPT_FREE_SEC = {
   '7': 'sec-fw', '7.1': 'sec-fw', '7.2': 'sec-fw', '7.3': 'sec-fw',
   '8': 'sec-sys', '8.1': 'sec-sys', '8.2': 'sec-sys', '8.3': 'sec-sys',
   '8.4': 'sec-sys', '8.5': 'sec-sys',
-  '9': 'sec-sys', '9.1': 'sec-sys', '9.2': 'sec-sys', '10': 'sec-sys',
-  '11': 'sec-sys', '12': 'sec-sys', '13': 'sec-sys',
+  '9': 'sec-sys', '9.1': 'sec-sys', '9.2': 'sec-sys',
+  '10': 'sec-sys', '10.1': 'sec-sys', '10.2': 'sec-sys',
+  '11': 'sec-sys', '11.1': 'sec-sys',
+  '12': 'sec-sys', '12.1': 'sec-sys', '12.2': 'sec-sys',
+  '13': 'sec-sys',
   '14': 'sec-flux', '15': 'sec-cab', '15.1': 'sec-elev'
 };
 function rptFreeBySection(ws) {
