@@ -88,52 +88,48 @@ function defaultLldToc() {
     { id: 'cover', num: '📄', title: 'Page de garde', cover: true,
       blocks: ['meta', 'governance'], subs: [] },
     ch('1', 'Objectif du document', ['objectif']),
-    ch('2', 'Aperçu du site', [], [
-      sub('2.1', 'Information sur le site', ['sites']),
-      sub('2.2', "L'infrastructure existante", ['existant'])
-    ]),
-    ch('3', 'Architecture cible', ['architecture'], [
-      sub('3.1', 'Equipments', ['equip'])
-    ]),
+    ch('2', 'Information sur le site', ['sites']),
+    ch('3', 'Architecture existante', ['equip']),
     ch('4', 'Conception Nomenclature et Adressage IP Global',
-       ['addrMatrix', 'vlans', 'nomen']),
-    ch('5', 'Conception et Configuration FAI', ['diag5', 'shots5'], [
-      sub('5.1', 'Informations & Configuration', ['fais']),
-      sub('5.2', 'Cablage', ['faiCab'])
-    ]),
-    ch('6', 'Conception et Configuration Interconnexion site 2 site', ['diag6', 'shots6'], [
-      sub('6.1', 'Informations & Configuration', ['ic61', 'adminSec', 'icWan', 'icLan']),
-      sub('6.2', 'Cablage', ['icCab'])
-    ]),
-    ch('7', 'Conception et Configuration Firewall', ['diag7', 'shots7', 'note:firewall'], [
-      sub('7.1', 'Équipements Firewall / Routeurs', ['fwEquip']),
-      sub('7.2', 'Interfaces VLAN', ['fwVlan']),
-      sub('7.3', 'Règles et NAT', ['fw'])
-    ]),
-    ch('8', 'Conception et Configuration Switching', ['zones', 'note:switching', 'sw8equip', 'sw8ports'], [
-      sub('8.1', 'Conception et Configuration Switching (INFRA)', ['sw81equip', 'sw81ports']),
-      sub('8.2', 'Conception et Configuration Switching (LAN)', ['sw82equip', 'sw82ports']),
-      sub('8.3', 'Conception et Configuration Switching (AP)', ['sw83equip', 'sw83ports']),
-      sub('8.4', 'Conception et Configuration Switching (AP)', ['sw84equip', 'sw84ports']),
-      sub('8.5', 'Conception et Configuration Switching (BID)', ['sw85equip', 'sw85ports'])
-    ]),
-    ch('9', 'Conception et Configuration Serveurs', ['note:server'], [
-      sub('9.1', 'Serveurs', ['srvEquip']),
-      sub('9.2', 'Machines virtuelles', ['vms'])
-    ]),
-    ch('10', 'Conception et Configuration Stockage', ['note:storage'], [
-      sub('10.1', 'Stockage', ['stoEquip']),
-      sub('10.2', 'Volumes / LUN', ['vols'])
-    ]),
-    ch('11', 'Conception et Configuration Intrusion (IDS)', ['note:ids'], [
-      sub('11.1', "Détection d'intrusion", ['idsEquip'])
-    ]),
-    ch('12', 'Conception et Configuration CCTV', ['note:cctv'], [
-      sub('12.1', 'Caméras et enregistreur (NVR)', ['cctvEquip']),
-      sub('12.2', 'Caméras', ['cams'])
-    ]),
-    ch('13', 'Conception et Configuration Pointage (SPO)', ['note:pointage'], [
-      sub('13.1', 'Pointeuses', ['spoEquip'])
+       ['addrMatrix', 'vlans', 'nomen'], [
+      ch('4.1', 'Conception et Configuration FAI', ['diag5', 'shots5'], [
+        sub('4.1.1', 'Informations & Configuration', ['fais']),
+        sub('4.1.2', 'Cablage', ['faiCab'])
+      ]),
+      ch('4.2', 'Conception et Configuration Interconnexion site 2 site', ['diag6', 'shots6'], [
+        sub('4.2.1', 'Informations & Configuration', ['ic61', 'adminSec', 'icWan', 'icLan']),
+        sub('4.2.2', 'Cablage', ['icCab'])
+      ]),
+      ch('4.3', 'Conception et Configuration Firewall', ['diag7', 'shots7', 'note:firewall'], [
+        sub('4.3.1', 'Équipements Firewall / Routeurs', ['fwEquip']),
+        sub('4.3.2', 'Interfaces VLAN', ['fwVlan']),
+        sub('4.3.3', 'Règles et NAT', ['fw'])
+      ]),
+      ch('4.4', 'Conception et Configuration Switching', ['zones', 'note:switching', 'sw8equip', 'sw8ports'], [
+        sub('4.4.1', 'Conception et Configuration Switching (INFRA)', ['sw81equip', 'sw81ports']),
+        sub('4.4.2', 'Conception et Configuration Switching (LAN)', ['sw82equip', 'sw82ports']),
+        sub('4.4.3', 'Conception et Configuration Switching (AP)', ['sw83equip', 'sw83ports']),
+        sub('4.4.4', 'Conception et Configuration Switching (AP)', ['sw84equip', 'sw84ports']),
+        sub('4.4.5', 'Conception et Configuration Switching (BID)', ['sw85equip', 'sw85ports'])
+      ]),
+      ch('4.5', 'Conception et Configuration Serveurs', ['note:server'], [
+        sub('4.5.1', 'Serveurs', ['srvEquip']),
+        sub('4.5.2', 'Machines virtuelles', ['vms'])
+      ]),
+      ch('4.6', 'Conception et Configuration Stockage', ['note:storage'], [
+        sub('4.6.1', 'Stockage', ['stoEquip']),
+        sub('4.6.2', 'Volumes / LUN', ['vols'])
+      ]),
+      ch('4.7', 'Conception et Configuration Intrusion (IDS)', ['note:ids'], [
+        sub('4.7.1', "Détection d'intrusion", ['idsEquip'])
+      ]),
+      ch('4.8', 'Conception et Configuration CCTV', ['note:cctv'], [
+        sub('4.8.1', 'Caméras et enregistreur (NVR)', ['cctvEquip']),
+        sub('4.8.2', 'Caméras', ['cams'])
+      ]),
+      ch('4.9', 'Conception et Configuration Pointage (SPO)', ['note:pointage'], [
+        sub('4.9.1', 'Pointeuses', ['spoEquip'])
+      ])
     ]),
     ch('14', 'Flux réseau et diagram', [], [
       sub('14.1', 'Flux applicatifs', ['flows'])
@@ -142,6 +138,26 @@ function defaultLldToc() {
       sub('15.1', 'Élévations des baies', ['elev15'])
     ]),
   ];
+
+}
+
+// Anciens numéros du sommaire → nouveaux (5→4.1 … 13→4.9, 2.1→2, 3.1→3).
+// Les feuilles Excel restent 5…13 ; seuls l’affichage 📘 / PDF / HTML changent.
+const LLD_TOC_REMAP = {
+  '2.1': '2', '3.1': '3',
+  '5': '4.1', '5.1': '4.1.1', '5.2': '4.1.2',
+  '6': '4.2', '6.1': '4.2.1', '6.2': '4.2.2',
+  '7': '4.3', '7.1': '4.3.1', '7.2': '4.3.2', '7.3': '4.3.3',
+  '8': '4.4', '8.1': '4.4.1', '8.2': '4.4.2', '8.3': '4.4.3', '8.4': '4.4.4', '8.5': '4.4.5',
+  '9': '4.5', '9.1': '4.5.1', '9.2': '4.5.2',
+  '10': '4.6', '10.1': '4.6.1', '10.2': '4.6.2',
+  '11': '4.7', '11.1': '4.7.1',
+  '12': '4.8', '12.1': '4.8.1', '12.2': '4.8.2',
+  '13': '4.9', '13.1': '4.9.1'
+};
+function lldTocRemap(num) {
+  const s = String(num);
+  return LLD_TOC_REMAP[s] || s;
 }
 
 // Colonnes effectives d'un tableau du dossier : surcharge éventuelle
@@ -265,11 +281,28 @@ function normLldToc(raw) {
       .map(normCustom),
     custom: true
   });
+  const findRaw = (want, nodes) => {
+    const wantS = String(want);
+    const olds = Object.keys(LLD_TOC_REMAP).filter(k => LLD_TOC_REMAP[k] === wantS);
+    const ok = n => {
+      const rn = String(n.num);
+      return rn === wantS || olds.includes(rn);
+    };
+    const walk = ns => {
+      for (const n of ns || []) {
+        if (ok(n)) return n;
+        const h = walk(n.subs);
+        if (h) return h;
+      }
+      return null;
+    };
+    return walk(nodes);
+  };
   const normNode = (r, d) => {
     const subs = [];
     const rawSubs = Array.isArray(r.subs) ? r.subs.filter(s => s && typeof s === 'object') : [];
     (d.subs || []).forEach(ds => {
-      const hit = rawSubs.find(s => String(s.num) === ds.num);
+      const hit = findRaw(ds.num, rawSubs) || findRaw(ds.num, rawRoots);
       subs.push(hit ? normNode(hit, ds) : ds);
     });
     rawSubs.forEach(rs => {
@@ -277,6 +310,18 @@ function normLldToc(raw) {
         subs.push(normCustom(rs));
     });
     let blocks = normBlocks(r.blocks, d.blocks);
+    // 2.1 / 3.1 devenus chapitres 2 / 3 : récupérer leurs blocs.
+    if (String(d.num) === '2') {
+      const old21 = (Array.isArray(r.subs) ? r.subs : []).find(s => String(s.num) === '2.1');
+      if (old21 && Array.isArray(old21.blocks))
+        old21.blocks.forEach(k => { if (k && !blocks.includes(k)) blocks.push(k); });
+    }
+    if (String(d.num) === '3') {
+      const old31 = (Array.isArray(r.subs) ? r.subs : []).find(s => String(s.num) === '3.1');
+      if (old31 && Array.isArray(old31.blocks))
+        old31.blocks.forEach(k => { if (k && !blocks.includes(k)) blocks.push(k); });
+      blocks = blocks.filter(k => k !== 'architecture');
+    }
     // Ch. 4 : les blocs éclatés (vpns / aliases / fwProfiles) fusionnent en une
     // seule matrice calquée sur la feuille Excel « 4 » — même disposition.
     if (String(d.num) === '4') {
@@ -300,30 +345,32 @@ function normLldToc(raw) {
     //    les avait vides (modèle avant les tableaux du dossier)
     if (!blocksSeeded) {
       const SEED = {
-        '5': ['diag5', 'shots5'],
-        '6': ['diag6', 'shots6'],
-        '7': ['diag7', 'shots7'],
-        '5.1': ['fais'],
-        '5.2': ['faiCab'],
-        '6.1': ['ic61', 'icWan', 'icLan'],
-        '6.2': ['icCab'],
-        '7.1': ['fwEquip'],
-        '7.2': ['fwVlan'],
-        '7.3': ['fw'],
-        '8': ['sw8equip', 'sw8ports'],
-        '8.1': ['sw81equip', 'sw81ports'],
-        '8.2': ['sw82equip', 'sw82ports'],
-        '8.3': ['sw83equip', 'sw83ports'],
-        '8.4': ['sw84equip', 'sw84ports'],
-        '8.5': ['sw85equip', 'sw85ports'],
-        '9.1': ['srvEquip'],
-        '9.2': ['vms'],
-        '10.1': ['stoEquip'],
-        '10.2': ['vols'],
-        '11.1': ['idsEquip'],
-        '12.1': ['cctvEquip'],
-        '12.2': ['cams'],
-        '13.1': ['spoEquip'],
+        '2': ['sites'],
+        '3': ['equip'],
+        '4.1': ['diag5', 'shots5'],
+        '4.2': ['diag6', 'shots6'],
+        '4.3': ['diag7', 'shots7'],
+        '4.1.1': ['fais'],
+        '4.1.2': ['faiCab'],
+        '4.2.1': ['ic61', 'icWan', 'icLan'],
+        '4.2.2': ['icCab'],
+        '4.3.1': ['fwEquip'],
+        '4.3.2': ['fwVlan'],
+        '4.3.3': ['fw'],
+        '4.4': ['sw8equip', 'sw8ports'],
+        '4.4.1': ['sw81equip', 'sw81ports'],
+        '4.4.2': ['sw82equip', 'sw82ports'],
+        '4.4.3': ['sw83equip', 'sw83ports'],
+        '4.4.4': ['sw84equip', 'sw84ports'],
+        '4.4.5': ['sw85equip', 'sw85ports'],
+        '4.5.1': ['srvEquip'],
+        '4.5.2': ['vms'],
+        '4.6.1': ['stoEquip'],
+        '4.6.2': ['vols'],
+        '4.7.1': ['idsEquip'],
+        '4.8.1': ['cctvEquip'],
+        '4.8.2': ['cams'],
+        '4.9.1': ['spoEquip'],
         '14.1': ['flows'],
         '15': ['cab15'],
         '15.1': ['elev15']
@@ -332,7 +379,7 @@ function normLldToc(raw) {
       const need = pref.filter(k => !blocks.includes(k));
       if (need.length) blocks = [...need, ...blocks];
       if (pref.length) { blocksSeeded = true; blocksSeeded2 = true; }
-    } else if (!blocksSeeded2 && seedNum === '6.1') {
+    } else if (!blocksSeeded2 && seedNum === '4.2.1') {
       // Migration 18g : les sommaires déjà seedés (ic61 seul) reçoivent
       // WAN/LAN une seule fois — un détachement reste détaché ensuite.
       // Insertion après ic61 (ordre visuel de la feuille Excel « 6 »).
@@ -349,7 +396,7 @@ function normLldToc(raw) {
     // site 2 site » (interco) est retirée du sommaire sur demande — les
     // valeurs L.interco restent utilisées en source pour les exports.
     // Ne réintroduit jamais un bloc absent/détaché.
-    if (seedNum === '6.1') {
+    if (seedNum === '4.2.1') {
       if (blocks.includes('interco')) blocks = blocks.filter(k => k !== 'interco');
       const ORDER = ['ic61', 'adminSec', 'icWan', 'icLan'];
       const known = ORDER.filter(k => blocks.includes(k));
@@ -358,22 +405,22 @@ function normLldToc(raw) {
     }
     // Ch. 7 / 9 : les tableaux 7.3 (fw) et 9.2 (vms) vivent sur les
     // sous-chapitres — on les retire du parent s'ils y traînent (ancien sommaire).
-    if (seedNum === '7') {
+    if (seedNum === '4.3') {
       blocks = blocks.filter(k => k !== 'fw' && k !== 'fwEquip' && k !== 'fwVlan');
     }
-    if (seedNum === '9') {
+    if (seedNum === '4.5') {
       blocks = blocks.filter(k => k !== 'vms' && k !== 'srvEquip');
     }
-    if (seedNum === '10') {
+    if (seedNum === '4.6') {
       blocks = blocks.filter(k => k !== 'vols' && k !== 'stoEquip');
     }
-    if (seedNum === '11') {
+    if (seedNum === '4.7') {
       blocks = blocks.filter(k => k !== 'idsEquip');
     }
-    if (seedNum === '12') {
+    if (seedNum === '4.8') {
       blocks = blocks.filter(k => k !== 'cams' && k !== 'cctvEquip');
     }
-    if (seedNum === '13') {
+    if (seedNum === '4.9') {
       blocks = blocks.filter(k => k !== 'spoEquip');
     }
     if (seedNum === '14') {
@@ -386,17 +433,17 @@ function normLldToc(raw) {
     // l’ancien libellé par défaut, on le ramène au libellé Excel (Contenu).
     let title = String(r.title ?? d.title).slice(0, 120) || d.title;
     const TITLE_SYNC = {
-      '2.2': ["L’infrastructure existante", "L'infrastructure existante"],
-      '3.1': ['Équipements', 'Equipments'],
-      '5.2': ['Câblage', 'Cablage'],
-      '6.2': ['Câblage', 'Cablage'],
+      '2': ['Aperçu du site'],
+      '3': ['Architecture cible'],
+      '4.1.2': ['Câblage', 'Cablage'],
+      '4.2.2': ['Câblage', 'Cablage'],
       '15':  ['Câblage / Rack', 'Cablage/Rack']
     };
     const sync = TITLE_SYNC[String(d.num)];
-    if (sync && title === sync[0]) title = sync[1];
+    if (sync && sync.includes(title) && title !== d.title) title = d.title;
     return {
       id: String(r.id || d.id || uid()),
-      num: String(r.num ?? d.num),
+      num: String(d.num),
       title,
       blocks,
       subs,
@@ -416,7 +463,7 @@ function normLldToc(raw) {
   // 1) chapitres d'origine (titres/blocks/ sous-chapitres fusionnés)
   const defNums = new Set(def.slice(1).map(d => d.num));
   def.slice(1).forEach(d => {
-    const hit = rawRoots.find(r => String(r.num) === d.num);
+    const hit = findRaw(d.num, rawRoots);
     out.push(hit ? normNode(hit, d) : d);
   });
   // 2) chapitres ajoutés par l'utilisateur, dans leur ordre d'origine
@@ -4895,7 +4942,7 @@ const LLD_INFOS = {
   },
   sites: {
     label: 'Sites du dossier', kind: 'sites', cols: LLD_SITE_COLS, addLabel: '＋ Ajouter un site',
-    hint: 'Mêmes colonnes que le tableau des sites du ch. 2.1 (PDF & Excel) : Nom, Adresse, Contacts, Description… '      + 'Les sites structurent aussi le board (rattachement des racks, pastille colorée).'
+    hint: 'Mêmes colonnes que le tableau des sites du ch. 2 (PDF & Excel) : Nom, Adresse, Contacts, Description… '      + 'Les sites structurent aussi le board (rattachement des racks, pastille colorée).'
   },
   existant: {
     label: "2.2. L'infrastructure existante", kind: 'textarea', rows: 4, max: 4000,
@@ -4906,9 +4953,9 @@ const LLD_INFOS = {
     ph: 'Ex : Architecture deux sites interconnectés en IPsec via Internet, pare-feu en chaque site…'
   },
   equip: {
-    label: 'Equipments & licences hors baie (ch. 3)', kind: 'table', cols: LLD_EQUIP_COLS,
+    label: '3. Architecture existante', kind: 'table', cols: LLD_EQUIP_COLS,
     addLabel: '＋ Ajouter un élément', filter: r => r.model.trim(),
-    hint: 'Ces lignes alimentent seules le tableau 3.1 de l\'Excel (et le PDF) : '
+    hint: 'Ces lignes alimentent le tableau 3 de l\'Excel (et le PDF) : '
       + 'bouton 🔎 pour les pré-remplir depuis l\'élévation, puis éditez/supprimez librement.',
     extra: 'gen-equip'
   },
@@ -5223,38 +5270,37 @@ function lldInfoDef(key, L0) {
 // Sections générées automatiquement à l'export (indiquées sous le détail
 // d'un chapitre pour rappeler que ces données ne se saisissent pas ici).
 const LLD_TOC_AUTO = {
-  '2': 'Racks par site (depuis les baies du workspace)',
-  '2.1': 'Tableau des racks par site (depuis les baies)',
-  '3.1': 'Récapitulatif par catégorie, inventaire détaillé & suivi des garanties',
+  '2': 'Tableau des sites (mêmes colonnes que la feuille Excel 2)',
+  '3': 'Équipements de l’architecture existante (🔎 élévation)',
   '4': "Matrice d'adressage (feuille Excel), registre VLANs, nomenclature & ports étiquetés (depuis les devices)",
-  '5': 'Diagramme d’accès FAI + captures (si renseignées) avant 5.1',
-  '5.2': 'Tableau 5.2 (Categorie / Description / Connecté a) — éditable ici, + câbles FAI si absents du tableau',
-  '6': 'Diagramme d’interconnexion + captures (si renseignées) avant 6.1',
-  '6.1': 'Tableaux 6.1 extrémités/HA, WAN Connection Settings et LAN — éditables ici, export XLSX/PDF identiques',
-  '6.2': 'Tableau 6.2 (Categorie / Description / Port / Connecté a) — éditable ici, + câbles interco si absents',
-  '7': 'Diagramme Firewall + captures (avant 7.1)',
-  '7.1': 'Tableau Excel 7.1 — équipements firewall/routeurs (🔎 élévation)',
-  '7.2': 'Tableau Excel 7.2 — interfaces VLAN',
-  '7.3': 'Tableau Excel 7.3 — règles et NAT',
-  '8': 'Feuille Excel « 8 » Switching (HA) + zones ; 8.1…8.5 = feuilles dédiées',
-  '8.1': 'Feuille Excel 8.1 INFRA — équipements + plan de ports',
-  '8.2': 'Feuille Excel 8.2 LAN — équipements + plan de ports',
-  '8.3': 'Feuille Excel 8.3 AP — équipements + plan de ports',
-  '8.4': 'Feuille Excel 8.4 AP — équipements + plan de ports',
-  '8.5': 'Feuille Excel 8.5 BID — équipements + plan de ports',
-  '9': 'Notes de configuration serveurs',
-  '9.1': 'Tableau Excel 9.1 — serveurs physiques (🔎 élévation)',
-  '9.2': 'Tableau Excel 9.2 — machines virtuelles',
-  '10': 'Notes de configuration stockage',
-  '10.1': 'Tableau Excel 10.1 — stockage (🔎 élévation)',
-  '10.2': 'Tableau Excel 10.2 — volumes / LUN',
-  '11': 'Notes de configuration IDS',
-  '11.1': 'Tableau Excel 11.1 — détection d’intrusion (🔎 élévation)',
-  '12': 'Notes de configuration CCTV',
-  '12.1': 'Tableau Excel 12.1 — NVR / enregistreur (🔎 élévation)',
-  '12.2': 'Tableau Excel 12.2 — caméras',
-  '13': 'Notes de configuration pointage',
-  '13.1': 'Tableau Excel 13.1 — pointeuses (🔎 élévation)',
+  '4.1': 'Diagramme d’accès FAI + captures (si renseignées) avant 4.1.1',
+  '4.1.2': 'Tableau 4.1.2 (Categorie / Description / Connecté a) — éditable ici, + câbles FAI si absents du tableau',
+  '4.2': 'Diagramme d’interconnexion + captures (si renseignées) avant 4.2.1',
+  '4.2.1': 'Tableaux extrémités/HA, WAN Connection Settings et LAN — éditables ici, export XLSX/PDF identiques',
+  '4.2.2': 'Tableau (Categorie / Description / Port / Connecté a) — éditable ici, + câbles interco si absents',
+  '4.3': 'Diagramme Firewall + captures (avant 4.3.1)',
+  '4.3.1': 'Tableau Excel 7.1 — équipements firewall/routeurs (🔎 élévation)',
+  '4.3.2': 'Tableau Excel 7.2 — interfaces VLAN',
+  '4.3.3': 'Tableau Excel 7.3 — règles et NAT',
+  '4.4': 'Feuille Excel « 8 » Switching (HA) + zones ; 8.1…8.5 = feuilles dédiées',
+  '4.4.1': 'Feuille Excel 8.1 INFRA — équipements + plan de ports',
+  '4.4.2': 'Feuille Excel 8.2 LAN — équipements + plan de ports',
+  '4.4.3': 'Feuille Excel 8.3 AP — équipements + plan de ports',
+  '4.4.4': 'Feuille Excel 8.4 AP — équipements + plan de ports',
+  '4.4.5': 'Feuille Excel 8.5 BID — équipements + plan de ports',
+  '4.5': 'Notes de configuration serveurs',
+  '4.5.1': 'Tableau Excel 9.1 — serveurs physiques (🔎 élévation)',
+  '4.5.2': 'Tableau Excel 9.2 — machines virtuelles',
+  '4.6': 'Notes de configuration stockage',
+  '4.6.1': 'Tableau Excel 10.1 — stockage (🔎 élévation)',
+  '4.6.2': 'Tableau Excel 10.2 — volumes / LUN',
+  '4.7': 'Notes de configuration IDS',
+  '4.7.1': 'Tableau Excel 11.1 — détection d’intrusion (🔎 élévation)',
+  '4.8': 'Notes de configuration CCTV',
+  '4.8.1': 'Tableau Excel 12.1 — NVR / enregistreur (🔎 élévation)',
+  '4.8.2': 'Tableau Excel 12.2 — caméras',
+  '4.9': 'Notes de configuration pointage',
+  '4.9.1': 'Tableau Excel 13.1 — pointeuses (🔎 élévation)',
   '14': 'Diagramme de topologie (vue Topologie du workspace)',
   '14.1': 'Tableau Excel 14 — flux applicatifs',
   '15': 'Tableau Excel 15 — câblage (🔎 mode Câblage)',
@@ -5725,7 +5771,9 @@ function lldRenderToc() {
   if (!lldDraft) return;
   const addItem = (node, level) => {
     const item = document.createElement('div');
-    item.className = 'lld-toc-item' + (level ? ' lld-toc-sub' : '') +
+    item.className = 'lld-toc-item' +
+      (level === 1 ? ' lld-toc-sub' : '') +
+      (level >= 2 ? ' lld-toc-sub2' : '') +
       (node.id === lldSelId ? ' active' : '');
     item.dataset.id = node.id;
     if (node.custom) item.dataset.custom = '1';
@@ -11423,9 +11471,18 @@ const LLD_TPL = (() => {
      n'imprimer que les informations rattachées au sommaire (synchro). */
   let BUILD_TOC = new Map();
   function hasB(num, key) {
-    let n = BUILD_TOC.get(String(num));
-    if (!n && String(num).includes('.')) n = BUILD_TOC.get(String(num).split('.')[0]);
-    return !!(n && Array.isArray(n.blocks) && n.blocks.includes(key));
+    const ids = [];
+    const add = x => { if (x && !ids.includes(x)) ids.push(x); };
+    add(typeof lldTocRemap === 'function' ? lldTocRemap(num) : String(num));
+    add(String(num));
+    ids.slice().forEach(id => {
+      if (String(id).includes('.')) add(String(id).split('.').slice(0, -1).join('.'));
+    });
+    for (const id of ids) {
+      const n = BUILD_TOC.get(id);
+      if (n && Array.isArray(n.blocks) && n.blocks.includes(key)) return true;
+    }
+    return false;
   }
 
   /* — Blocs de contenu pour les chapitres AJOUTÉS au sommaire —
@@ -11808,7 +11865,11 @@ const LLD_TPL = (() => {
   function buildAll(ws, layout, stylesXml, themeXml, only = null) {
     // Sélecteur de rubriques : racines de chapitres cochées (null = tout).
     // Feuilles « chapter » filtrées par racine (« 8 » garde 8, 8.1…8.5).
-    const keepRoot = only ? (num => only.has(String(num).split('.')[0])) : () => true;
+    const keepRoot = only ? (num => {
+      const s = String(num);
+      const mapped = (typeof lldTocRemap === 'function' ? lldTocRemap(s) : s);
+      return only.has(s.split('.')[0]) || only.has(String(mapped).split('.')[0]);
+    }) : () => true;
     // Sommaire (modale 📘) : index des chapitres + titres renommés
     BUILD_TOC = new Map();
     const tocNodes = [];
@@ -12027,8 +12088,12 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   })(L.toc);
   // true si l'info `key` est rattachée au nœud `num` dans le sommaire
   const hasB = (num, key) => {
-    const n = tocByNum.get(String(num));
-    return !!(n && Array.isArray(n.blocks) && n.blocks.includes(key));
+    const ids = [typeof lldTocRemap === 'function' ? lldTocRemap(num) : String(num), String(num)];
+    for (const id of ids) {
+      const n = tocByNum.get(id);
+      if (n && Array.isArray(n.blocks) && n.blocks.includes(key)) return true;
+    }
+    return false;
   };
   // Captures d'écran rattachées à un chapitre (ch. 5/6/7 + blocs libres
   // cshots:… des chapitres ajoutés) → images JPEG dont le numéro d'objet
@@ -12160,12 +12225,12 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   // ci-dessous ; les autres blocs de `blocks` sont imprimés par extras ----
   const PDF_BUILTIN = {
     'cover': ['meta', 'governance'],
-    '1': ['objectif'], '2.1': ['sites'], '2.2': ['existant'],
-    '3': ['architecture'], '3.1': ['equip'], '4': ['addrMatrix', 'vlans', 'nomen'],
-    '5.1': ['fais'], '6.1': ['ic61', 'icWan', 'icLan'],
-    '7': ['note:firewall'], '8': ['zones', 'note:switching'],
-    '9': ['note:server'], '10': ['note:storage'], '11': ['note:ids'],
-    '12': ['note:cctv'], '13': ['note:pointage'], '14': []
+    '1': ['objectif'], '2': ['sites'],
+    '3': ['equip'], '4': ['addrMatrix', 'vlans', 'nomen'],
+    '4.1.1': ['fais'], '4.2.1': ['ic61', 'icWan', 'icLan'],
+    '4.3': ['note:firewall'], '4.4': ['zones', 'note:switching'],
+    '4.5': ['note:server'], '4.6': ['note:storage'], '4.7': ['note:ids'],
+    '4.8': ['note:cctv'], '4.9': ['note:pointage'], '14': []
   };
 
   // Imprime une information rattachée à un nœud du sommaire (synchrone
@@ -12459,11 +12524,10 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   }
   endNode('1');
 
-  // ---- 2. Aperçu du site ----
-  chapter('2', 'Aperçu du site');
-  sub('2.1', 'Information sur le site');
+  // ---- 2. Information sur le site ----
+  chapter('2', 'Information sur le site');
   const sites = ws.sites || [];
-  if (hasB('2.1', 'sites')) {
+  if (hasB('2', 'sites')) {
     if (sites.length) {
       const sc = lldExportCols(L, 'sites', LLD_SITE_COLS);
       const sr = [sc.map(c => String(c[1]))];
@@ -12473,23 +12537,11 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
       note('Aucun site d\u00e9clar\u00e9 (info « Sites » du sommaire).');
     }
   }
-  endNode('2.1');
-  sub('2.2', "L'infrastructure existante");
-  if (hasB('2.2', 'existant')) {
-    if (L.existant.trim()) paragraph(L.existant);
-    else placeholder();
-  }
-  endNode('2.2');
   endNode('2');
 
-  // ---- 3. Architecture cible ----
-  chapter('3', 'Architecture cible');
-  if (hasB('3', 'architecture')) {
-    if (L.architecture.trim()) paragraph(L.architecture);
-    else placeholder();
-  }
-  sub('3.1', 'Equipments');
-  if (hasB('3.1', 'equip')) {
+  // ---- 3. Architecture existante ----
+  chapter('3', 'Architecture existante');
+  if (hasB('3', 'equip')) {
     const cols = lldExportCols(L, 'equip', LLD_EQUIP_COLS);
     const rows31 = (L.equip || []).filter(e => e && String(e.model || '').trim());
     if (rows31.length) {
@@ -12499,7 +12551,6 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
       note("Aucun élément — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘.");
     }
   }
-  endNode('3.1');
   endNode('3');
 
   // ---- 4. Conception Nomenclature et Adressage IP Global ----
@@ -12525,11 +12576,11 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   }
   endNode('4');
 
-  // ---- 5. Conception et Configuration FAI ----
-  chapter('5', 'Conception et Configuration FAI', { flow: true });
-  drawNodeExtras('5');          // diagramme + captures AVANT 5.1
-  sub('5.1', 'Informations & Configuration');
-  if (hasB('5.1', 'fais')) {
+  // ---- 4.1 Conception et Configuration FAI ----
+  chapter('4.1', 'Conception et Configuration FAI', { flow: true });
+  drawNodeExtras('4.1');          // diagramme + captures AVANT 4.1.1
+  sub('4.1.1', 'Informations & Configuration');
+  if (hasB('4.1.1', 'fais')) {
     const rows51 = (L.fais || []).filter(f =>
       f && Object.values(f).some(v => String(v ?? '').trim()));
     if (rows51.length) {
@@ -12540,8 +12591,8 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
       ], pdfColW(LLD_FAI51_COLS), 6.5);
     } else placeholder();
   }
-  endNode('5.1');
-  sub('5.2', 'Cablage');
+  endNode('4.1.1');
+  sub('4.1.2', 'Cablage');
   const cabTable5 = (Array.isArray(L.faiCab) && L.faiCab.length)
     ? L.faiCab.filter(r => r && ((r.desc || '').trim() || (r.conn || '').trim()))
     : [];
@@ -12553,14 +12604,14 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   } else {
     placeholder();
   }
-  endNode('5.2');
-  drawCustomSubs('5');          // extras déjà imprimés avant 5.1
+  endNode('4.1.2');
+  drawCustomSubs('4.1');          // extras déjà imprimés avant 5.1
 
-  // ---- 6. Conception et Configuration Interconnexion site 2 site ----
-  chapter('6', 'Conception et Configuration Interconnexion site 2 site', { flow: true });
-  drawNodeExtras('6');          // diagramme + captures AVANT 6.1
-  sub('6.1', 'Informations & Configuration');
-  if (hasB('6.1', 'ic61')) {
+  // ---- 4.2 Conception et Configuration Interconnexion site 2 site ----
+  chapter('4.2', 'Conception et Configuration Interconnexion site 2 site', { flow: true });
+  drawNodeExtras('4.2');          // diagramme + captures AVANT 4.2.1
+  sub('4.2.1', 'Informations & Configuration');
+  if (hasB('4.2.1', 'ic61')) {
     const rowsIc = (L.ic61 || []).filter(r =>
       r && Object.values(r).some(v => String(v ?? '').trim()));
     if (rowsIc.length) {
@@ -12584,7 +12635,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
       if (I.notes && I.notes.trim()) { miniTitle('Notes de configuration'); paragraph(I.notes); }
     }
   }
-  if (hasB('6.1', 'icWan')) {
+  if (hasB('4.2.1', 'icWan')) {
     const rowsW = (L.icWan || []).filter(r =>
       r && Object.values(r).some(v => String(v ?? '').trim()));
     if (rowsW.length) {
@@ -12599,7 +12650,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
       ], hdr.map(c => c[2] || 90), 6.5);
     } else placeholder();
   }
-  if (hasB('6.1', 'icLan')) {
+  if (hasB('4.2.1', 'icLan')) {
     const rowsL = (L.icLan || []).filter(r =>
       r && Object.values(r).some(v => String(v ?? '').trim()));
     if (rowsL.length) {
@@ -12610,8 +12661,8 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
       ], [1.6, 1.6, 1.8], 8);
     } else placeholder();
   }
-  endNode('6.1');   // extras : comptes Admin Security (et toute info ajoutée)
-  sub('6.2', 'Cablage');
+  endNode('4.2.1');   // extras : comptes Admin Security (et toute info ajoutée)
+  sub('4.2.2', 'Cablage');
   const icCabRows = (Array.isArray(L.icCab) && L.icCab.length)
     ? L.icCab.filter(r => r && ((r.desc || '').trim() || (r.port || '').trim() || (r.conn || '').trim()))
     : [];
@@ -12626,31 +12677,31 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   } else {
     placeholder();
   }
-  endNode('6.2');
-  drawCustomSubs('6');
+  endNode('4.2.2');
+  drawCustomSubs('4.2');
 
   // ---- 7 à 13 : chapitres par domaine (générés depuis les catégories) ----
   const CAT_CHAPTERS = [
-    ['7',  'Conception et Configuration Firewall',        ['firewall'],          'firewall'],
-    ['8',  'Conception et Configuration Switching',       ['switch', 'ap'],      'switching'],
-    ['9',  'Conception et Configuration Serveurs',        ['server'],            'server'],
-    ['10', 'Conception et Configuration Stockage',        ['storage'],           'storage'],
-    ['11', 'Conception et Configuration Intrusion (IDS)', ['ids'],               'ids'],
-    ['12', 'Conception et Configuration CCTV',            ['cctv'],              'cctv'],
-    ['13', 'Conception et Configuration Pointage (SPO)',  ['pointage'],          'pointage']
+    ['4.3', 'Conception et Configuration Firewall',        ['firewall'],          'firewall'],
+    ['4.4', 'Conception et Configuration Switching',       ['switch', 'ap'],      'switching'],
+    ['4.5', 'Conception et Configuration Serveurs',        ['server'],            'server'],
+    ['4.6', 'Conception et Configuration Stockage',        ['storage'],           'storage'],
+    ['4.7', 'Conception et Configuration Intrusion (IDS)', ['ids'],               'ids'],
+    ['4.8', 'Conception et Configuration CCTV',            ['cctv'],              'cctv'],
+    ['4.9', 'Conception et Configuration Pointage (SPO)',  ['pointage'],          'pointage']
   ];
   for (const [num, title, cats, dom] of CAT_CHAPTERS) {
     chapter(num, title, { flow: true });
-    if (num === '7') drawNodeExtras('7');
+    if (num === '4.3') drawNodeExtras('4.3');
     const notes = L.catNotes[dom] || '';
     if (hasB(num, `note:${dom}`) && notes.trim()) {
       miniTitle('Notes de configuration'); paragraph(notes);
     }
-    if (num === '8') {
-      if (hasB('8', 'zones')) pdfDrawBlock('zones');
-      drawNodeExtras('8');
+    if (num === '4.4') {
+      if (hasB('4.4', 'zones')) pdfDrawBlock('zones');
+      drawNodeExtras('4.4');
     }
-    if (num === '9' || num === '10' || num === '11' || num === '12' || num === '13') drawNodeExtras(num);
+    if (num === '4.5' || num === '4.6' || num === '4.7' || num === '4.8' || num === '4.9') drawNodeExtras(num);
     drawOriginSubs(num);
     drawCustomSubs(num);
   }

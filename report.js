@@ -92,7 +92,7 @@ function rptSitesBlocks(ws) {
     </a>`;
   };
   const L = normLldInfo(ws);
-  const siteTbl = rptSub('2.1 — Information sur le site', rptLldGrid(
+  const siteTbl = rptSub('2. Information sur le site', rptLldGrid(
     lldExportCols(L, 'sites', LLD_SITE_COLS).map(c => [c[0], String(c[1])]), sites));
   let out = siteTbl || '';
   for (const s of sites) {
@@ -143,8 +143,6 @@ function rptContext(ws) {
       t.split(/\n+/).map(p => `<p>${RPT_ESC(p)}</p>`).join('')}</div>`;
   };
   return block('Objectif du document', L.objectif)
-       + block('Infrastructure existante', L.existant)
-       + block('Architecture cible', L.architecture)
     || '<p class="muted">Textes non renseignés (fiche 📘 du dossier, onglet Document).</p>';
 }
 
@@ -407,7 +405,7 @@ function rptSystem(ws) {
 // Équipements & licences hors baie (table 3.1 du dossier)
 function rptOutOfRack(ws) {
   const L = normLldInfo(ws);
-  return rptSub('Equipments & licences hors baie', rptLldGrid(
+  return rptSub('3. Architecture existante', rptLldGrid(
     lldExportCols(L, 'equip', LLD_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.equip));
 }
 

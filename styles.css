@@ -2113,6 +2113,7 @@ body.topo-linking .topo-node { cursor: crosshair; }
   border-color: rgba(37, 99, 235, .35);
 }
 .lld-toc-item.lld-toc-sub { margin-left: 16px; font-size: 12px; }
+.lld-toc-item.lld-toc-sub2 { margin-left: 32px; font-size: 11.5px; }
 .lld-toc-num {
   flex: none;
   min-width: 24px;
