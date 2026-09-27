@@ -6140,6 +6140,86 @@ function lldCh4Auto(ws, L, row, col) {
   return '';
 }
 
+function lldCh4Descs() {
+  const DESCS = [];
+  ['FTTH 1', 'FTTH 2', 'FTTH 3'].forEach(d => DESCS.push(d));
+  ['Equipment Peplink 1', 'Equipment Peplink 2', 'VIP (Virtual IP)',
+   'WAN 1', 'WAN 2', 'WAN 3',
+   'VPN S2S 1', 'VPN S2S 2', 'VPN S2S 3', 'VPN S2S 4'].forEach(d => DESCS.push(d));
+  ['Equipment Firewall 1', 'Equipment Firewall 2', 'NAT 1-to-1', 'Cluster Firewall', ''].forEach(d => DESCS.push(d));
+  for (let i = 0; i < 9; i++) DESCS.push('Alias Firewall');
+  DESCS.push('Regle Firewall');
+  ['VPN SSL users', 'Application Control', 'WebBlocker', 'HTTP Proxy'].forEach(d => DESCS.push(d));
+  const VLAN_DESCS_A = ['VLAN DMZ Serveurs', 'VLAN Storage', 'VLAN UPS', 'VLAN Manegement',
+    'VLAN Users Wired', 'VLAN Users Wireless', 'VLAN Printers', 'VLAN IDS',
+    'VLAN CCTV', 'VLAN SPO', 'VLAN VOIP-TOIP', 'VLAN iDRAC'];
+  const VLAN_DESCS_B = ['VLAN VM1', 'VLAN DMZ Serveurs', 'VLAN Storage', 'VLAN UPS',
+    'VLAN Manegement', 'VLAN Users Wired', 'VLAN Users Wireless', 'VLAN Printers',
+    'VLAN IDS', 'VLAN CCTV', 'VLAN SPO', 'VLAN VOIP-TOIP', 'VLAN iDRAC', 'VLAN VM2'];
+  VLAN_DESCS_A.forEach(d => DESCS.push(d));
+  VLAN_DESCS_B.forEach(d => DESCS.push(d));
+  ['Master mgmt', 'Slave mgmt',
+   'Cluster interface Master', 'Cluster interface Master',
+   'Cluster interface Slave', 'Cluster interface Slave'].forEach(d => DESCS.push(d));
+  for (let i = 1; i <= 6; i++) DESCS.push(`Switch ${i}`);
+  VLAN_DESCS_A.forEach(d => DESCS.push(' ' + d));
+  VLAN_DESCS_B.slice(0, 12).forEach(d => DESCS.push(' ' + d));
+  ['Serveur Physique 1', 'iDRAC 1', 'WSUS Sec', 'VBR', 'BC-PRI', 'WEB-PRI', 'Mgmt 1', 'Mgmt 2'].forEach(d => DESCS.push(d));
+  ['SAN', 'Mgmt 1', 'Mgmt 2', 'ISCSI 1', 'ISCSI 2'].forEach(d => DESCS.push(d));
+  ['VM BI1', 'VM BC1', 'VM AD1', 'VM Web1', 'VM BI2', 'VM BC2', 'VM AD2', 'VM Web2'].forEach(d => DESCS.push(d));
+  for (let i = 0; i < 6; i++) DESCS.push("Point d'accès");
+  ['Printer 1', 'Printer 2', 'Printer 3', 'Printer 1'].forEach(d => DESCS.push(d));
+  ['UPS 1', 'UPS 2'].forEach(d => DESCS.push(d));
+  ['Centrale 1', 'Centrale 2'].forEach(d => DESCS.push(d));
+  DESCS.push('NVR 1');
+  DESCS.push('Pointeuse 1');
+  DESCS.push('Clime 1');
+  return DESCS;
+}
+
+/* Lignes de la matrice ch. 4 pour HTML / PDF : saisie 📘 (ch4ov, VPN, alias,
+   profils) + valeurs auto depuis les tableaux du sommaire. */
+function lldCh4MatrixExportRows(ws, L) {
+  L = L || {};
+  ws = ws || {};
+  const ov = (L.ch4ov && typeof L.ch4ov === 'object' && !Array.isArray(L.ch4ov)) ? L.ch4ov : {};
+  const vpns = L.vpns || [];
+  const aliases = L.aliases || [];
+  const fp = L.fwProfiles || {};
+  const pick = (ref, fb) => {
+    if (Object.prototype.hasOwnProperty.call(ov, ref) && String(ov[ref] ?? '').trim() !== '')
+      return String(ov[ref]);
+    return fb || '';
+  };
+  const out = [];
+  lldCh4Descs().forEach((desc, i) => {
+    const excelR = 6 + i;
+    let nomen = lldCh4Auto(ws, L, i, 'nomen') || '';
+    let ip = lldCh4Auto(ws, L, i, 'ip') || '';
+    let mask = lldCh4Auto(ws, L, i, 'mask') || '';
+    let gw = lldCh4Auto(ws, L, i, 'gw') || '';
+    let dns = lldCh4Auto(ws, L, i, 'dns') || '';
+    if (excelR >= 15 && excelR <= 18) {
+      const v = vpns[excelR - 15] || {};
+      nomen = v.name || ''; ip = v.peer || '';
+    } else if (excelR >= 24 && excelR <= 32) {
+      const a = aliases[excelR - 24] || {};
+      nomen = a.name || ''; ip = a.value || '';
+    } else if (excelR >= 34 && excelR <= 37) {
+      nomen = fp[['vpnSsl', 'appCtrl', 'webBlocker', 'httpProxy'][excelR - 34]] || '';
+    }
+    nomen = pick('C' + excelR, nomen);
+    ip = pick('D' + excelR, ip);
+    mask = pick('E' + excelR, mask);
+    gw = pick('F' + excelR, gw);
+    dns = pick('G' + excelR, dns);
+    const note = pick('H' + excelR, '');
+    if (![nomen, ip, mask, gw, dns, note].some(v => String(v || '').trim())) return;
+    out.push({ desc, nomen, ip, mask, gw, dns, note });
+  });
+  return out;
+}
+
 // Construit la matrice ch. 4 : même disposition que la feuille Excel « 4 »
 // (catégories fusionnées, mêmes descriptions) — cellules éditables là où
 // l'app stocke les données (VPN, alias, profils), le reste en lecture seule.
@@ -6159,43 +6239,13 @@ function lldBuildCh4Matrix(L) {
     + '</thead><tbody></tbody>';
   const tb = t.querySelector('tbody');
 
-  // Libellés Description exactement comme le template Excel
-  const DESCS = [];
-  ['FTTH 1', 'FTTH 2', 'FTTH 3'].forEach(d => DESCS.push(d));
-  ['Equipment Peplink 1', 'Equipment Peplink 2', 'VIP (Virtual IP)',
-   'WAN 1', 'WAN 2', 'WAN 3',
-   'VPN S2S 1', 'VPN S2S 2', 'VPN S2S 3', 'VPN S2S 4'].forEach(d => DESCS.push(d));
-  ['Equipment Firewall 1', 'Equipment Firewall 2', 'NAT 1-to-1', 'Cluster Firewall', ''].forEach(d => DESCS.push(d));
-  // Alias 9 (r24-32) — libellé template ; la valeur éditable = name/value app
-  for (let i = 0; i < 9; i++) DESCS.push('Alias Firewall');
-  DESCS.push('Regle Firewall');
-  ['VPN SSL users', 'Application Control', 'WebBlocker', 'HTTP Proxy'].forEach(d => DESCS.push(d));
-  // VLANs firewall site A (r38-49 = 12) + VM1/suites site B (r50-63 = 14)
+  const DESCS = lldCh4Descs();
   const VLAN_DESCS_A = ['VLAN DMZ Serveurs', 'VLAN Storage', 'VLAN UPS', 'VLAN Manegement',
     'VLAN Users Wired', 'VLAN Users Wireless', 'VLAN Printers', 'VLAN IDS',
     'VLAN CCTV', 'VLAN SPO', 'VLAN VOIP-TOIP', 'VLAN iDRAC'];
   const VLAN_DESCS_B = ['VLAN VM1', 'VLAN DMZ Serveurs', 'VLAN Storage', 'VLAN UPS',
     'VLAN Manegement', 'VLAN Users Wired', 'VLAN Users Wireless', 'VLAN Printers',
     'VLAN IDS', 'VLAN CCTV', 'VLAN SPO', 'VLAN VOIP-TOIP', 'VLAN iDRAC', 'VLAN VM2'];
-  VLAN_DESCS_A.forEach(d => DESCS.push(d));
-  VLAN_DESCS_B.forEach(d => DESCS.push(d));
-  ['Master mgmt', 'Slave mgmt',
-   'Cluster interface Master', 'Cluster interface Master',
-   'Cluster interface Slave', 'Cluster interface Slave'].forEach(d => DESCS.push(d));
-  // Switch (30) : SW-1..6 + 12 VLANs site A + 12 VLANs site B (r88-99)
-  for (let i = 1; i <= 6; i++) DESCS.push(`Switch ${i}`);
-  VLAN_DESCS_A.forEach(d => DESCS.push(' ' + d));
-  VLAN_DESCS_B.slice(0, 12).forEach(d => DESCS.push(' ' + d));
-  ['Serveur Physique 1', 'iDRAC 1', 'WSUS Sec', 'VBR', 'BC-PRI', 'WEB-PRI', 'Mgmt 1', 'Mgmt 2'].forEach(d => DESCS.push(d));
-  ['SAN', 'Mgmt 1', 'Mgmt 2', 'ISCSI 1', 'ISCSI 2'].forEach(d => DESCS.push(d));
-  ['VM BI1', 'VM BC1', 'VM AD1', 'VM Web1', 'VM BI2', 'VM BC2', 'VM AD2', 'VM Web2'].forEach(d => DESCS.push(d));
-  for (let i = 0; i < 6; i++) DESCS.push("Point d'accès");
-  ['Printer 1', 'Printer 2', 'Printer 3', 'Printer 1'].forEach(d => DESCS.push(d));
-  ['UPS 1', 'UPS 2'].forEach(d => DESCS.push(d));
-  ['Centrale 1', 'Centrale 2'].forEach(d => DESCS.push(d));
-  DESCS.push('NVR 1');
-  DESCS.push('Pointeuse 1');
-  DESCS.push('Clime 1');
   const totalRows = DESCS.length;   // doit valoir 132 (6→137 Excel)
 
   const vpns = L.vpns || [];
@@ -12129,34 +12179,14 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
       const v = def.catKey ? String((L.catNotes || {})[def.catKey] || '') : String(L[key] || '');
       if (v.trim()) paragraph(v); else placeholder();
     } else if (def.kind === 'ch4matrix') {
-      // Matrice ch. 4 : sous-tableaux éditables (VPN, alias, profils) — le reste
-      // du tableau Excel est calqué sur devices/FAI/interco à la génération xlsx.
-      const vpnRows = (L.vpns || []).filter(v => String(v.name || v.peer || '').trim());
-      const aliasRows = (L.aliases || []).filter(a => String(a.name || a.value || '').trim());
-      const fp = L.fwProfiles || {};
-      const fpPairs = [
-        ['Utilisateurs VPN SSL', fp.vpnSsl],
-        ['Application Control', fp.appCtrl],
-        ['WebBlocker', fp.webBlocker],
-        ['HTTP Proxy', fp.httpProxy]
-      ].filter(pr => String(pr[1] || '').trim());
-      if (vpnRows.length) {
+      const mx = typeof lldCh4MatrixExportRows === 'function'
+        ? lldCh4MatrixExportRows(ws, L) : [];
+      if (mx.length) {
         drawTable([
-          ['Nom du tunnel', 'Pair / subnet distant'],
-          ...vpnRows.map(v => [String(v.name || ''), String(v.peer || '')])
-        ], [2.2, 3.0], 7.5);
-      }
-      if (aliasRows.length) {
-        drawTable([
-          ['Nom de l\u2019alias', 'hosts / subnet definition'],
-          ...aliasRows.map(a => [String(a.name || ''), String(a.value || '')])
-        ], [1.8, 3.4], 7.5);
-      }
-      if (fpPairs.length) {
-        drawTable([['Profil', 'Valeur'],
-          ...fpPairs.map(pr => [String(pr[0]), String(pr[1])])], [2.2, 3.0], 7.5);
-      }
-      if (!vpnRows.length && !aliasRows.length && !fpPairs.length) placeholder();
+          ['Description', 'Nomenclature', 'IP', 'Mask', 'GW', 'DNS', 'Commentaire'],
+          ...mx.map(r => [r.desc, r.nomen, r.ip, r.mask, r.gw, r.dns, r.note])
+        ], [1.5, 1.3, 1.15, 1.05, 1.05, 1.05, 1.3], 6.5);
+      } else placeholder();
     } else if (def.kind === 'diagram') {
       const mode = def.mode || 'fai';
       const d = (L.diagrams || {})[mode];

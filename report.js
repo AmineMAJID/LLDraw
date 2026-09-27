@@ -91,7 +91,10 @@ function rptSitesBlocks(ws) {
       ${r.maxKg ? gauge(kg, r.maxKg, 'kg') : (kg ? `<div class="meta">🏋️ ${kg} kg</div>` : '')}
     </a>`;
   };
-  let out = '';
+  const L = normLldInfo(ws);
+  const siteTbl = rptSub('2.1 — Information sur le site', rptLldGrid(
+    lldExportCols(L, 'sites', LLD_SITE_COLS).map(c => [c[0], String(c[1])]), sites));
+  let out = siteTbl || '';
   for (const s of sites) {
     const racks = racksOf(s.id);
     out += `<div class="site-block">
@@ -226,17 +229,17 @@ function rptWarranties(ws) {
 
 // Deux tableaux côte à côte : registre VLANs + nomenclature
 function rptAddressing(ws) {
-  const vl = addressingRows(ws);     // [header, ...lignes]
-  const no = nomenRows(ws);
-  const tbl = (rows) => {
-    if (rows.length < 2) return '<p class="muted">Non renseigné.</p>';
-    const head = rows[0].map(h => `<th>${RPT_ESC(h)}</th>`).join('');
-    const body = rows.slice(1).map(r =>
-      `<tr data-search="${RPT_ESC_ARIA(r.join(' ').toLowerCase())}">${
-        r.map(c => `<td>${RPT_ESC(c)}</td>`).join('')}</tr>`).join('');
-    return `<table class="sortable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-  };
-  return `<h3>Registre VLANs & subnets</h3>${tbl(vl)}<h3 style="margin-top:22px">Nomenclature</h3>${tbl(no)}`;
+  const L = normLldInfo(ws);
+  const mx = (typeof lldCh4MatrixExportRows === 'function')
+    ? lldCh4MatrixExportRows(ws, L) : [];
+  const matrix = rptSub('Matrice d’adressage IP (ch. 4)', rptLldGrid(
+    [['desc', 'Description'], ['nomen', 'Nomenclature'], ['ip', 'IP'],
+     ['mask', 'Mask'], ['gw', 'GW'], ['dns', 'DNS'], ['note', 'Commentaire']], mx));
+  const vl = rptSub('Registre VLANs & subnets', rptLldGrid(
+    lldExportCols(L, 'vlans', LLD_VLAN_COLS).map(c => [c[0], String(c[1])]), L.vlans));
+  const no = rptSub('Nomenclature', rptLldGrid(
+    lldExportCols(L, 'nomen', LLD_NOMEN_COLS).map(c => [c[0], String(c[1])]), L.nomen));
+  return matrix + vl + no || '';
 }
 
 function rptFlows(ws) {
@@ -290,6 +293,12 @@ function rptKv(fields, obj) {
     `<th>${RPT_ESC(r.label)}</th><td>${RPT_ESC(r.v)}</td></tr>`).join('') + '</tbody></table>';
 }
 // Captures d'écran d'un chapitre (glissées dans la fiche 📘) — embarquées telles quelles
+function rptDiag(mode, title) {
+  const im = (globalThis.__LLD_DIAG_IMGS || {})[mode];
+  const url = im && (im.dataUrl || im);
+  if (!url || typeof url !== 'string') return '';
+  return `<h3>${RPT_ESC(title)}</h3><figure class="shot"><img src="${url}" alt="${RPT_ESC_ARIA(title)}" loading="lazy"></figure>`;
+}
 function rptShots(ws, key) {
   const L = normLldInfo(ws);
   const shots = (L[key] || []).filter(s => s && /^data:image\//.test(s.dataUrl || ''));
@@ -327,7 +336,7 @@ function rptFai(ws) {
     lldExportCols(L, 'fais', LLD_FAI51_COLS).map(c => [c[0], String(c[1])]), L.fais));
   const cab = rptSub('5.2 — Cablage FAI', rptLldGrid(
     lldExportCols(L, 'faiCab', LLD_FAI_CAB_COLS).map(c => [c[0], String(c[1])]), L.faiCab));
-  return t51 + cab + rptShots(ws, 'shots5') || '';
+  return rptDiag('fai', 'Diagramme d’accès FAI') + t51 + cab + rptShots(ws, 'shots5') || '';
 }
 
 // 🔗 Interconnexion site à site (ch. 6) : fiche, extrémités, WAN/LAN, câblage, VPN
@@ -344,7 +353,7 @@ function rptInterco(ws) {
     lldExportCols(L, 'icCab', LLD_IC_CAB_COLS).map(c => [c[0], String(c[1])]), L.icCab));
   const vpn = rptSub('Tunnels VPN site à site', rptLldGrid(
     lldExportCols(L, 'vpns', LLD_VPN_COLS).map(c => [c[0], String(c[1])]), L.vpns));
-  return kv + t61 + wan + lan + cab + vpn + rptShots(ws, 'shots6') || '';
+  return rptDiag('interco', 'Diagramme d’interconnexion') + kv + t61 + wan + lan + cab + vpn + rptShots(ws, 'shots6') || '';
 }
 
 // 🔥 Firewall & sécurité (ch. 7 + admin) : règles/NAT, profils, alias, comptes
@@ -361,7 +370,7 @@ function rptFirewall(ws) {
     lldExportCols(L, 'aliases', LLD_ALIAS_COLS).map(c => [c[0], String(c[1])]), L.aliases));
   const admin = rptSub("Comptes d'administration (Admin Security)", rptLldGrid(
     lldExportCols(L, 'adminSec', LLD_ADMIN_COLS).map(c => [c[0], String(c[1])]), L.adminSec));
-  return equip + vlan + rules + prof + aliases + admin + rptShots(ws, 'shots7') || '';
+  return rptDiag('fw', 'Diagramme Firewall') + equip + vlan + rules + prof + aliases + admin + rptShots(ws, 'shots7') || '';
 }
 
 // 🖥️ Système, stockage & supervision : VMs, volumes, caméras, zones de switching
@@ -832,6 +841,9 @@ $('#export-html').addEventListener('click', async () => {
   const logoSvg = await fetch('assets/logo.svg')
     .then(r => (r.ok ? r.text() : ''))
     .catch(() => '');
+  if (typeof lldRenderDiagExportImgs === 'function') {
+    try { await lldRenderDiagExportImgs(ws); } catch (_) { globalThis.__LLD_DIAG_IMGS = {}; }
+  }
   const c = await renderPlanCanvas();
   const tc = renderTopoCanvas();
   const html = buildHtmlReportFile(ws, {
