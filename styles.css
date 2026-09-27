@@ -2855,7 +2855,7 @@ body.mode3d .switch-wrap {
 .lld-diag-host {
   border: 1px solid var(--border-2); border-radius: 10px;
   background: #0b1220; min-height: 200px; overflow: auto;
-  max-height: min(52vh, 460px); padding: 10px;
+  max-height: min(70vh, 640px); padding: 10px;
 }
 .lld-diag-empty {
   color: #94a3b8; font-size: 12.5px; text-align: center;
@@ -2885,3 +2885,48 @@ body.mode3d .switch-wrap {
   fill: #e2e8f0; font-size: 11px; font-weight: 700;
   font-family: inherit; pointer-events: none;
 }
+
+
+/* ---------- Diagramme faces avant (sommaire 📘) ---------- */
+.fdiag { position: relative; background: #0b1220; border-radius: 10px; overflow: auto; }
+.fdiag-stage { position: relative; min-width: 640px; }
+.fdiag-wires { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 1; }
+.fdiag-dev {
+  position: absolute; z-index: 2;
+  border-radius: 8px; overflow: visible;
+  box-shadow: 0 6px 18px rgba(0,0,0,.45);
+  border: 2px solid #334155; background: #1e293b;
+}
+.fdiag-dev img {
+  display: block; width: 100%; height: calc(100% - 22px);
+  object-fit: fill; border-radius: 6px 6px 0 0; pointer-events: none;
+}
+.fdiag-nophoto {
+  height: calc(100% - 22px); display: flex; align-items: center; justify-content: center;
+  font-size: 28px; color: #94a3b8; background: #334155; border-radius: 6px 6px 0 0;
+}
+.fdiag-cap {
+  height: 22px; line-height: 22px; font-size: 11px; font-weight: 700;
+  color: #e2e8f0; padding: 0 8px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fdiag-card .fdiag-nophoto { background: #1e293b; }
+.fdiag-port {
+  position: absolute; width: 12px; height: 12px;
+  transform: translate(-50%, -50%);
+  border-radius: 3px; background: #fbbf24; border: 1px solid #0f172a;
+  z-index: 3; cursor: default; box-sizing: border-box;
+}
+.fdiag-port.is-up { background: #38bdf8; }
+.fdiag-tip {
+  display: none; position: absolute; left: 50%; bottom: calc(100% + 8px);
+  transform: translateX(-50%); min-width: 180px; max-width: 280px;
+  background: #0f172a; color: #e2e8f0; border: 1px solid #334155;
+  border-radius: 8px; padding: 8px 10px; font-size: 11px; line-height: 1.45;
+  z-index: 8; box-shadow: 0 8px 24px rgba(0,0,0,.5); pointer-events: none;
+  white-space: pre-line; text-align: left; font-weight: 500;
+}
+.fdiag-dev:hover > .fdiag-tip { display: block; }
+.fdiag-port:hover { z-index: 9; }
+.fdiag-port:hover > .fdiag-tip { display: block; }
+.fdiag-dev:hover:has(.fdiag-port:hover) > .fdiag-tip { display: none; }

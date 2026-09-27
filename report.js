@@ -291,7 +291,11 @@ function rptKv(fields, obj) {
     `<th>${RPT_ESC(r.label)}</th><td>${RPT_ESC(r.v)}</td></tr>`).join('') + '</tbody></table>';
 }
 // Captures d'écran d'un chapitre (glissées dans la fiche 📘) — embarquées telles quelles
-function rptDiag(mode, title) {
+function rptDiag(ws, mode, title) {
+  if (typeof lldFrontDiagHtml === 'function') {
+    const live = lldFrontDiagHtml(ws, mode);
+    if (live) return `<h3>${RPT_ESC(title)}</h3><div class="fdiag-report">${live}</div>`;
+  }
   const im = (globalThis.__LLD_DIAG_IMGS || {})[mode];
   const url = im && (im.dataUrl || im);
   if (!url || typeof url !== 'string') return '';
@@ -334,7 +338,7 @@ function rptFai(ws) {
     lldExportCols(L, 'fais', LLD_FAI51_COLS).map(c => [c[0], String(c[1])]), L.fais));
   const cab = rptSub('5.2 — Cablage FAI', rptLldGrid(
     lldExportCols(L, 'faiCab', LLD_FAI_CAB_COLS).map(c => [c[0], String(c[1])]), L.faiCab));
-  return rptDiag('fai', 'Diagramme d’accès FAI') + t51 + cab + rptShots(ws, 'shots5') || '';
+  return rptDiag(ws, 'fai', 'Diagramme d’accès FAI') + t51 + cab + rptShots(ws, 'shots5') || '';
 }
 
 // 🔗 Interconnexion site à site (ch. 6) : fiche, extrémités, WAN/LAN, câblage, VPN
@@ -351,7 +355,7 @@ function rptInterco(ws) {
     lldExportCols(L, 'icCab', LLD_IC_CAB_COLS).map(c => [c[0], String(c[1])]), L.icCab));
   const vpn = rptSub('Tunnels VPN site à site', rptLldGrid(
     lldExportCols(L, 'vpns', LLD_VPN_COLS).map(c => [c[0], String(c[1])]), L.vpns));
-  return rptDiag('interco', 'Diagramme d’interconnexion') + kv + t61 + wan + lan + cab + vpn + rptShots(ws, 'shots6') || '';
+  return rptDiag(ws, 'interco', 'Diagramme d’interconnexion') + kv + t61 + wan + lan + cab + vpn + rptShots(ws, 'shots6') || '';
 }
 
 // 🔥 Firewall & sécurité (ch. 7 + admin) : règles/NAT, profils, alias, comptes
@@ -368,7 +372,7 @@ function rptFirewall(ws) {
     lldExportCols(L, 'aliases', LLD_ALIAS_COLS).map(c => [c[0], String(c[1])]), L.aliases));
   const admin = rptSub("Comptes d'administration (Admin Security)", rptLldGrid(
     lldExportCols(L, 'adminSec', LLD_ADMIN_COLS).map(c => [c[0], String(c[1])]), L.adminSec));
-  return rptDiag('fw', 'Diagramme Firewall') + equip + vlan + rules + prof + aliases + admin + rptShots(ws, 'shots7') || '';
+  return rptDiag(ws, 'fw', 'Diagramme Firewall') + equip + vlan + rules + prof + aliases + admin + rptShots(ws, 'shots7') || '';
 }
 
 // 🖥️ Système, stockage & supervision : VMs, volumes, caméras, zones de switching
@@ -651,6 +655,21 @@ table.kv th{background:#f1f5f9;color:var(--ink);width:240px;font-weight:600;bord
   position:static;text-align:left;font-size:12.8px}
 .shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:10px}
 .shot{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#101318}
+.fdiag-report{margin-top:10px}
+.fdiag{position:relative;background:#0b1220;border-radius:10px;overflow:auto;border:1px solid var(--line)}
+.fdiag-stage{position:relative;min-width:640px}
+.fdiag-wires{position:absolute;left:0;top:0;pointer-events:none;z-index:1}
+.fdiag-dev{position:absolute;z-index:2;border-radius:8px;overflow:visible;box-shadow:0 6px 18px rgba(0,0,0,.45);border:2px solid #334155;background:#1e293b}
+.fdiag-dev img{display:block;width:100%;height:calc(100% - 22px);object-fit:fill;border-radius:6px 6px 0 0;pointer-events:none}
+.fdiag-nophoto{height:calc(100% - 22px);display:flex;align-items:center;justify-content:center;font-size:28px;color:#94a3b8;background:#334155;border-radius:6px 6px 0 0}
+.fdiag-cap{height:22px;line-height:22px;font-size:11px;font-weight:700;color:#e2e8f0;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fdiag-port{position:absolute;width:12px;height:12px;transform:translate(-50%,-50%);border-radius:3px;background:#fbbf24;border:1px solid #0f172a;z-index:3;cursor:default;box-sizing:border-box}
+.fdiag-port.is-up{background:#38bdf8}
+.fdiag-tip{display:none;position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);min-width:180px;max-width:280px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.45;z-index:8;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;white-space:pre-line;text-align:left;font-weight:500}
+.fdiag-dev:hover>.fdiag-tip{display:block}
+.fdiag-port:hover{z-index:9}
+.fdiag-port:hover>.fdiag-tip{display:block}
+.fdiag-dev:hover:has(.fdiag-port:hover)>.fdiag-tip{display:none}
 .shot img{display:block;width:100%;cursor:zoom-in;background:#101318}
 .shot figcaption{background:#fff;padding:7px 11px;font-size:12px;border-top:1px solid var(--line)}
 table{width:100%;border-collapse:collapse;font-size:12.8px;margin:8px 0}
