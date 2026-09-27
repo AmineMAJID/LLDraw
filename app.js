@@ -14,6 +14,7 @@
 
 // Device permanent WatchGuard
 const WATCHGUARD_ID = 'watchguard-permanent';
+const ISP_CPE_ID = 'isp-cpe-fai';
 
 function ensureWatchGuard() {
   const exists = state.devices.some(d => d.id === WATCHGUARD_ID);
@@ -37,6 +38,99 @@ function ensureWatchGuard() {
     });
     saveState();
   }
+}
+
+function lldIspPorts(prefix) {
+  const pre = prefix ? String(prefix) + '-' : '';
+  return [
+    ['WAN1', 'WAN1 (transit FAI)', 58.5],
+    ['WAN2', 'WAN2 (secours)', 66.8],
+    ['LAN1', 'LAN1 (vers firewall)', 75.2],
+    ['LAN2', 'LAN2 (spare)', 83.5],
+    ['CON', 'Console / MGMT', 91.8]
+  ].map(([name, label, xPct]) => ({
+    id: pre + name.toLowerCase() + '-' + uid().slice(-6),
+    name, label, xPct, yPct: 58, size: 0.85, ip: '', vlan: ''
+  }));
+}
+
+/* Face avant 1U d’un CPE / routeur FAI (pas le WatchGuard). idx colore la bande. */
+function lldIspFrontPhoto(idx) {
+  try {
+  const c = document.createElement('canvas');
+  c.width = 720; c.height = 92;
+  const g = c.getContext('2d');
+  const accents = ['#f59e0b', '#fb923c', '#fbbf24', '#ea580c', '#d97706'];
+  const accent = accents[(idx || 0) % accents.length];
+  g.fillStyle = '#1c2430';
+  g.fillRect(0, 0, 720, 92);
+  g.fillStyle = '#151b24';
+  g.fillRect(0, 0, 720, 8);
+  g.fillRect(0, 84, 720, 8);
+  g.fillStyle = accent;
+  g.fillRect(0, 0, 10, 92);
+  g.fillStyle = '#0f172a';
+  for (let x = 28; x < 390; x += 7) {
+    g.fillRect(x, 18, 4, 56);
+  }
+  g.fillStyle = '#22c55e'; g.beginPath(); g.arc(48, 22, 4, 0, 7); g.fill();
+  g.fillStyle = accent; g.beginPath(); g.arc(64, 22, 4, 0, 7); g.fill();
+  g.fillStyle = '#64748b'; g.beginPath(); g.arc(80, 22, 4, 0, 7); g.fill();
+  g.fillStyle = '#e2e8f0';
+  g.font = '700 13px sans-serif';
+  g.fillText('ISP CPE  ·  FAI ' + ((idx || 0) + 1), 100, 26);
+  g.font = '600 10px sans-serif';
+  g.fillStyle = '#94a3b8';
+  g.fillText('Balance 20X  ·  dual-WAN', 100, 42);
+  const ports = [
+    [410, 'WAN1'], [470, 'WAN2'], [530, 'LAN1'], [590, 'LAN2'], [650, 'CON']
+  ];
+  ports.forEach(([x, lab], i) => {
+    g.fillStyle = '#0b1220';
+    g.fillRect(x, 38, 44, 28);
+    g.strokeStyle = i < 2 ? accent : '#38bdf8';
+    g.lineWidth = 2;
+    g.strokeRect(x + 0.5, 38.5, 43, 27);
+    g.fillStyle = '#1e293b';
+    g.fillRect(x + 8, 44, 28, 16);
+    g.fillStyle = '#cbd5e1';
+    g.font = '700 9px sans-serif';
+    g.textAlign = 'center';
+    g.fillText(lab, x + 22, 78);
+  });
+  g.textAlign = 'left';
+  return c.toDataURL('image/jpeg', 0.82);
+  } catch (_) { return ''; }
+}
+
+function ensureIspCpeDevice() {
+  if (!state || !Array.isArray(state.devices)) return null;
+  let d = state.devices.find(x => x.id === ISP_CPE_ID);
+  if (!d) {
+    d = {
+      id: ISP_CPE_ID,
+      name: 'Routeur FAI / CPE',
+      sizeU: 1,
+      photo: lldIspFrontPhoto(0),
+      permanent: true,
+      cat: 'router',
+      brand: 'Peplink',
+      model: 'Balance 20X',
+      partRef: '',
+      serial: '',
+      ipMgmt: '',
+      vlan: '',
+      watts: 15,
+      weightKg: 1.2,
+      ports: lldIspPorts('tpl')
+    };
+    const wg = state.devices.findIndex(x => x.id === WATCHGUARD_ID);
+    state.devices.splice(wg >= 0 ? wg + 1 : 0, 0, d);
+  } else if (!d.photo) {
+    d.photo = lldIspFrontPhoto(0);
+  }
+  if (!Array.isArray(d.ports) || d.ports.length < 4) d.ports = lldIspPorts('tpl');
+  return d;
 }
 
 // Charger l'image WatchGuard depuis le fichier
@@ -70,6 +164,7 @@ const RACK_W  = 356;         // largeur d'un rack
 const RACK_SIZES = [6, 9, 12, 15, 18, 22, 27, 32, 42];
 const BOARD_W = 8000;
 const BOARD_H = 6000;
+const BOARD_MARGIN = 160;  // les baies ne collent jamais au bord du plan
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 2.5;
 
@@ -854,6 +949,38 @@ function normLldInfo(w) {
 function rackHeight(rack) {
   return 28 + 16 + (rack.sizeU || DEFAULT_RACK_U) * U_H;
 }
+function clampRackOnBoard(rack) {
+  if (!rack) return rack;
+  const h = rackHeight(rack);
+  rack.x = Math.max(BOARD_MARGIN, Math.min(Number(rack.x) || 0, BOARD_W - RACK_W - BOARD_MARGIN));
+  rack.y = Math.max(BOARD_MARGIN, Math.min(Number(rack.y) || 0, BOARD_H - h - BOARD_MARGIN));
+  return rack;
+}
+function lldPlaceRackInMiddle(ws, rack) {
+  const others = (ws.racks || []).filter(r => r && r !== rack && r.id !== rack.id);
+  const h = rackHeight(rack);
+  const gap = 80;
+  if (!others.length) {
+    rack.x = (BOARD_W - RACK_W) / 2;
+    rack.y = (BOARD_H - h) / 2;
+    return clampRackOnBoard(rack);
+  }
+  const minX = Math.min(...others.map(r => Number(r.x) || 0));
+  const maxX = Math.max(...others.map(r => (Number(r.x) || 0) + RACK_W));
+  const minY = Math.min(...others.map(r => Number(r.y) || 0));
+  const left = minX - RACK_W - gap;
+  rack.x = left >= BOARD_MARGIN ? left : maxX + gap;
+  rack.y = minY;
+  const overlap = others.some(r => {
+    const ax1 = rack.x, ax2 = ax1 + RACK_W;
+    const ay1 = rack.y, ay2 = ay1 + h;
+    const bx1 = Number(r.x) || 0, bx2 = bx1 + RACK_W;
+    const by1 = Number(r.y) || 0, by2 = by1 + rackHeight(r);
+    return ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1;
+  });
+  if (overlap) rack.x = maxX + gap;
+  return clampRackOnBoard(rack);
+}
 
 // Formatage de puissance (350 W / 1,4 kW)
 function fmtWatts(w) {
@@ -1130,7 +1257,9 @@ let topoFlowFilter = '';        // id du flux mis en évidence dans la vue Topol
 const view = { x: 80, y: 50, scale: 1 };
 
 function makeWorkspace(name, racks = []) {
-  return { id: uid(), name, racks, cables: [], sites: defaultSites(), view: null, viewTouched: false, updatedAt: Date.now() };
+  const ws = { id: uid(), name, racks: Array.isArray(racks) ? racks : [], cables: [], sites: defaultSites(), view: null, viewTouched: false, updatedAt: Date.now() };
+  if (!ws.racks.length) ws.racks.push(lldMakeDefaultFaiRack(ws));
+  return ws;
 }
 
 function emptyState() {
@@ -1169,6 +1298,7 @@ function normalizeState(s) {
   // Normalisation rétro-compatible + date de modification
   s.workspaces.forEach(w => {
     w.racks = (Array.isArray(w.racks) ? w.racks : []).map(normalizeRack);
+    if (typeof lldNudgeFaiRackIfNeeded === 'function') lldNudgeFaiRackIfNeeded(w);
     if (!Array.isArray(w.cables)) w.cables = [];
     w.cables.forEach(c => {
       if (typeof c.domain !== 'string') c.domain = '';
@@ -1837,6 +1967,7 @@ function renderPalette() {
 
   // S'assurer que le WatchGuard permanent existe toujours
   ensureWatchGuard();
+  ensureIspCpeDevice();
 
   // Filtre par catégorie ('all' = toutes)
   const shown = palCatFilter === 'all'
@@ -1939,12 +2070,12 @@ viewport.addEventListener('drop', e => {
   const sizeU = dragPayload.size || DEFAULT_RACK_U;
   const rack = normalizeRack({
     id: uid(),
-    x: Math.max(0, Math.min(p.x - RACK_W / 2, BOARD_W - RACK_W)),
-    y: Math.max(0, p.y - 30),
+    x: Math.max(BOARD_MARGIN, Math.min(p.x - RACK_W / 2, BOARD_W - RACK_W - BOARD_MARGIN)),
+    y: Math.max(BOARD_MARGIN, p.y - 30),
     sizeU,
     instances: []
   });
-  rack.y = Math.max(0, Math.min(rack.y, BOARD_H - rackHeight(rack)));
+  clampRackOnBoard(rack);
   const ws = active();
   pushHistory();
   ws.racks.push(rack);
@@ -4993,7 +5124,7 @@ const LLD_INFOS = {
   },
   diag5: {
     label: 'Diagramme d’accès FAI (avant 5.1)', kind: 'diagram', mode: 'fai',
-    hint: 'Faces avant réelles, ports et câbles du board. « 🔎 Générer depuis l’élévation » construit le schéma FAI (et le rack opérateurs s’il manque).'
+    hint: 'Faces avant réelles, ports et câbles du board. « 🔎 Générer depuis l’élévation » construit le schéma à partir des baies déjà posées (le rack FAI n’est pas créé ici).'
   },
   shots5: {
     label: 'Captures d’écran — ch. 5', kind: 'shots',
@@ -6462,85 +6593,118 @@ function lldBuildCh4Matrix(L) {
   return wrap;
 }
 
-// ---- Rack FAI (5 routeurs) à gauche des baies + liens topo ----
-function lldEnsureFaiRack(ws) {
-  if (!ws || !Array.isArray(ws.racks)) return null;
-  // Déjà présent ?
-  let rack = ws.racks.find(r => /(^|\s)FAI(\s|$)|Accès FAI|Routeurs FAI/i.test(String(r.name || '')));
-  if (rack) return rack;
-  const tpl = (state && Array.isArray(state.devices)
-    ? state.devices.find(d => d.cat === 'router' || d.cat === 'firewall')
-    : null) || null;
-  const minX = ws.racks.length ? Math.min(...ws.racks.map(r => Number(r.x) || 0)) : 200;
-  const minY = ws.racks.length ? Math.min(...ws.racks.map(r => Number(r.y) || 0)) : 120;
-  rack = normalizeRack({
+// ---- Rack FAI par défaut (milieu du board) + faces CPE, ports et câbles logiques ----
+function lldIsFaiRack(r) {
+  return !!(r && /RACK FAI|Accès opérateurs|Routeurs FAI/i.test(String(r.name || '')));
+}
+function lldMakeIspInstance(i, siteHint) {
+  const tpl = ensureIspCpeDevice() || {};
+  const id = uid();
+  const ports = lldIspPorts('isp' + (i + 1));
+  return {
+    id,
+    deviceId: ISP_CPE_ID,
+    name: 'ISP-RTR-' + (i + 1),
+    sizeU: 1,
+    photo: lldIspFrontPhoto(i),
+    cat: 'router',
+    slot: i,
+    brand: tpl.brand || 'Peplink',
+    model: tpl.model || 'Balance 20X',
+    partRef: tpl.partRef || '',
+    serial: '',
+    ipMgmt: '10.255.0.' + (10 + i),
+    vlan: 'VLAN 99 — Mgmt',
+    warranty: '',
+    warrantyEnd: '',
+    watts: tpl.watts || 15,
+    weightKg: tpl.weightKg || 1.2,
+    ports
+  };
+}
+function lldLogicalFaiCables(ws, rack) {
+  if (!ws || !rack) return;
+  ws.cables = Array.isArray(ws.cables) ? ws.cables : [];
+  const fws = [];
+  (ws.racks || []).forEach(r => {
+    if (!r || r.id === rack.id) return;
+    (r.instances || []).filter(i => i.cat === 'firewall').forEach(inst => fws.push({ r, inst }));
+  });
+  if (!fws.length) return;
+  const wanOf = inst => (inst.ports || []).find(p =>
+    /wan/i.test(String(p.name || '')) || /wan|transit fai/i.test(String(p.label || '')))
+    || (inst.ports || [])[0];
+  (rack.instances || []).forEach((isp, i) => {
+    const fw = fws[i % fws.length];
+    const want = (i === 4) ? 'WAN2' : 'WAN1';
+    const pa = (isp.ports || []).find(p => p.name === want) || (isp.ports || [])[0];
+    const pb = wanOf(fw.inst);
+    if (!pa || !pb) return;
+    const dup = ws.cables.some(c =>
+      (c.a && c.b) && (
+        (c.a.portId === pa.id && c.b.portId === pb.id) ||
+        (c.b.portId === pa.id && c.a.portId === pb.id)));
+    if (dup) return;
+    ws.cables.push({
+      id: uid(),
+      name: 'FAI-' + String(i + 1).padStart(2, '0') + ' · ' + isp.name + ' → ' + (fw.inst.name || 'FW'),
+      color: i === 4 ? '#f59e0b' : '#38bdf8',
+      domain: 'WAN',
+      a: { rackId: rack.id, instId: isp.id, portId: pa.id },
+      b: { rackId: fw.r.id, instId: fw.inst.id, portId: pb.id }
+    });
+  });
+}
+function lldFixFaiWatchGuardFaces(ws) {
+  if (!ws) return;
+  const rack = (ws.racks || []).find(lldIsFaiRack);
+  if (!rack) return;
+  (rack.instances || []).forEach((inst, i) => {
+    const named = /ISP-RTR|ISP CPE/i.test(inst.name || '');
+    const stolen = inst.deviceId === WATCHGUARD_ID || (named && inst.cat === 'firewall');
+    const okFace = inst.deviceId === ISP_CPE_ID && inst.photo && (inst.ports || []).length >= 4;
+    if (!stolen && okFace) return;
+    if (!stolen && !named) return;
+    inst.deviceId = ISP_CPE_ID;
+    inst.cat = 'router';
+    inst.photo = lldIspFrontPhoto(i);
+    inst.brand = inst.brand && inst.brand !== 'WatchGuard' ? inst.brand : 'Peplink';
+    inst.model = inst.model && !/Firebox/i.test(inst.model) ? inst.model : 'Balance 20X';
+    if (!Array.isArray(inst.ports) || inst.ports.length < 4) inst.ports = lldIspPorts('isp' + (i + 1));
+  });
+}
+function lldMakeDefaultFaiRack(ws) {
+  ensureIspCpeDevice();
+  const rack = normalizeRack({
     id: uid(),
     name: 'RACK FAI — Accès opérateurs',
-    x: Math.max(0, minX - RACK_W - 90),
-    y: Math.max(0, minY),
+    x: (BOARD_W - RACK_W) / 2,
+    y: (BOARD_H - (44 + 12 * U_H)) / 2,
     sizeU: 12,
-    siteId: (ws.racks[0] && ws.racks[0].siteId) || '',
+    siteId: (ws && ws.racks && ws.racks[0] && ws.racks[0].siteId) || (ws && ws.sites && ws.sites[0] && ws.sites[0].id) || '',
     instances: []
   });
-  const base = tpl || {};
-  for (let i = 0; i < 5; i++) {
-    const id = uid();
-    rack.instances.push({
-      id,
-      deviceId: base.id || '',
-      name: `ISP-RTR-${i + 1}`,
-      sizeU: 1,
-      photo: '',
-      cat: 'router',
-      slot: i,
-      brand: base.brand || 'Cisco',
-      model: base.model || 'ISR 4321',
-      partRef: base.partRef || '',
-      serial: '',
-      ipMgmt: `10.255.0.${10 + i}`,
-      vlan: 'VLAN 99 — Mgmt',
-      warranty: '',
-      warrantyEnd: '',
-      watts: base.watts || 30,
-      weightKg: base.weightKg || 3,
-      ports: []
-    });
-  }
-  ws.racks.push(rack);
-  // Noeuds topo + liens vers le 1er firewall de chaque autre rack
-  if (!ws.topology || !Array.isArray(ws.topology.nodes)) ws.topology = { nodes: [], links: [] };
-  const topo = ws.topology;
-  const fws = [];
-  ws.racks.forEach(r => {
-    if (r.id === rack.id) return;
-    r.instances.filter(i => i.cat === 'firewall').forEach(inst => fws.push({ r, inst }));
-  });
-  const isps = rack.instances.map((inst, i) => {
-    let n = topo.nodes.find(x => x.instId === inst.id);
-    if (!n) {
-      n = { id: uid(), instId: inst.id, x: 40, y: 60 + i * 110 };
-      topo.nodes.push(n);
-    }
-    return n;
-  });
-  fws.slice(0, 2).forEach((fw, i) => {
-    let n = topo.nodes.find(x => x.instId === fw.inst.id);
-    if (!n) {
-      n = { id: uid(), instId: fw.inst.id, x: 360, y: 60 + i * 160 };
-      topo.nodes.push(n);
-    }
-    // 2 ISP par firewall + 1 en secours sur le 1er
-    const pair = i === 0 ? [isps[0], isps[1], isps[4]] : [isps[2], isps[3]];
-    pair.filter(Boolean).forEach(isp => {
-      if (topo.links.some(l => (l.a === isp.id && l.b === n.id) || (l.b === isp.id && l.a === n.id))) return;
-      topo.links.push({
-        id: uid(), a: isp.id, b: n.id,
-        label: i === 0 && isp === isps[4] ? 'Secours 5G' : 'Transit FAI',
-        speed: '1 Gb/s', vlan: '', style: 'solid', color: '#f59e0b'
-      });
-    });
-  });
+  for (let i = 0; i < 5; i++) rack.instances.push(lldMakeIspInstance(i));
+  lldPlaceRackInMiddle(ws || { racks: [] }, rack);
   return rack;
+}
+function lldNudgeFaiRackIfNeeded(ws) {
+  if (!ws || !Array.isArray(ws.racks)) return;
+  const fai = ws.racks.find(lldIsFaiRack);
+  if (!fai) return;
+  lldFixFaiWatchGuardFaces(ws);
+  const h = rackHeight(fai);
+  const atBorder = (Number(fai.x) || 0) < BOARD_MARGIN || (Number(fai.y) || 0) < BOARD_MARGIN;
+  const overlap = ws.racks.some(r => {
+    if (r.id === fai.id) return false;
+    const ax1 = Number(fai.x) || 0, ax2 = ax1 + RACK_W;
+    const ay1 = Number(fai.y) || 0, ay2 = ay1 + h;
+    const bx1 = Number(r.x) || 0, bx2 = bx1 + RACK_W;
+    const by1 = Number(r.y) || 0, by2 = by1 + rackHeight(r);
+    return ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1;
+  });
+  if (atBorder || overlap) lldPlaceRackInMiddle(ws, fai);
+  lldLogicalFaiCables(ws, fai);
 }
 
 // ---- Diagrammes ch. 5/6/7 : structure + génération depuis l'élévation ----
@@ -7393,17 +7557,6 @@ function lldInfoRender(box, def, key) {
         const ws = active();
         if (!ws || !lldDraft) return;
         lldPushUndo(true);
-        let rackAdded = false;
-        if (mode === 'fai') {
-          const before = ws.racks.length;
-          lldEnsureFaiRack(ws);
-          rackAdded = ws.racks.length > before;
-          if (rackAdded) {
-            touchWorkspace(ws);
-            saveState();
-            renderBoard();
-          }
-        }
         lldDraft.lld.diagrams = lldDraft.lld.diagrams || {};
         lldDraft.lld.diagrams[mode] = lldBuildDiagData(ws, mode);
         ws.lld = ws.lld || {};
@@ -7413,8 +7566,7 @@ function lldInfoRender(box, def, key) {
         saveState();
         // le rack FAI éventuellement créé doit survivre à l'enregistrement
         paint();
-        lldAlert('Diagramme généré depuis l’élévation (pensez à Enregistrer).'
-          + (mode === 'fai' ? '\nRack « RACK FAI — Accès opérateurs » (5 routeurs) ajouté à gauche s’il manquait, et relié en topologie.' : ''),
+        lldAlert('Diagramme généré depuis l’élévation (pensez à Enregistrer).',
           { title: 'Diagramme' });
       }, 'Construit le schéma du chapitre depuis les devices posés, les FAI et l’interconnexion');
       const clearBtn = lldBtn('✕ Vider', () => {

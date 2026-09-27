@@ -570,10 +570,382 @@
    "name": "Datacenter Démo",
    "racks": [
     {
+     "id": "rack-fai",
+     "name": "RACK FAI — Accès opérateurs",
+     "x": 3151,
+     "y": 2582,
+     "sizeU": 12,
+     "siteId": "site-a",
+     "maxWatts": 2000,
+     "maxKg": 80,
+     "instances": [
+      {
+       "id": "inst-isp-1",
+       "deviceId": "isp-cpe-fai",
+       "name": "ISP-RTR-1",
+       "slot": 0,
+       "sizeU": 1,
+       "cat": "router",
+       "zone": "",
+       "photo": "",
+       "brand": "Peplink",
+       "model": "Balance 20X",
+       "partRef": "",
+       "serial": "ISP-20X-0001",
+       "ipMgmt": "10.255.0.10",
+       "vlan": "VLAN 99 — Mgmt",
+       "watts": 15,
+       "weightKg": 1.2,
+       "warranty": "",
+       "warrantyEnd": "",
+       "ports": [
+        {
+         "id": "p-inst-isp-1-wan1",
+         "name": "WAN1",
+         "label": "WAN1 (transit FAI)",
+         "xPct": 58.5,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-1-wan2",
+         "name": "WAN2",
+         "label": "WAN2 (secours)",
+         "xPct": 66.8,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-1-lan1",
+         "name": "LAN1",
+         "label": "LAN1 (vers firewall)",
+         "xPct": 75.2,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-1-lan2",
+         "name": "LAN2",
+         "label": "LAN2 (spare)",
+         "xPct": 83.5,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-1-con",
+         "name": "CON",
+         "label": "Console / MGMT",
+         "xPct": 91.8,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        }
+       ]
+      },
+      {
+       "id": "inst-isp-2",
+       "deviceId": "isp-cpe-fai",
+       "name": "ISP-RTR-2",
+       "slot": 1,
+       "sizeU": 1,
+       "cat": "router",
+       "zone": "",
+       "photo": "",
+       "brand": "Peplink",
+       "model": "Balance 20X",
+       "partRef": "",
+       "serial": "ISP-20X-0002",
+       "ipMgmt": "10.255.0.11",
+       "vlan": "VLAN 99 — Mgmt",
+       "watts": 15,
+       "weightKg": 1.2,
+       "warranty": "",
+       "warrantyEnd": "",
+       "ports": [
+        {
+         "id": "p-inst-isp-2-wan1",
+         "name": "WAN1",
+         "label": "WAN1 (transit FAI)",
+         "xPct": 58.5,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-2-wan2",
+         "name": "WAN2",
+         "label": "WAN2 (secours)",
+         "xPct": 66.8,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-2-lan1",
+         "name": "LAN1",
+         "label": "LAN1 (vers firewall)",
+         "xPct": 75.2,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-2-lan2",
+         "name": "LAN2",
+         "label": "LAN2 (spare)",
+         "xPct": 83.5,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-2-con",
+         "name": "CON",
+         "label": "Console / MGMT",
+         "xPct": 91.8,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        }
+       ]
+      },
+      {
+       "id": "inst-isp-3",
+       "deviceId": "isp-cpe-fai",
+       "name": "ISP-RTR-3",
+       "slot": 2,
+       "sizeU": 1,
+       "cat": "router",
+       "zone": "",
+       "photo": "",
+       "brand": "Peplink",
+       "model": "Balance 20X",
+       "partRef": "",
+       "serial": "ISP-20X-0003",
+       "ipMgmt": "10.255.0.12",
+       "vlan": "VLAN 99 — Mgmt",
+       "watts": 15,
+       "weightKg": 1.2,
+       "warranty": "",
+       "warrantyEnd": "",
+       "ports": [
+        {
+         "id": "p-inst-isp-3-wan1",
+         "name": "WAN1",
+         "label": "WAN1 (transit FAI)",
+         "xPct": 58.5,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-3-wan2",
+         "name": "WAN2",
+         "label": "WAN2 (secours)",
+         "xPct": 66.8,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-3-lan1",
+         "name": "LAN1",
+         "label": "LAN1 (vers firewall)",
+         "xPct": 75.2,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-3-lan2",
+         "name": "LAN2",
+         "label": "LAN2 (spare)",
+         "xPct": 83.5,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-3-con",
+         "name": "CON",
+         "label": "Console / MGMT",
+         "xPct": 91.8,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        }
+       ]
+      },
+      {
+       "id": "inst-isp-4",
+       "deviceId": "isp-cpe-fai",
+       "name": "ISP-RTR-4",
+       "slot": 3,
+       "sizeU": 1,
+       "cat": "router",
+       "zone": "",
+       "photo": "",
+       "brand": "Peplink",
+       "model": "Balance 20X",
+       "partRef": "",
+       "serial": "ISP-20X-0004",
+       "ipMgmt": "10.255.0.13",
+       "vlan": "VLAN 99 — Mgmt",
+       "watts": 15,
+       "weightKg": 1.2,
+       "warranty": "",
+       "warrantyEnd": "",
+       "ports": [
+        {
+         "id": "p-inst-isp-4-wan1",
+         "name": "WAN1",
+         "label": "WAN1 (transit FAI)",
+         "xPct": 58.5,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-4-wan2",
+         "name": "WAN2",
+         "label": "WAN2 (secours)",
+         "xPct": 66.8,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-4-lan1",
+         "name": "LAN1",
+         "label": "LAN1 (vers firewall)",
+         "xPct": 75.2,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-4-lan2",
+         "name": "LAN2",
+         "label": "LAN2 (spare)",
+         "xPct": 83.5,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-4-con",
+         "name": "CON",
+         "label": "Console / MGMT",
+         "xPct": 91.8,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        }
+       ]
+      },
+      {
+       "id": "inst-isp-5",
+       "deviceId": "isp-cpe-fai",
+       "name": "ISP-RTR-5",
+       "slot": 4,
+       "sizeU": 1,
+       "cat": "router",
+       "zone": "",
+       "photo": "",
+       "brand": "Peplink",
+       "model": "Balance 20X",
+       "partRef": "",
+       "serial": "ISP-20X-0005",
+       "ipMgmt": "10.255.0.14",
+       "vlan": "VLAN 99 — Mgmt",
+       "watts": 15,
+       "weightKg": 1.2,
+       "warranty": "",
+       "warrantyEnd": "",
+       "ports": [
+        {
+         "id": "p-inst-isp-5-wan1",
+         "name": "WAN1",
+         "label": "WAN1 (transit FAI)",
+         "xPct": 58.5,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-5-wan2",
+         "name": "WAN2",
+         "label": "WAN2 (secours)",
+         "xPct": 66.8,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-5-lan1",
+         "name": "LAN1",
+         "label": "LAN1 (vers firewall)",
+         "xPct": 75.2,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-5-lan2",
+         "name": "LAN2",
+         "label": "LAN2 (spare)",
+         "xPct": 83.5,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        },
+        {
+         "id": "p-inst-isp-5-con",
+         "name": "CON",
+         "label": "Console / MGMT",
+         "xPct": 91.8,
+         "yPct": 58,
+         "size": 0.85,
+         "ip": "",
+         "vlan": ""
+        }
+       ]
+      }
+     ]
+    },
+    {
      "id": "rack-a",
      "name": "RACK-A — Siège Casablanca",
-     "x": 150,
-     "y": 120,
+     "x": 3587,
+     "y": 2582,
      "sizeU": 24,
      "siteId": "site-a",
      "maxWatts": 5000,
@@ -2316,8 +2688,8 @@
     {
      "id": "rack-b",
      "name": "RACK-B — Agence Rabat",
-     "x": 620,
-     "y": 120,
+     "x": 4057,
+     "y": 2582,
      "sizeU": 18,
      "siteId": "site-b",
      "maxWatts": 3000,
@@ -4014,6 +4386,86 @@
       "rackId": "rack-b",
       "instId": "inst-pp-b2",
       "portId": "p-inst-pp-b2-3"
+     }
+    },
+    {
+     "id": "cab-fai-01",
+     "name": "FAI-01 · ISP-RTR-1 → FW",
+     "color": "#38bdf8",
+     "domain": "WAN",
+     "a": {
+      "rackId": "rack-fai",
+      "instId": "inst-isp-1",
+      "portId": "p-inst-isp-1-wan1"
+     },
+     "b": {
+      "rackId": "rack-a",
+      "instId": "inst-fw-a",
+      "portId": "p-inst-fw-a-eth0"
+     }
+    },
+    {
+     "id": "cab-fai-02",
+     "name": "FAI-02 · ISP-RTR-2 → FW",
+     "color": "#38bdf8",
+     "domain": "WAN",
+     "a": {
+      "rackId": "rack-fai",
+      "instId": "inst-isp-2",
+      "portId": "p-inst-isp-2-wan1"
+     },
+     "b": {
+      "rackId": "rack-b",
+      "instId": "inst-fw-b",
+      "portId": "p-inst-fw-b-eth0"
+     }
+    },
+    {
+     "id": "cab-fai-03",
+     "name": "FAI-03 · ISP-RTR-3 → FW",
+     "color": "#38bdf8",
+     "domain": "WAN",
+     "a": {
+      "rackId": "rack-fai",
+      "instId": "inst-isp-3",
+      "portId": "p-inst-isp-3-wan1"
+     },
+     "b": {
+      "rackId": "rack-a",
+      "instId": "inst-fw-a",
+      "portId": "p-inst-fw-a-eth0"
+     }
+    },
+    {
+     "id": "cab-fai-04",
+     "name": "FAI-04 · ISP-RTR-4 → FW",
+     "color": "#38bdf8",
+     "domain": "WAN",
+     "a": {
+      "rackId": "rack-fai",
+      "instId": "inst-isp-4",
+      "portId": "p-inst-isp-4-wan1"
+     },
+     "b": {
+      "rackId": "rack-b",
+      "instId": "inst-fw-b",
+      "portId": "p-inst-fw-b-eth0"
+     }
+    },
+    {
+     "id": "cab-fai-05",
+     "name": "FAI-05 · ISP-RTR-5 → FW",
+     "color": "#f59e0b",
+     "domain": "WAN",
+     "a": {
+      "rackId": "rack-fai",
+      "instId": "inst-isp-5",
+      "portId": "p-inst-isp-5-wan2"
+     },
+     "b": {
+      "rackId": "rack-a",
+      "instId": "inst-fw-a",
+      "portId": "p-inst-fw-a-eth0"
      }
     }
    ],
@@ -6658,9 +7110,9 @@
    },
    "viewTouched": false,
    "updatedAt": 1788868800000,
-   "demoVer": 8
+   "demoVer": 9
   }
  ],
  "activeWorkspaceId": "demo-dc",
- "demoVer": 8
+ "demoVer": 9
 }
