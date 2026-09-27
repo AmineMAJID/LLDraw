@@ -25,6 +25,14 @@ python3 server.py          # http://localhost:8080  (ou : python3 server.py 9000
 
 Puis ouvrez <http://localhost:8080>.
 
+> **Port 8080 bloqué (Windows : `PermissionError: [WinError 10013]`) ?**
+> Le port est réservé par le système (Hyper-V…) ou déjà utilisé : le
+> serveur bascule alors **automatiquement** sur 8081, 8082… (message
+> `⚠️ Port 8080 indisponible, repli automatique sur …` — ouvrez
+> simplement l'URL indiquée). Pour forcer un port libre :
+> `python server.py 9000`. Détails des causes et solutions affichés avec
+> `python server.py --help` et en cas d'échec du démarrage.
+
 Ce serveur fait deux choses : il sert les fichiers statiques **et** il
 enregistre l'état de l'application dans un fichier JSON : **`data/state.json`**
 (écriture atomique). Sauvegardez/copiez ce fichier pour sauvegarder ou
