@@ -255,6 +255,56 @@ function lldTocRemap(num) {
   return LLD_TOC_REMAP[s] || s;
 }
 
+// Nœud du sommaire portant le bloc `key` (le plus profond en cas de doublon).
+function lldTocNodeForBlock(L, key) {
+  let found = null;
+  const walk = ns => (ns || []).forEach(n => {
+    if (n && Array.isArray(n.blocks) && n.blocks.includes(key)) found = n;
+    walk(n && n.subs);
+  });
+  try { walk(L && L.toc); } catch (_) {}
+  return found;
+}
+// Numéro du sommaire portant le bloc `key` (null si introuvable).
+function lldTocNumForBlock(L, key) {
+  const n = lldTocNodeForBlock(L, key);
+  return n ? String(n.num) : null;
+}
+// Libellé d'export synchronisé sur le sommaire : le numéro du nœud portant
+// le bloc remplace le numéro codé en dur (« 5.1 — … », « 7.3. … », « ch. 8 »,
+// « chapitre 15 », « (avant 4.1.1) » des diagrammes = 1er sous-chapitre).
+// Sans nœud (bloc libre, sommaire modifié) : le repli est repris intact.
+function lldTocSyncLabel(L, key, fallback) {
+  let s = String(fallback);
+  const n = (typeof key === 'string') ? lldTocNodeForBlock(L, key) : null;
+  if (!n) return s;
+  const num = String(n.num);
+  if (key.startsWith('diag')) {
+    const firstSub = (n.subs || []).map(x => x && x.num).filter(Boolean)[0];
+    if (firstSub) s = s.replace(/\(avant\s+[\d.]+\)/, `(avant ${firstSub})`);
+    return s;
+  }
+  const lead = /^(\d+(?:\.\d+)*)(\s*[\u2014\-.:]\s+[\s\S]*)$/.exec(s);
+  if (lead) return num + lead[2];
+  if (/ch\.\s*\d/.test(s)) return s.replace(/ch\.\s*\d+(?:\.\d+)*/, `ch. ${num}`);
+  if (/chapitre\s+\d/.test(s)) return s.replace(/chapitre\s+\d+(?:\.\d+)*/, `chapitre ${num}`);
+  return s;
+}
+// Périmètre d'export hiérarchique : num coché, ou ancêtre coché (4.5 sous 4),
+// ou descendant coché (feuille/chapitre parent 4 gardé si un 4.x est coché).
+function lldNumInScope(num, only) {
+  if (!only || typeof only.has !== 'function') return true;
+  const s = String(num);
+  if (only.has(s)) return true;
+  const parts = s.split('.');
+  for (let i = parts.length - 1; i > 0; i--) {
+    if (only.has(parts.slice(0, i).join('.'))) return true;
+  }
+  const pre = s + '.';
+  for (const k of only) { if (String(k).startsWith(pre)) return true; }
+  return false;
+}
+
 // Colonnes effectives d'un tableau du dossier : surcharge éventuelle
 // `L.gridCols[id]` (ajouts / suppressions faits dans la modale 📘), sinon
 // les colonnes par défaut. Utilisé par l'éditeur ET tous les exports.
@@ -1291,7 +1341,8 @@ const view = { x: 80, y: 50, scale: 1 };
 
 function makeWorkspace(name, racks = []) {
   const ws = { id: uid(), name, racks: Array.isArray(racks) ? racks : [], cables: [], sites: defaultSites(), view: null, viewTouched: false, updatedAt: Date.now() };
-  if (!ws.racks.length) ws.racks.push(lldMakeDefaultFaiRack(ws));
+  // Workspaces normaux VIDES à la création : le rack FAI n'est fourni que
+  // par la démo embarquée (demo-state.json), jamais auto-généré ici.
   return ws;
 }
 
@@ -4026,8 +4077,8 @@ function lldPickSections({ title, items, hint = '' }) {
         <label class="lld-pick-all"><input type="checkbox" checked> <b>Tout sélectionner</b>
           <span class="lld-pick-count">${items.length}/${items.length}</span></label>
         <div class="lld-pick-list">
-          ${items.map(([k, lbl]) => `
-            <label class="lld-pick-item"><input type="checkbox" value="${escapeHtml(k)}" checked>
+          ${items.map(([k, lbl, depth]) => `
+            <label class="lld-pick-item" data-depth="${Number(depth) || 0}" style="padding-left:${12 + (Number(depth) || 0) * 18}px"><input type="checkbox" value="${escapeHtml(k)}" checked>
               <span>${escapeHtml(lbl)}</span></label>`).join('')}
         </div>
         <div class="lld-dlg-btns">
@@ -4045,16 +4096,44 @@ function lldPickSections({ title, items, hint = '' }) {
       all.checked = n === boxes.length;
       all.indeterminate = n > 0 && n < boxes.length;
     };
+    const depthOf = b => Number((b.closest('.lld-pick-item') || {}).dataset?.depth || 0);
+    const childrenOf = i => {
+      const out = [], d = depthOf(boxes[i]);
+      for (let j = i + 1; j < boxes.length && depthOf(boxes[j]) > d; j++) out.push(j);
+      return out;
+    };
+    const parentOf = i => {
+      const d = depthOf(boxes[i]);
+      for (let j = i - 1; j >= 0; j--) if (depthOf(boxes[j]) < d) return j;
+      return -1;
+    };
+    const refreshParents = i => {
+      let p = parentOf(i);
+      while (p >= 0) {
+        const kids = childrenOf(p);
+        const n = kids.filter(j => boxes[j].checked).length;
+        boxes[p].checked = n > 0;
+        boxes[p].indeterminate = n > 0 && n < kids.length;
+        p = parentOf(p);
+      }
+    };
     all.addEventListener('change', () => {
-      boxes.forEach(b => { b.checked = all.checked; });
+      boxes.forEach(b => { b.checked = all.checked; b.indeterminate = false; });
       sync();
     });
-    boxes.forEach(b => b.addEventListener('change', sync));
+    boxes.forEach((b, i) => b.addEventListener('change', () => {
+      // Clic sur un parent « partiel » : tout cocher (pas tout décocher)
+      if (b.indeterminate) b.checked = true;
+      b.indeterminate = false;
+      childrenOf(i).forEach(j => { boxes[j].checked = b.checked; boxes[j].indeterminate = false; });
+      refreshParents(i);
+      sync();
+    }));
     let closed = false;
     const done = val => { if (closed) return; closed = true; ov.remove(); resolve(val); };
     ov.querySelector('.lld-dlg-cancel').addEventListener('click', () => done(null));
     ov.querySelector('.lld-dlg-ok').addEventListener('click', () => {
-      const sel = new Set(boxes.filter(b => b.checked).map(b => b.value));
+      const sel = new Set(boxes.filter(b => b.checked && !b.indeterminate).map(b => b.value));
       done(sel);
     });
     ov.addEventListener('mousedown', e => { if (e.target === ov) done(null); });
@@ -11263,6 +11342,11 @@ const LLD_TPL = (() => {
     });
   }
   function pushNote(rows, t) { rows.push([]); rows.push(NOTE(t)); }
+  // Libellés synchronisés sur le sommaire (repli = libellé codé en dur)
+  const syncNum = (L, key, fb) =>
+    (typeof lldTocSyncLabel === 'function' ? lldTocSyncLabel(L, key, fb) : String(fb));
+  const tocNum = (L, key) =>
+    (typeof lldTocNumForBlock === 'function' ? lldTocNumForBlock(L, key) : null);
 
   /* — 7. Firewall : équipements + interfaces VLAN — */
   function ch7(sheet, ws) {
@@ -11272,30 +11356,30 @@ const LLD_TPL = (() => {
     if (fe.length) {
       const cols = lldExportCols(L7, 'fwEquip', LLD_CAT_EQUIP_COLS);
       rows.push([]); rows.push([]);
-      rows.push(SEC('7.1. Equipements Firewall / Routeurs'));
+      rows.push(SEC(syncNum(L7, 'fwEquip', '7.1. Equipements Firewall / Routeurs')));
       rows.push([]);
       rows.push(H(cols.map(c => String(c[1]))));
       fe.forEach((r0, i) => rows.push(D(cols.map(c => String(r0[c[0]] ?? '')), i % 2)));
     } else if (hasB('7.1', 'fwEquip') || hasB('7', 'fwEquip')) {
-      pushNote(rows, "7.1 : aucun équipement — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘.");
+      pushNote(rows, syncNum(L7, 'fwEquip', "7.1 : aucun équipement — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘."));
     }
     const fv = tocTbl(ws, 'fwVlan', hasB('7.2', 'fwVlan') || hasB('7', 'fwVlan'));
     if (fv.length) {
       const cols = lldExportCols(L7, 'fwVlan', LLD_FW_VLAN_COLS);
       rows.push([]); rows.push([]);
-      rows.push(SEC('7.2. Interfaces VLAN'));
+      rows.push(SEC(syncNum(L7, 'fwVlan', '7.2. Interfaces VLAN')));
       rows.push([]);
       rows.push(H(cols.map(c => String(c[1]))));
       fv.forEach((v, i) => rows.push(D(cols.map(c => String(v[c[0]] ?? '')), i % 2)));
     } else if (hasB('7.2', 'fwVlan') || hasB('7', 'fwVlan')) {
-      pushNote(rows, "7.2 : aucune interface VLAN — bouton « 🔎 » dans le sommaire 📘.");
+      pushNote(rows, syncNum(L7, 'fwVlan', "7.2 : aucune interface VLAN — bouton « 🔎 » dans le sommaire 📘."));
     }
     const fw = (hasB('7.3', 'fw') || hasB('7', 'fw')) ? ((ws.lld && ws.lld.fw) || []) : [];
     if (fw.length) {
       const Lw = ws.lld || {};
       const dyn = lldExportCols(Lw, 'fw', LLD_FW_COLS);
       rows.push([]); rows.push([]);
-      rows.push(SEC('7.3. Règles et NAT'));
+      rows.push(SEC(syncNum(Lw, 'fw', '7.3. Règles et NAT')));
       rows.push([]);
       rows.push(H(dyn.map(c => String(c[1]))));
       fw.forEach((r0, i) => rows.push(D(dyn.map(c => String(r0[c[0]] ?? '')), i % 2)));
@@ -11381,12 +11465,13 @@ const LLD_TPL = (() => {
       if (eqRows.length) {
         const cols = lldExportCols(Lw, eqKey, LLD_CAT_EQUIP_COLS);
         rows.push([]); rows.push([]);
-        rows.push(SEC(titre));
+        rows.push(SEC(eqKey ? syncNum(Lw, eqKey, titre) : titre));
         rows.push([]);
         rows.push(H(cols.map(c => String(c[1]))));
         eqRows.forEach((r0, i) => rows.push(D(cols.map(c => String(r0[c[0]] ?? '')), i % 2)));
       } else if (eqKey && attached) {
-        pushNote(rows, `${eqNum || titre} : aucun équipement — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘.`);
+        const eqLab = tocNum(Lw, eqKey) || eqNum || titre;
+        pushNote(rows, `${eqLab} : aucun équipement — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘.`);
       } else if (!eqKey) {
         const list = byCat(ws, cats);
         if (list.length) equipTable(rows, list, { titre, cols: ['Nom', 'Marque / Modèle', 'IP mgmt', 'Position'] });
@@ -11416,19 +11501,19 @@ const LLD_TPL = (() => {
       if (eqRows.length) {
         const cols = lldExportCols(Lw, eqKey, LLD_CAT_EQUIP_COLS);
         rows.push([]); rows.push([]);
-        rows.push(SEC(titre));
+        rows.push(SEC(eqKey ? syncNum(Lw, eqKey, titre) : titre));
         rows.push([]);
         rows.push(H(cols.map(c => String(c[1]))));
         eqRows.forEach((r0, i) => rows.push(D(cols.map(c => String(r0[c[0]] ?? '')), i % 2)));
       } else if (eqKey && (hasB(meta.num, eqKey) || hasB(sheet.name, eqKey))) {
-        pushNote(rows, meta.empty);
+        pushNote(rows, syncNum(Lw, meta.key, meta.empty));
       }
       const tblOn = hasB(sheet.name, key) || (ANNEX_NUM[key] && hasB(ANNEX_NUM[key], key));
       const tbl = tblOn ? tocTbl(ws, key, true) : [];
       if (tbl.length) {
         const dyn = lldExportCols(Lw, key, cols2.map(([lbl, k]) => [k, lbl, null]));
         rows.push([]); rows.push([]);
-        rows.push(SEC(titre2));
+        rows.push(SEC(syncNum(Lw, key, titre2)));
         rows.push([]);
         rows.push(H(dyn.map(c => String(c[1]))));
         tbl.forEach((r0, i) => rows.push(D(dyn.map(c => String(r0[c[0]] ?? '')), i % 2)));
@@ -11454,7 +11539,7 @@ const LLD_TPL = (() => {
       rows.push(H(allF[0]));
       flows.forEach((f, i) => rows.push(D(f, i % 2)));
     } else if (hasB('14.1', 'flows') || hasB('14', 'flows')) {
-      pushNote(rows, "14.1 : aucun flux — saisissez-les dans le sommaire 📘.");
+      pushNote(rows, syncNum(ws.lld || {}, 'flows', "14.1 : aucun flux — saisissez-les dans le sommaire 📘."));
     }
     return out(sheet, rows, heights, null, [4, 26, 26, 26, 22, 16, 44]);
   }
@@ -11501,7 +11586,7 @@ const LLD_TPL = (() => {
         list.forEach((r0, i) => rows.push(D(dataCols.map(c => String(r0[c[0]] ?? '')), i % 2)));
       });
     } else if (hasB('15.1', 'elev15') || hasB('15', 'elev15')) {
-      pushNote(rows, "15.1 : aucune élévation — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘.");
+      pushNote(rows, syncNum(Lw, 'elev15', "15.1 : aucune élévation — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘."));
     }
     return out(sheet, rows, heights, null, [4, 12, 34, 20, 34, 10, 20]);
   }
@@ -12288,9 +12373,14 @@ const LLD_TPL = (() => {
 
   /* Métadonnées des blocs diagramme/captures (LLD_INFOS si présent, sinon repli). */
   function lldBlockDef(key, L) {
+    const synced = d => {
+      if (!d || !d.label || typeof lldTocSyncLabel !== 'function') return d;
+      try { return Object.assign({}, d, { label: lldTocSyncLabel(L, key, d.label) }); }
+      catch (_) { return d; }
+    };
     if (typeof lldInfoDef === 'function') {
       const d = lldInfoDef(key, L);
-      if (d) return d;
+      if (d) return synced(d);
     }
     if (typeof LLD_INFOS !== 'undefined' && LLD_INFOS && LLD_INFOS[key]) return LLD_INFOS[key];
     const m = {
@@ -12301,7 +12391,7 @@ const LLD_TPL = (() => {
       shots6: { label: 'Captures d’écran — ch. 6', kind: 'shots' },
       shots7: { label: 'Captures d’écran — ch. 7', kind: 'shots' }
     };
-    return m[key] || null;
+    return synced(m[key] || null);
   }
 
   function blockRows(key, ws, imgSink) {
@@ -12586,7 +12676,8 @@ const LLD_TPL = (() => {
      sur un chapitre d’origine → collés en fin de feuille Excel.
      `sheetNames` évite de dupliquer un sous-chapitre qui a sa propre feuille. */
   function appendFreeBlocks(rows, ws, num, sheetNames) {
-    const n = BUILD_TOC.get(String(num));
+    const n = BUILD_TOC.get(String(num))
+      || BUILD_TOC.get(typeof lldTocRemap === 'function' ? lldTocRemap(String(num)) : String(num));
     if (!n || n.custom) return null;
     const imgs = [];
     const extra = [];
@@ -12650,11 +12741,14 @@ const LLD_TPL = (() => {
                   '14': ch14, '15': ch15, '15.1': ch151 };
 
   function buildAll(ws, layout, stylesXml, themeXml, only = null) {
-    // Sélecteur de rubriques : racines de chapitres cochées (null = tout).
-    // Feuilles « chapter » filtrées par racine (« 8 » garde 8, 8.1…8.5).
+    // Sélecteur hiérarchique (null = tout) : une feuille est gardée si son
+    // numéro (ou son équivalent sommaire 5→4.1…) est coché, porté par un
+    // chapitre coché, ou parent d'un chapitre coché (contexte).
     const keepRoot = only ? (num => {
       const s = String(num);
       const mapped = (typeof lldTocRemap === 'function' ? lldTocRemap(s) : s);
+      if (typeof lldNumInScope === 'function')
+        return lldNumInScope(s, only) || lldNumInScope(mapped, only);
       return only.has(s.split('.')[0]) || only.has(String(mapped).split('.')[0]);
     }) : () => true;
     // Sommaire (modale 📘) : index des chapitres + titres renommés
@@ -12679,12 +12773,21 @@ const LLD_TPL = (() => {
       if (sheet.name === 'Contenu') {
         // Sommaire Excel : titres renommés (racines + sous-chapitres)…
         const re = /^(\d+(?:\.\d+)?)\.\s+/;
+        const tocTitleFor = oldNum => {
+          const ids = [String(oldNum)];
+          if (typeof lldTocRemap === 'function') ids.push(lldTocRemap(String(oldNum)));
+          for (const id of ids) {
+            const hit = BUILD_TOC.get(id);
+            if (hit && !isCustom(hit) && !hit.cover) return hit.title;
+          }
+          return null;
+        };
         s.rows.forEach(row => row.forEach(cell => {
           if (!cell || typeof cell.v !== 'string') return;
           const m = re.exec(cell.v);
           if (!m) return;
-          const n = BUILD_TOC.get(m[1]);
-          if (n && !isCustom(n) && !n.cover) cell.v = `${m[1]}. ${n.title}`;
+          const t = tocTitleFor(m[1]);
+          if (t) cell.v = `${m[1]}. ${t}`;
         }));
         if (only) {
           // Sélecteur : retirer du sommaire les chapitres non exportés
@@ -12704,7 +12807,9 @@ const LLD_TPL = (() => {
         return s;
       }
       // Titre renommé dans le sommaire -> remplacé en A1 (« 7. … »)
-      const n = BUILD_TOC.get(String(sheet.name));
+      // (repli remap : la feuille 5 lit le titre du nœud 4.1)
+      const n = BUILD_TOC.get(String(sheet.name))
+        || BUILD_TOC.get(typeof lldTocRemap === 'function' ? lldTocRemap(String(sheet.name)) : String(sheet.name));
       if (n && !isCustom(n) && !n.cover) {
         const cell = s.rows[0] && s.rows[0][0];
         const re = new RegExp('^' + String(sheet.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.\\s');
@@ -12761,7 +12866,7 @@ $('#export-xlsx').addEventListener('click', async () => {
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Export Excel' }); return; }
   const only = await lldPickSections({
     title: '📗 Classeur Excel — que voulez-vous exporter ?',
-    hint: 'Décochez les chapitres à exclure. Les pages de garde (LLD, Governance, Contenu) sont toujours incluses.',
+    hint: 'Décochez les chapitres et sous-chapitres à exclure. Les pages de garde (LLD, Governance, Contenu) sont toujours incluses.',
     items: lldChapterPickItems(ws)
   });
   if (!only) return;
@@ -12824,10 +12929,26 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   const PW = 595.28, PH = 841.89, M = 42;
   const pagesOps = [];
   let cur = null, y = 0;
-  // Sélecteur de rubriques : racines de chapitres à imprimer (null = tout).
-  const onlyRoots = (opts.only && typeof opts.only.has === 'function')
+  // Sélecteur de rubriques hiérarchique (null = tout) : un chapitre est
+  // imprimé s'il est coché, porté par un chapitre coché (ancêtre), ou parent
+  // d'un chapitre coché (contexte). Les sous-chapitres se filtrent au niveau.
+  const onlySet = (opts.only && typeof opts.only.has === 'function')
     ? new Set([...opts.only].map(String)) : null;
-  let SKIP = false;   // true tant qu'un chapitre non sélectionné est parcouru
+  const inScope = num => (typeof lldNumInScope === 'function')
+    ? lldNumInScope(num, onlySet)
+    : (!onlySet || onlySet.has(String(num).split('.')[0]));
+  const inScopeSelf = num => {
+    if (!onlySet) return true;
+    const s = String(num);
+    if (onlySet.has(s)) return true;
+    const parts = s.split('.');
+    for (let i = parts.length - 1; i > 0; i--) {
+      if (onlySet.has(parts.slice(0, i).join('.'))) return true;
+    }
+    return false;
+  };
+  let SKIP = false;      // chapitre non sélectionné en cours
+  let SUBSKIP = false;   // sous-chapitre non sélectionné en cours
 
   // Opérations PDF réutilisables (permettent d'ajouter des pieds de page a posteriori)
   const textOp = (x, yy, s, size = 10, bold = false, color = [0.13, 0.16, 0.22]) =>
@@ -12835,12 +12956,12 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   const lineOp = (x1, yy, x2, color = [0.82, 0.85, 0.89], lw = 0.7) =>
     `${color.map(c => (+c).toFixed(2)).join(' ')} RG ${lw} w ${(+x1).toFixed(2)} ${(+yy).toFixed(2)} m ${(+x2).toFixed(2)} ${(+yy).toFixed(2)} l S`;
 
-  const txt = (x, yy, s, size, bold, color) => { if (!SKIP) cur.push(textOp(x, yy, s, size, bold, color)); };
+  const txt = (x, yy, s, size, bold, color) => { if (!SKIP && !SUBSKIP) cur.push(textOp(x, yy, s, size, bold, color)); };
   const rectFill = (x, yy, w, h, color) => {
-    if (SKIP) return;
+    if (SKIP || SUBSKIP) return;
     cur.push(`${color.map(c => (+c).toFixed(2)).join(' ')} rg ${(+x).toFixed(2)} ${(+yy).toFixed(2)} ${(+w).toFixed(2)} ${(+h).toFixed(2)} re f`);
   };
-  const hline = (x1, x2, yy) => { if (!SKIP) cur.push(lineOp(x1, yy, x2)); };
+  const hline = (x1, x2, yy) => { if (!SKIP && !SUBSKIP) cur.push(lineOp(x1, yy, x2)); };
   // Ligne libre (2 points) + contour de rectangle — diagrammes ch. 5/6/7
   const hexToRgb = hex => {
     const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
@@ -12853,17 +12974,17 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   const strokeRect = (x, yy, w, h, color = [0.4, 0.6, 0.9], lw = 1.2) =>
     `${color.map(c => (+c).toFixed(2)).join(' ')} RG ${lw} w ${(+x).toFixed(2)} ${(+yy).toFixed(2)} ${(+w).toFixed(2)} ${(+h).toFixed(2)} re S`;
 
-  const newPage = () => { if (SKIP) return; cur = []; pagesOps.push(cur); y = PH - M; };
+  const newPage = () => { if (SKIP || SUBSKIP) return; cur = []; pagesOps.push(cur); y = PH - M; };
 
   // ---- Structure du dossier : sommaire piloté par L.toc (modale 📘) ----
   // Les titres renommés dans la modale remplacent les titres d'origine
   // (sommaire + en-têtes de chapitres) ; les contenus rattachés aux
   // nœuds (L.toc[].blocks) décident de ce qui est effectivement imprimé.
   const L = normLldInfo(ws);
-  // Sélecteur de rubriques : seuls les chapitres racine cochés (+ la page de
-  // garde et leurs sous-chapitres) sont imprimés.
-  if (opts.only && typeof opts.only.has === 'function') {
-    L.toc = L.toc.filter(n => n.cover || opts.only.has(String(n.num)));
+  // Sélecteur de rubriques hiérarchique : chapitres cochés, leurs parents
+  // (contexte) et la page de garde ; les sous-chapitres se filtrent au niveau.
+  if (onlySet) {
+    L.toc = L.toc.filter(n => n.cover || inScope(n.num));
   }
   const tocByNum = new Map();
   (function walkToc(ns) {
@@ -12930,7 +13051,8 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     // Rubrique décochée à l'export → chapitre entièrement masqué :
     // SKIP rend toutes les primitives de dessin inertes jusqu'au prochain
     // chapitre sélectionné.
-    SKIP = !!(onlyRoots && !onlyRoots.has(String(label).split('.')[0]));
+    SKIP = !!(onlySet && !inScope(label));
+    SUBSKIP = false;
     if (SKIP) return;
     title = tocTitle(label, title);
     if (opts.flow) {          // chapitre compact : peut rester sur la page en cours
@@ -12944,6 +13066,8 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     y -= 33;
   }
   function sub(label, title) {
+    SUBSKIP = !!(onlySet && !inScopeSelf(label));
+    if (SUBSKIP) return;
     title = tocTitle(label, title);
     if (y < M + 70) newPage();
     tocEntries.push({ label: String(label), title, level: 1, pageIdx: pagesOps.length - 1 });
@@ -13039,10 +13163,10 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   // Imprime une information rattachée à un nœud du sommaire (synchrone
   // avec la modale : même stockage ws.lld.* que l'interface).
   function pdfDrawBlock(key) {
-    if (SKIP) return;   // chapitre masqué par le sélecteur d'export
+    if (SKIP || SUBSKIP) return;   // chapitre masqué par le sélecteur d'export
     const def = lldInfoDef(key, L);
     if (!def) return;
-    miniTitle(def.label);
+    miniTitle(typeof lldTocSyncLabel === 'function' ? lldTocSyncLabel(L, key, def.label) : def.label);
     if (def.kind === 'textarea') {
       const v = def.catKey ? String((L.catNotes || {})[def.catKey] || '') : String(L[key] || '');
       if (v.trim()) paragraph(v); else placeholder();
@@ -13480,7 +13604,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   chapter('14', 'Flux réseau et diagram');
   drawOriginSubs('14');
   miniTitle('Diagramme de topologie');
-  if (!SKIP && topoJpeg && topoW && topoH) {
+  if (!SKIP && !SUBSKIP && topoJpeg && topoW && topoH) {
     const availW = PW - 2 * M, availH = y - M - 10;
     const k = Math.min(availW / topoW, availH / topoH);
     const iw = topoW * k, ih = topoH * k;
@@ -13497,7 +13621,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   drawOriginSubs('15');
   drawCustomSubs('15');
   const elevFilled = ((L.elev15 || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim()))).length;
-  if (!SKIP && elevFilled && planJpeg && planW && planH) {
+  if (!SKIP && !SUBSKIP && elevFilled && planJpeg && planW && planH) {
     newPage();
     miniTitle('\u00c9l\u00e9vations des racks');
     const availW = PW - 2 * M, availH = y - M - 10;
@@ -13626,8 +13750,14 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
 
 // Rubriques = chapitres racine du sommaire 📘 (page de garde toujours incluse)
 function lldChapterPickItems(ws) {
-  return normLldInfo(ws).toc.filter(n => !n.cover)
-    .map(n => [String(n.num), `${n.num}. ${n.title}`]);
+  const items = [];
+  const walk = (ns, depth) => (ns || []).forEach(n => {
+    if (!n || n.cover || String(n.num) === '📄') return;
+    items.push([String(n.num), `${n.num}. ${n.title}`, depth]);
+    walk(n.subs, depth + 1);
+  });
+  walk(normLldInfo(ws).toc, 0);
+  return items;
 }
 
 $('#export-lld').addEventListener('click', async () => {
@@ -13636,7 +13766,7 @@ $('#export-lld').addEventListener('click', async () => {
   if (!ws || !ws.racks.length) { lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📄 Export LLD (PDF)' }); return; }
   const only = await lldPickSections({
     title: '📕 Document LLD (PDF) — que voulez-vous exporter ?',
-    hint: 'Décochez les chapitres à exclure. La page de garde et le sommaire sont toujours inclus.',
+    hint: 'Décochez les chapitres et sous-chapitres à exclure. La page de garde et le sommaire sont toujours inclus.',
     items: lldChapterPickItems(ws)
   });
   if (!only) return;

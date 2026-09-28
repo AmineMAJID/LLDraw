@@ -71,6 +71,10 @@ const helpers = [
   // Dependances paresseuses de buildLldPdf / LLD_TPL (appelees au test, pas a l'init)
   fn('fmtWatts'),
   fn('lldTocRemap'),
+  fn('lldTocNodeForBlock'),
+  fn('lldTocNumForBlock'),
+  fn('lldTocSyncLabel'),
+  fn('lldNumInScope'),
   between(/const LLD_DIAG_CAP_H = /, /function lldDiagPortXY/),
   fn('lldDiagSeedCats'),
   fn('lldDiagEmptyHint'),

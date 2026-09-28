@@ -92,7 +92,7 @@ function rptSitesBlocks(ws) {
     </a>`;
   };
   const L = normLldInfo(ws);
-  const siteTbl = rptSub('2. Information sur le site', rptLldGrid(
+  const siteTbl = rptSub(rptNum(L, 'sites', '2. Information sur le site'), rptLldGrid(
     lldExportCols(L, 'sites', LLD_SITE_COLS).map(c => [c[0], String(c[1])]), sites));
   let out = siteTbl || '';
   for (const s of sites) {
@@ -151,7 +151,7 @@ function rptInventory(ws) {
   const L = normLldInfo(ws);
   const ev = (L.elev15 || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim()));
   if (!ev.length)
-    return '<p class="muted">15.1 : aucune élévation — bouton « 🔎 Générer depuis l\'élévation » dans le sommaire 📘.</p>';
+    return '<p class="muted">' + rptNum(L, 'elev15', '15.1 : aucune élévation — bouton « 🔎 Générer depuis l\'élévation » dans le sommaire 📘.') + '</p>';
   const cols = lldExportCols(L, 'elev15', LLD_ELEV15_COLS);
   const dataCols = cols.filter(c => c[0] !== 'rack');
   const byRack = new Map();
@@ -184,20 +184,20 @@ function rptPorts(ws) {
   sheets.forEach(([, po, num, lab]) => {
     const rows = L[po] || [];
     if (!rows.length) return;
-    html += rptSub(`${num} — Plan de ports ${lab}`, rptLldGrid(
+    html += rptSub(rptNum(L, po, `${num} — Plan de ports ${lab}`), rptLldGrid(
       lldExportCols(L, po, LLD_SW_PORT_COLS).map(c => [c[0], String(c[1])]), rows));
   });
-  return html || '<p class="muted">Aucun plan de ports dans le sommaire 📘 (chapitre 8).</p>';
+  return html || '<p class="muted">' + rptNum(L, 'zones', 'Aucun plan de ports dans le sommaire 📘 (chapitre 8).') + '</p>';
 }
 
 // Câblage : pastille couleur, sens de lecture A → B, filtre par domaine
 function rptCabling(ws) {
   const L = normLldInfo(ws);
   if ((L.cab15 || []).length) {
-    return rptSub('15 — Tableau de câblage', rptLldGrid(
+    return rptSub(rptNum(L, 'cab15', '15 — Tableau de câblage'), rptLldGrid(
       lldExportCols(L, 'cab15', LLD_CAB15_COLS).map(c => [c[0], String(c[1])]), L.cab15));
   }
-  return '<p class="muted">Aucun câble dans le sommaire 📘 — bouton 🔎 sur le chapitre 15.</p>';
+  return '<p class="muted">' + rptNum(L, 'cab15', 'Aucun câble dans le sommaire 📘 — bouton 🔎 sur le chapitre 15.') + '</p>';
 }
 
 // Garanties : tableau trié selon échéance + pastilles (code couleur de l'app)
@@ -230,7 +230,7 @@ function rptAddressing(ws) {
   const L = normLldInfo(ws);
   const mx = (typeof lldCh4MatrixExportRows === 'function')
     ? lldCh4MatrixExportRows(ws, L) : [];
-  const matrix = rptSub('Matrice d’adressage IP (ch. 4)', rptLldGrid(
+  const matrix = rptSub(rptNum(L, 'addrMatrix', 'Matrice d’adressage IP (ch. 4)'), rptLldGrid(
     [['desc', 'Description'], ['nomen', 'Nomenclature'], ['ip', 'IP'],
      ['mask', 'Mask'], ['gw', 'GW'], ['dns', 'DNS'], ['note', 'Commentaire']], mx));
   const vl = rptSub('Registre VLANs & subnets', rptLldGrid(
@@ -306,6 +306,9 @@ function rptRecCards(cols, rows, searchable = true) {
   }).join('');
   return cards ? `<div class="rec-cards">${cards}</div>` : '';
 }
+// Libellé synchronisé sur le sommaire (repli = libellé codé en dur).
+const rptNum = (L, key, fb) =>
+  (typeof lldTocSyncLabel === 'function' ? lldTocSyncLabel(L, key, fb) : fb);
 // Sous-titre + grille (vide si aucune ligne)
 const rptSub = (title, grid) => grid ? `<h3>${RPT_ESC(title)}</h3>${grid}` : '';
 // Paires « libellé : valeur » pour les fiches (profils FW, interco…) — lignes vides omises
@@ -374,9 +377,9 @@ function rptCatNotes(ws) {
 // 🌍 FAI & accès Internet (ch. 5) : tableau 5.1, câblage 5.2, captures
 function rptFai(ws) {
   const L = normLldInfo(ws);
-  const t51 = rptSub('5.1 — Informations & configuration (FAI)', rptLldGrid(
+  const t51 = rptSub(rptNum(L, 'fais', '5.1 — Informations & configuration (FAI)'), rptLldGrid(
     lldExportCols(L, 'fais', LLD_FAI51_COLS).map(c => [c[0], String(c[1])]), L.fais));
-  const cab = rptSub('5.2 — Cablage FAI', rptLldGrid(
+  const cab = rptSub(rptNum(L, 'faiCab', '5.2 — Cablage FAI'), rptLldGrid(
     lldExportCols(L, 'faiCab', LLD_FAI_CAB_COLS).map(c => [c[0], String(c[1])]), L.faiCab));
   return rptDiag(ws, 'fai', 'Diagramme d’accès FAI') + t51 + cab + rptShots(ws, 'shots5') || '';
 }
@@ -384,14 +387,14 @@ function rptFai(ws) {
 // 🔗 Interconnexion site à site (ch. 6) : fiche, extrémités, WAN/LAN, câblage, VPN
 function rptInterco(ws) {
   const L = normLldInfo(ws);
-  const kv = rptSub('6.1 — Liaison site à site', rptKv(LLD_IC_FIELDS, L.interco));
-  const t61 = rptSub('6.1 — Extrémités / HA', rptLldGrid(
+  const kv = rptSub(rptNum(L, 'ic61', '6.1 — Liaison site à site'), rptKv(LLD_IC_FIELDS, L.interco));
+  const t61 = rptSub(rptNum(L, 'ic61', '6.1 — Extrémités / HA'), rptLldGrid(
     lldExportCols(L, 'ic61', LLD_IC61_COLS).map(c => [c[0], String(c[1])]), L.ic61));
   const wan = rptSub('WAN Connection Settings', rptLldGrid(
     lldExportCols(L, 'icWan', LLD_IC_WAN_COLS).map(c => [c[0], String(c[1])]), L.icWan));
   const lan = rptSub('LAN / Network Settings', rptLldGrid(
     lldExportCols(L, 'icLan', LLD_IC_LAN_COLS).map(c => [c[0], String(c[1])]), L.icLan));
-  const cab = rptSub('6.2 — Cablage interconnexion', rptLldGrid(
+  const cab = rptSub(rptNum(L, 'icCab', '6.2 — Cablage interconnexion'), rptLldGrid(
     lldExportCols(L, 'icCab', LLD_IC_CAB_COLS).map(c => [c[0], String(c[1])]), L.icCab));
   const vpn = rptSub('Tunnels VPN site à site', rptLldGrid(
     lldExportCols(L, 'vpns', LLD_VPN_COLS).map(c => [c[0], String(c[1])]), L.vpns));
@@ -401,11 +404,11 @@ function rptInterco(ws) {
 // 🔥 Firewall & sécurité (ch. 7 + admin) : règles/NAT, profils, alias, comptes
 function rptFirewall(ws) {
   const L = normLldInfo(ws);
-  const equip = rptSub('7.1 — Équipements Firewall / Routeurs', rptLldGrid(
+  const equip = rptSub(rptNum(L, 'fwEquip', '7.1 — Équipements Firewall / Routeurs'), rptLldGrid(
     lldExportCols(L, 'fwEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.fwEquip));
-  const vlan = rptSub('7.2 — Interfaces VLAN', rptLldGrid(
+  const vlan = rptSub(rptNum(L, 'fwVlan', '7.2 — Interfaces VLAN'), rptLldGrid(
     lldExportCols(L, 'fwVlan', LLD_FW_VLAN_COLS).map(c => [c[0], String(c[1])]), L.fwVlan));
-  const rules = rptSub('7.3 — Règles & NAT', rptLldGrid(
+  const rules = rptSub(rptNum(L, 'fw', '7.3 — Règles & NAT'), rptLldGrid(
     lldExportCols(L, 'fw', LLD_FW_COLS).map(c => [c[0], String(c[1])]), L.fw));
   const prof = rptSub('Profils firewall', rptKv(LLD_FWP_FIELDS, L.fwProfiles));
   const aliases = rptSub('Alias firewall', rptLldGrid(
@@ -418,30 +421,30 @@ function rptFirewall(ws) {
 // 🖥️ Système, stockage & supervision : VMs, volumes, caméras, zones de switching
 function rptSystem(ws) {
   const L = normLldInfo(ws);
-  const zones = rptSub('Zones de switching (ch. 8)', rptLldGrid(
+  const zones = rptSub(rptNum(L, 'zones', 'Zones de switching (ch. 8)'), rptLldGrid(
     lldExportCols(L, 'zones', LLD_ZONE_COLS).map(c => [c[0], String(c[1])]), L.swZones));
   let swHtml = '';
   (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : []).forEach(([eq, po, num, lab]) => {
-    swHtml += rptSub(`${num} — Équipements ${lab}`, rptLldGrid(
+    swHtml += rptSub(rptNum(L, eq, `${num} — Équipements ${lab}`), rptLldGrid(
       lldExportCols(L, eq, LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L[eq]));
-    swHtml += rptSub(`${num} — Plan de ports ${lab}`, rptLldGrid(
+    swHtml += rptSub(rptNum(L, po, `${num} — Plan de ports ${lab}`), rptLldGrid(
       lldExportCols(L, po, LLD_SW_PORT_COLS).map(c => [c[0], String(c[1])]), L[po]));
   });
-  const srv = rptSub('9.1 — Serveurs', rptLldGrid(
+  const srv = rptSub(rptNum(L, 'srvEquip', '9.1 — Serveurs'), rptLldGrid(
     lldExportCols(L, 'srvEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.srvEquip));
-  const vms = rptSub('9.2 — Machines virtuelles', rptLldGrid(
+  const vms = rptSub(rptNum(L, 'vms', '9.2 — Machines virtuelles'), rptLldGrid(
     lldExportCols(L, 'vms', LLD_VM_COLS).map(c => [c[0], String(c[1])]), L.vms));
-  const sto = rptSub('10.1 — Stockage', rptLldGrid(
+  const sto = rptSub(rptNum(L, 'stoEquip', '10.1 — Stockage'), rptLldGrid(
     lldExportCols(L, 'stoEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.stoEquip));
-  const vols = rptSub('10.2 — Volumes / LUN', rptLldGrid(
+  const vols = rptSub(rptNum(L, 'vols', '10.2 — Volumes / LUN'), rptLldGrid(
     lldExportCols(L, 'vols', LLD_VOL_COLS).map(c => [c[0], String(c[1])]), L.vols));
-  const ids = rptSub("11.1 — Détection d'intrusion", rptLldGrid(
+  const ids = rptSub(rptNum(L, 'idsEquip', "11.1 — Détection d'intrusion"), rptLldGrid(
     lldExportCols(L, 'idsEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.idsEquip));
-  const nvr = rptSub('12.1 — Caméras et enregistreur (NVR)', rptLldGrid(
+  const nvr = rptSub(rptNum(L, 'cctvEquip', '12.1 — Caméras et enregistreur (NVR)'), rptLldGrid(
     lldExportCols(L, 'cctvEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.cctvEquip));
-  const cams = rptSub('12.2 — Caméras', rptLldGrid(
+  const cams = rptSub(rptNum(L, 'cams', '12.2 — Caméras'), rptLldGrid(
     lldExportCols(L, 'cams', LLD_CAM_COLS).map(c => [c[0], String(c[1])]), L.cams));
-  const spo = rptSub('13.1 — Pointeuses', rptLldGrid(
+  const spo = rptSub(rptNum(L, 'spoEquip', '13.1 — Pointeuses'), rptLldGrid(
     lldExportCols(L, 'spoEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.spoEquip));
   return zones + swHtml + srv + vms + sto + vols + ids + nvr + cams + spo || '';
 }
@@ -449,7 +452,7 @@ function rptSystem(ws) {
 // Équipements & licences hors baie (table 3.1 du dossier)
 function rptOutOfRack(ws) {
   const L = normLldInfo(ws);
-  return rptSub('3. Architecture existante', rptLldGrid(
+  return rptSub(rptNum(L, 'equip', '3. Architecture existante'), rptLldGrid(
     lldExportCols(L, 'equip', LLD_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.equip));
 }
 
@@ -517,15 +520,25 @@ const RPT_FREE_SEC = {
   '1': 'sec-contexte', '2': 'sec-sites', '2.1': 'sec-sites', '2.2': 'sec-contexte',
   '3': 'sec-contexte', '3.1': 'sec-inv', '4': 'sec-addr',
   '5': 'sec-fai', '5.1': 'sec-fai', '5.2': 'sec-fai',
+  '4.1': 'sec-fai', '4.1.1': 'sec-fai', '4.1.2': 'sec-fai',
   '6': 'sec-ic', '6.1': 'sec-ic', '6.2': 'sec-ic',
+  '4.2': 'sec-ic', '4.2.1': 'sec-ic', '4.2.2': 'sec-ic',
   '7': 'sec-fw', '7.1': 'sec-fw', '7.2': 'sec-fw', '7.3': 'sec-fw',
+  '4.3': 'sec-fw', '4.3.1': 'sec-fw', '4.3.2': 'sec-fw', '4.3.3': 'sec-fw',
   '8': 'sec-sys', '8.1': 'sec-sys', '8.2': 'sec-sys', '8.3': 'sec-sys',
   '8.4': 'sec-sys', '8.5': 'sec-sys',
+  '4.4': 'sec-sys', '4.4.1': 'sec-sys', '4.4.2': 'sec-sys', '4.4.3': 'sec-sys',
+  '4.4.4': 'sec-sys', '4.4.5': 'sec-sys',
   '9': 'sec-sys', '9.1': 'sec-sys', '9.2': 'sec-sys',
+  '4.5': 'sec-sys', '4.5.1': 'sec-sys', '4.5.2': 'sec-sys',
   '10': 'sec-sys', '10.1': 'sec-sys', '10.2': 'sec-sys',
+  '4.6': 'sec-sys', '4.6.1': 'sec-sys', '4.6.2': 'sec-sys',
   '11': 'sec-sys', '11.1': 'sec-sys',
+  '4.7': 'sec-sys', '4.7.1': 'sec-sys',
   '12': 'sec-sys', '12.1': 'sec-sys', '12.2': 'sec-sys',
+  '4.8': 'sec-sys', '4.8.1': 'sec-sys', '4.8.2': 'sec-sys',
   '13': 'sec-sys', '13.1': 'sec-sys',
+  '4.9': 'sec-sys', '4.9.1': 'sec-sys',
   '14': 'sec-flux', '14.1': 'sec-flux',
   '15': 'sec-cab', '15.1': 'sec-elev'
 };

@@ -343,5 +343,79 @@ console.log('\n[9] infobulles + fiches (grilles larges)');
   ok(reportHtml.includes("tr[data-search],.rec-card[data-search]"), 'recherche couvre lignes + fiches');
 }
 
+/* ---------- 10. Workspaces vides + synchro sommaire + selecteur hierarchique ---------- */
+console.log('\n[10] workspaces vides + synchro sommaire + selecteur hierarchique');
+// 10a. creation : vide par defaut, demo intacte
+ok(W(`makeWorkspace('Vide').racks.length`) === 0, 'nouveau workspace : 0 rack');
+ok(W(`makeWorkspace('Vide').cables.length`) === 0, 'nouveau workspace : 0 cable');
+ok(W(`WS.racks.some(r => /FAI/.test(r.name))`), 'demo : rack FAI present');
+// 10b. synchro des numeros depuis le sommaire
+ok(W(`lldTocNumForBlock(normLldInfo(WS), 'fais')`) === '4.1.1', 'bloc fais -> 4.1.1');
+ok(W(`lldTocNumForBlock(normLldInfo(WS), 'fw')`) === '4.3.3', 'bloc fw -> 4.3.3');
+ok(W(`lldTocSyncLabel(normLldInfo(WS), 'fais', '5.1 \u2014 X')`) === '4.1.1 \u2014 X', '5.1 -> 4.1.1');
+ok(W(`lldTocSyncLabel(normLldInfo(WS), 'fw', '7.3. R\u00e8gles et NAT')`) === '4.3.3. R\u00e8gles et NAT', '7.3. -> 4.3.3.');
+ok(W(`lldTocSyncLabel(normLldInfo(WS), 'zones', 'Zones (ch. 8)')`) === 'Zones (ch. 4.4)', '(ch. 8) -> (ch. 4.4)');
+ok(W(`lldTocSyncLabel(normLldInfo(WS), 'nope', '5.1 \u2014 X')`) === '5.1 \u2014 X', 'bloc inconnu -> repli intact');
+// pilote par le sommaire, pas code en dur (sommaire fictif 9.9)
+ok(W(`lldTocSyncLabel({toc:[{num:'9.9',title:'T',blocks:['fais'],subs:[]}]}, 'fais', '5.1 \u2014 X')`) === '9.9 \u2014 X', 'numero lu du sommaire (9.9)');
+// 10c. rapport synchronise
+{
+  const fai = W(`rptFai(WS)`);
+  ok(fai.includes('4.1.1 \u2014 ') && !fai.includes('5.1 \u2014'), 'rapport FAI : 4.1.1, plus de 5.1');
+  const fw = W(`rptFirewall(WS)`);
+  ok(fw.includes('4.3.3 \u2014 ') && !fw.includes('7.3 \u2014'), 'rapport FW : 4.3.3, plus de 7.3');
+  ok(W(`RPT_FREE_SEC['4.1']`) === 'sec-fai', 'RPT_FREE_SEC : cle 4.1 presente');
+}
+// 10d. perimetre hierarchique (lldNumInScope)
+ok(W(`lldNumInScope('4.5', new Set(['4']))`) === true, '4.5 sous 4 coche -> garde');
+ok(W(`lldNumInScope('4', new Set(['4.5']))`) === true, 'parent 4 garde (contexte)');
+ok(W(`lldNumInScope('4.6', new Set(['4.5']))`) === false, '4.6 non coche -> exclu');
+ok(W(`lldNumInScope('15.1', new Set(['15']))`) === true, '15.1 sous 15 -> garde');
+ok(W(`lldNumInScope('5', null)`) === true, 'sans filtre -> tout garde');
+// 10e. items hierarchiques (3 profondeurs)
+{
+  const items = W(`lldChapterPickItems(WS)`);
+  ok(items.some(([n, l, d]) => n === '4' && d === 0), 'racine 4 proposee (d0)');
+  ok(items.some(([n, l, d]) => n === '4.5' && d === 1), 'sous-chapitre 4.5 propose (d1)');
+  ok(items.some(([n, l, d]) => n === '4.5.1' && d === 2), 'sous-sous-chapitre 4.5.2 propose (d2)');
+  ok(!items.some(([n]) => n === '\ud83d\udcc4'), 'page de garde exclue (toujours incluse)');
+}
+// 10f. cascade du selecteur (comportement DOM reel)
+{
+  const p = W(`lldPickSections({title:'T', items:[['4','4. Ch',0],['4.1','4.1 S',1],['4.2','4.2 S',1]]})`);
+  weval(`[...document.querySelectorAll('.lld-pick-item input')].find(b => b.value === '4.1').click()`);
+  ok(W(`[...document.querySelectorAll('.lld-pick-item input')].find(b => b.value === '4').indeterminate`) === true, 'parent partiel -> indeterminate');
+  weval(`document.querySelector('.lld-dlg-ok').click()`);
+  const sel = await p;
+  ok(sel.has('4.2') && !sel.has('4') && !sel.has('4.1'), 'collecte normalisee (parent partiel exclu)');
+}
+// 10g. Excel : exclusion du sous-arbre 4.5, parent 4 garde en contexte
+{
+  weval(`var ONLY45 = new Set(lldChapterPickItems(WS).map(x => x[0]).filter(n => n !== '4' && n !== '4.5' && !n.startsWith('4.5.')));`);
+  const b = await W(`LLD_TPL.buildAll(WS, __layout, __styles, __theme, ONLY45)`);
+  const z = unzipStore(Buffer.from(await b.arrayBuffer()));
+  const names = [...z['xl/workbook.xml'].matchAll(/<sheet name="([^"]+)"/g)].map(m => m[1]);
+  ok(!names.includes('9'), 'feuille 9 (4.5) exclue');
+  ok(names.includes('5'), 'feuille 5 (4.1) gardee');
+  ok(names.includes('4'), 'feuille 4 gardee en contexte');
+}
+// 10h. PDF : exclusion du sous-arbre 4.5
+{
+  const p = W(`buildLldPdf(WS, null, 0, 0, null, 0, 0, { only: ONLY45 })`);
+  const bin = Buffer.from(p).toString('latin1');
+  ok(bin.includes('(4.1. Conception'), 'PDF : 4.1 imprime');
+  ok(!bin.includes('(4.5. Conception'), 'PDF : 4.5 exclu');
+}
+// 10i. Contenu : titre renomme par l'utilisateur repris dans l'export
+{
+  weval(`var WS2 = JSON.parse(JSON.stringify(WS));
+  WS2.lld.toc.forEach(n => (n.subs||[]).forEach(s => { if (s.num === '4.1') s.title = 'FAI MODIFIE'; }));`);
+  const b = await W(`LLD_TPL.buildAll(WS2, __layout, __styles, __theme, null)`);
+  const z = unzipStore(Buffer.from(await b.arrayBuffer()));
+  const m = z['xl/workbook.xml'].match(/<sheet name="Contenu" sheetId="(\d+)" r:id="rId(\d+)"\/>/);
+  const xml = z[`xl/worksheets/sheet${m[2]}.xml`];
+  ok(/FAI MODIFIE/.test(xml), 'Contenu : titre renomme repris');
+}
+
 console.log(`\n==== ${PASS} PASS, ${FAIL} FAIL ====`);
 process.exit(FAIL ? 1 : 0);

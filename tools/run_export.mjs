@@ -55,6 +55,10 @@ const helpers = [
   between(/const LLD_REV_COLS = /, /const LLD_INFOS = \{/),
   fn('lldIsCustomKey'),
   fn('lldTocRemap'),
+  fn('lldTocNodeForBlock'),
+  fn('lldTocNumForBlock'),
+  fn('lldTocSyncLabel'),
+  fn('lldNumInScope'),
   // Moteur de schémas (consts + helpers ; les fonctions lldBuildDiagData /
   // lldEnsureDiag / … sont résolues à la volée par runResolved si besoin)
   between(/const LLD_DIAG_CAP_H = /, /function lldDiagPortXY/),
