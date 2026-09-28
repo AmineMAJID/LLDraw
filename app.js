@@ -6845,6 +6845,18 @@ const LLD_DIAG_NODE_W = 360;     // largeur d'un device (photo lisible)
 const LLD_DIAG_COL_GAP = 70;     // gouttière entre colonnes (place aux câbles)
 const LLD_DIAG_ROW_GAP = 26;
 const LLD_DIAG_MAX_PER_COL = 7;
+/* Dimensions d'un nœud : les switchs denses (> 8 ports) sont agrandis
+   (+70 × +14) pour aérer leurs 24/48 étiquettes ; le pas horizontal des
+   colonnes suit la largeur max de chaque colonne (voir placement §4). */
+function lldDiagNodeWH(inst) {
+  const nP = (inst && inst.ports) ? inst.ports.length : 0;
+  const cat = (typeof normCat === 'function' ? normCat(inst.cat) : inst.cat) || 'other';
+  const big = nP > 8 && cat === 'switch';
+  return {
+    w: LLD_DIAG_NODE_W + (big ? 70 : 0),
+    h: Math.max(84, Math.min(150, 52 + ((inst && inst.sizeU) || 1) * 32)) + (big ? 14 : 0)
+  };
+}
 const LLD_DIAG_MODES = ['fai', 'interco', 'fw'];
 
 function lldDiagColors(kind) {
@@ -7025,19 +7037,18 @@ function lldBuildDiagData(ws, mode) {
     pushCol('Équipements reliés', neigh);
   }
   // 4) placement : découpage vertical (7/col max), en-têtes de colonnes
-  const COL = LLD_DIAG_NODE_W + LLD_DIAG_COL_GAP;
   const X0 = 24, Y0 = 30;
   const colHeads = [];
-  let ci = 0;
+  let xx = X0;   // pas variable : suit la largeur max de chaque colonne
   cols.forEach(c => {
     for (let s = 0; s < c.items.length; s += LLD_DIAG_MAX_PER_COL) {
       const chunk = c.items.slice(s, s + LLD_DIAG_MAX_PER_COL);
-      const x = X0 + ci * COL;
+      const x = xx;
       colHeads.push({ x, label: s === 0 ? c.label : c.label + ` (${s + 1}–${s + chunk.length})` });
-      let y = Y0;
+      let y = Y0, maxW = LLD_DIAG_NODE_W;
       chunk.forEach(({ rack, inst }) => {
-        const w = LLD_DIAG_NODE_W;
-        const h = Math.max(84, Math.min(150, 52 + (inst.sizeU || 1) * 32));
+        const { w, h } = lldDiagNodeWH(inst);
+        if (w > maxW) maxW = w;
         const id = 'd-' + inst.id;
         nodes.push({
           id, x, y, w, h,
@@ -7059,7 +7070,7 @@ function lldBuildDiagData(ws, mode) {
         instMap[inst.id] = id;
         y += h + LLD_DIAG_ROW_GAP;
       });
-      ci++;
+      xx += maxW + LLD_DIAG_COL_GAP;
     }
   });
   // 5) liens = VRAIS câbles entre devices retenus (couleur + nom réels)
@@ -7112,21 +7123,12 @@ function lldEnsureDiag(ws, mode) {
   return fresh;
 }
 
-/* Nº court affiché DANS la pastille sur les faces denses (> 8 ports,
-   switch / brassage) : groupe de chiffres final du nom (« Gi1/0/12 » →
-   « 12 », « LAN2 » → « 2 »), sinon position 1-based. 3 chiffres max. */
+/* Nom court sur les faces denses (> 8 ports, switch / brassage) : groupe
+   de chiffres final du nom (« Gi1/0/12 » → « 12 », « LAN2 » → « 2 »),
+   sinon position 1-based. Le nom complet reste dans l'infobulle. */
 function lldPortShort(name, idx) {
   const m = String(name || '').match(/(\d+)(?!.*\d)/);
   return (m ? m[1] : String((idx || 0) + 1)).slice(0, 3);
-}
-/* Fond clair ? (luminance) → couleur du nº dans la pastille. */
-function lldOnLight(css) {
-  const m = String(css || '').trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-  if (!m) return true;   // inconnu → pastille jaune par défaut = fond clair
-  let h = m[1];
-  if (h.length === 3) h = h.split('').map(c => c + c).join('');
-  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
-  return (0.299 * r + 0.587 * g + 0.114 * b) >= 140;
 }
 
 function lldRenderFrontDiagEl(ws, diag, opts = {}) {
@@ -7281,14 +7283,12 @@ function lldRenderFrontDiagEl(ws, diag, opts = {}) {
       el.style.top = ((Number(p.yPct) || 50) * lldDiagPhotoH(n) / (n.h || 56)) + '%';
       el.dataset.search = [p.name, p.label, p.ip, p.vlan, info && info.cable].filter(Boolean).join(' ').toLowerCase();
       if (dense) {
-        // Face dense : nº DANS la pastille (marquage réel) — les
-        // étiquettes dessous se chevaucheraient sur les rangées 24/48 p.
-        const num = document.createElement('span');
-        num.className = 'fdiag-pnum';
-        num.textContent = lldPortShort(p.name, pi);
-        if (num.textContent.length > 2) num.style.fontSize = '6.5px';
-        num.style.color = lldOnLight(info ? info.color : '#fbbf24') ? '#0f172a' : '#fff';
-        el.appendChild(num);
+        // Face dense : nom court HORS pastille (dessus si rangée haute,
+        // dessous sinon) — le halo du câble recouvrirait un nº dedans.
+        const slab = document.createElement('span');
+        slab.className = 'fdiag-plab' + ((Number(p.yPct) || 50) < 50 ? ' above' : '');
+        slab.textContent = lldPortShort(p.name, pi);
+        el.appendChild(slab);
       } else {
         const lab = document.createElement('span');
         lab.className = 'fdiag-plab';
@@ -7631,7 +7631,7 @@ async function lldPaintFrontDiag(ws, diag, opts = {}) {
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(x, y, w, h, 8); else ctx.rect(x, y, w, h);
     ctx.stroke();
-    (n.ports || []).forEach(p => {
+    (n.ports || []).forEach((p, pi) => {
       const pt = lldDiagPortXY(n, p);
       const col = up.get(n.id + ':' + p.id);
       const s = col ? 10 : 6;
@@ -7640,18 +7640,22 @@ async function lldPaintFrontDiag(ws, diag, opts = {}) {
       ctx.lineWidth = 1.5;
       ctx.fillRect(pt.x - s / 2, pt.y - s / 2, s, s);
       ctx.strokeRect(pt.x - s / 2, pt.y - s / 2, s, s);
-      // Nom du port : tous les ports câblés + tous si device peu dense
+      // Nom du port : câblés + tous si device peu dense ; faces denses :
+      // nom court hors pastille (dessus si rangée haute, dessous sinon).
       const name = String(p.name || '');
-      if (name && (col || (n.ports || []).length <= 8)) {
+      const denseN = (n.ports || []).length > 8;
+      if (denseN || (name && (col || !denseN))) {
+        const above = denseN && (Number(p.yPct) || 50) < 50;
         ctx.font = '700 9.5px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
+        ctx.textBaseline = above ? 'bottom' : 'top';
         ctx.lineWidth = 3.5;
         ctx.strokeStyle = '#0b1220';
-        const short = name.slice(0, 10);
-        ctx.strokeText(short, pt.x, pt.y + s / 2 + 2);
+        const short = denseN ? lldPortShort(p.name, pi) : name.slice(0, 10);
+        const ly = above ? pt.y - s / 2 - 2 : pt.y + s / 2 + 2;
+        ctx.strokeText(short, pt.x, ly);
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(short, pt.x, pt.y + s / 2 + 2);
+        ctx.fillText(short, pt.x, ly);
         ctx.textBaseline = 'alphabetic';
       }
     });

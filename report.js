@@ -749,7 +749,7 @@ table.kv th{background:#f1f5f9;color:var(--ink);width:240px;font-weight:600;bord
 .fdiag-port{position:absolute;width:12px;height:12px;transform:translate(-50%,-50%);border-radius:3px;background:#fbbf24;border:1px solid #0f172a;z-index:3;cursor:pointer;box-sizing:border-box}
 .fdiag-port.is-up{width:13px;height:13px;border-width:1.5px}
 .fdiag-plab{position:absolute;left:50%;top:calc(100% + 2px);transform:translateX(-50%);font-size:8.5px;font-weight:700;line-height:1.2;color:#fff;white-space:nowrap;background:rgba(2,6,16,.78);border-radius:4px;padding:1px 4px;pointer-events:none}
-.fdiag-pnum{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:8px;font-weight:800;line-height:1;pointer-events:none}
+.fdiag-plab.above{top:auto;bottom:calc(100% + 2px)}
 .fdiag-tip{display:none;position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);min-width:190px;max-width:300px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.5;z-index:8;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;text-align:left;font-weight:500}
 .fdiag-tip b{color:#fff}
 .fdiag-tip .ft-dim{color:#7d8aa0;font-size:10.5px}

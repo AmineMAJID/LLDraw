@@ -415,34 +415,44 @@ console.log('\n[9] infobulles + fiches (grilles larges)');
   ok(reportHtml.includes("tr[data-search],.rec-card[data-search]"), 'recherche couvre lignes + fiches');
 }
 
-/* ---------- 9b. Numéros de ports sur faces denses ---------- */
-console.log('\n[9b] numéros dans les pastilles (switch/brassage 24 p.)');
+/* ---------- 9b. Noms de ports sur faces denses ---------- */
+console.log('\n[9b] étiquettes hors pastille (switch/brassage 24 p.)');
 weval(`var D_DENSE = { nodes: [
-  { id: 'sw', x: 10, y: 10, w: 340, h: 110, label: 'SW-01', sub: 'Cisco', kind: 'switch', cat: 'switch',
-    ports: Array.from({ length: 24 }, (_, i) => ({ id: 'p' + i, name: 'Gi1/0/' + (i + 1), xPct: 5 + i * 3.9, yPct: 40 })) },
-  { id: 'rt', x: 380, y: 10, w: 150, h: 80, label: 'RT', sub: 'ISP', kind: 'router', cat: 'router',
+  { id: 'sw', x: 10, y: 10, w: 430, h: 124, label: 'SW-01', sub: 'Cisco', kind: 'switch', cat: 'switch',
+    ports: Array.from({ length: 24 }, (_, i) => ({ id: 'p' + i, name: 'Gi1/0/' + (i + 1), xPct: 5 + (i % 12) * 8.2, yPct: i < 12 ? 30 : 70 })) },
+  { id: 'rt', x: 470, y: 10, w: 150, h: 80, label: 'RT', sub: 'ISP', kind: 'router', cat: 'router',
     ports: [{ id: 'w1', name: 'WAN1', xPct: 50, yPct: 50 }] }
 ], links: [
   { a: 'sw', b: 'rt', portA: 'p0', portB: 'w1', color: '#1f2937', cable: 'C-001', domain: '', label: '' },
-  { a: 'sw', b: 'rt', portA: 'p11', portB: 'w1', color: '#eab308', cable: 'C-002', domain: '', label: '' }
+  { a: 'sw', b: 'rt', portA: 'p12', portB: 'w1', color: '#eab308', cable: 'C-002', domain: '', label: '' }
 ] };
 var EL_D = lldRenderFrontDiagEl(WS, D_DENSE); document.body.appendChild(EL_D);`);
-ok(W(`EL_D.querySelectorAll('[data-node="sw"] .fdiag-pnum').length`) === 24, 'dense : nº dans les 24 pastilles');
-ok(W(`EL_D.querySelectorAll('[data-node="sw"] .fdiag-plab').length`) === 0, 'dense : aucune étiquette dessous (anti-chevauchement)');
-ok(W(`EL_D.querySelector('[data-node="sw"] .fdiag-port[data-port="p0"] .fdiag-pnum').textContent`) === '1', 'Gi1/0/1 → « 1 »');
-ok(W(`EL_D.querySelector('[data-node="sw"] .fdiag-port[data-port="p23"] .fdiag-pnum').textContent`) === '24', 'Gi1/0/24 → « 24 »');
-ok(W(`EL_D.querySelector('[data-node="sw"] .fdiag-port[data-port="p0"] .fdiag-pnum').style.color`).includes('255, 255, 255'), 'câble noir → nº blanc');
-ok(W(`EL_D.querySelector('[data-node="sw"] .fdiag-port[data-port="p11"] .fdiag-pnum').style.color`).includes('15, 23, 42'), 'câble jaune → nº sombre');
-ok(W(`EL_D.querySelector('[data-node="sw"] .fdiag-port[data-port="p5"] .fdiag-pnum').style.color`).includes('15, 23, 42'), 'non câblé (jaune) → nº sombre');
-ok(W(`EL_D.querySelectorAll('[data-node="rt"] .fdiag-plab').length`) === 1, 'petite face : étiquette dessous conservée');
+ok(W(`EL_D.querySelectorAll('.fdiag-pnum').length`) === 0, 'plus rien DANS les pastilles');
+ok(W(`EL_D.querySelectorAll('[data-node="sw"] .fdiag-plab').length`) === 24, 'dense : 24 étiquettes hors pastille');
+ok(W(`EL_D.querySelectorAll('[data-node="sw"] .fdiag-plab.above').length`) === 12, 'rangée haute : 12 étiquettes dessus');
+ok(W(`EL_D.querySelectorAll('[data-node="sw"] .fdiag-port[data-port="p0"] .fdiag-plab.above').length`) === 1, 'port câblé (rangée haute) : étiquette dessus, hors halo');
+ok(W(`EL_D.querySelector('[data-node="sw"] .fdiag-port[data-port="p0"] .fdiag-plab').textContent`) === '1', 'port câblé : nom « 1 » visible malgré le câble');
+ok(W(`EL_D.querySelector('[data-node="sw"] .fdiag-port[data-port="p23"] .fdiag-plab').textContent`) === '24', 'Gi1/0/24 → « 24 »');
+ok(W(`EL_D.querySelectorAll('[data-node="rt"] .fdiag-plab').length`) === 1, 'petite face : nom complet « WAN1 » conservé');
 ok(W(`lldPortShort('Gi1/0/12')`) === '12' && W(`lldPortShort('LAN2 (spare)')`) === '2', 'extraction groupe final');
 ok(W(`lldPortShort('CON', 0)`) === '1' && W(`lldPortShort('', 4)`) === '5', 'sans chiffres → position 1-based');
-ok(W(`lldOnLight('#fbbf24')`) === true && W(`lldOnLight('#1f2937')`) === false, 'contraste : jaune clair, noir sombre');
+ok(W(`lldDiagNodeWH({ cat: 'switch', sizeU: 1, ports: new Array(24) }).w`) === W(`LLD_DIAG_NODE_W`) + 70, 'switch 24 p. : largeur +70');
+ok(W(`lldDiagNodeWH({ cat: 'switch', sizeU: 1, ports: new Array(24) }).h`) > W(`84`), 'switch 24 p. : hauteur +14');
+ok(W(`lldDiagNodeWH({ cat: 'switch', sizeU: 1, ports: new Array(4) }).w`) === W(`LLD_DIAG_NODE_W`), 'switch 4 p. : taille normale');
+ok(W(`lldDiagNodeWH({ cat: 'patch', sizeU: 1, ports: new Array(24) }).w`) === W(`LLD_DIAG_NODE_W`), 'brassage 24 p. : pas agrandi (switchs seuls)');
+{
+  const mark9b = ctxCalls.length;
+  await W(`lldPaintFrontDiag(WS, D_DENSE, { subtitle: 'dense' })`);
+  const nTxt = ctxCalls.slice(mark9b).filter(c => c === 'fillText').length;
+  ok(nTxt >= 24, `raster : 24 étiquettes denses peintes (${nTxt} fillText)`);
+}
 {
   const css2 = readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   const rpt2 = readFileSync(path.join(ROOT, 'report.js'), 'utf8');
-  ok(css2.includes('.fdiag-pnum'), 'appli : style .fdiag-pnum');
-  ok(rpt2.includes('.fdiag-pnum{position:absolute'), 'rapport : style .fdiag-pnum embarqué');
+  const app2 = readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  ok(css2.includes('.fdiag-plab.above') && !css2.includes('fdiag-pnum'), 'appli : style .above, pnum supprimé');
+  ok(rpt2.includes('.fdiag-plab.above{top:auto') && !rpt2.includes('fdiag-pnum'), 'rapport : style .above embarqué');
+  ok(!app2.includes('fdiag-pnum') && !app2.includes('lldOnLight'), 'app : pnum/lldOnLight supprimés');
 }
 
 /* ---------- 10. Workspaces vides + synchro sommaire + selecteur hierarchique ---------- */
