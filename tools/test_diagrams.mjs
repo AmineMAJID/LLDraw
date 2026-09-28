@@ -286,5 +286,62 @@ ok((pdfBin.match(/\/ImS\d+/g) || []).length >= 3, 'images de schémas référenc
 ok(pdfBin.includes('Conception et Configuration FAI'), 'chapitre 4.1 présent');
 ok(pdfBin.includes('startxref') && pdfBin.includes('%%EOF'), 'PDF terminé (xref + EOF)');
 
+/* ---------- 9. Infobulles recadrées + fiches larges ---------- */
+console.log('\n[9] infobulles + fiches (grilles larges)');
+// 9a. recadrage : rects factices (gauche coupée, haut coupé)
+{
+  const orig = window.Element.prototype.getBoundingClientRect;
+  const stub = (tipR) => {
+    window.Element.prototype.getBoundingClientRect = function () {
+      if (this.classList && this.classList.contains('fdiag-tip')) return tipR;
+      if (this.classList && this.classList.contains('fdiag'))
+        return { left: 0, right: 800, top: 100, bottom: 900, width: 800, height: 800 };
+      return orig.call(this);
+    };
+  };
+  stub({ left: -80, right: 120, top: 200, bottom: 280, width: 200, height: 80 });
+  weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseover', {bubbles:true}))`);
+  ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.transform`) === 'translateX(calc(-50% + 86px))',
+    'infobulle gauche coupée → recentrée (+86px)');
+  stub({ left: 700, right: 900, top: 200, bottom: 280, width: 200, height: 80 });
+  weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseover', {bubbles:true}))`);
+  ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.transform`) === 'translateX(calc(-50% + -106px))',
+    'infobulle droite coupée → recentrée (−106px)');
+  stub({ left: 300, right: 500, top: 40, bottom: 120, width: 200, height: 80 });
+  weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseover', {bubbles:true}))`);
+  ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.top`) === 'calc(100% + 8px)',
+    'infobulle haut coupé → bascule en bas');
+  weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseout', {bubbles:true}))`);
+  ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.transform`) === ''
+    && W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.top`) === '', 'mouseout → styles réinitialisés');
+  window.Element.prototype.getBoundingClientRect = orig;
+}
+// 9b. fiches : seuil 10 colonnes + exhaustivité des infos
+{
+  const cols19 = W(`lldExportCols(normLldInfo(WS),'fais',LLD_FAI51_COLS).map(c=>[c[0],String(c[1])])`);
+  const cards = W(`rptLldGrid(${JSON.stringify(cols19)}, normLldInfo(WS).fais)`);
+  ok(cols19.length >= 10 && cards.includes('rec-card') && !cards.includes('<table'), '19 colonnes → fiches, pas de tableau');
+  ok(cards.includes('data-search'), 'fiches cherchables (data-search)');
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const faisRows = W(`normLldInfo(WS).fais`);
+  const colKeys = new Set(cols19.map(([k]) => k));
+  const missing = [];
+  faisRows.forEach(r => Object.entries(r).forEach(([k, v]) => {
+    if (!colKeys.has(k)) return;   // hors colonnes : jamais rendu (parité Excel)
+    v = String(v ?? '').trim();
+    const rendered = esc(v).replace(/\n/g, '<br>');
+    if (v && !cards.includes(rendered)) missing.push(k + '=' + v.slice(0, 24));
+  }));
+  ok(missing.length === 0, `aucune info perdue (${missing.slice(0, 3).join(', ') || 'toutes présentes'})`);
+  const narrow = W(`rptLldGrid([['a','De'],['b','Liaison'],['c','Vers']], [{a:'x',b:'y',c:'z'}])`);
+  ok(narrow.includes('<table') && !narrow.includes('rec-card'), '3 colonnes → tableau conservé');
+  const admin = W(`rptLldGrid(LLD_ADMIN_COLS.map(c=>[c[0],String(c[1])]), [Object.fromEntries(LLD_ADMIN_COLS.map(([k])=>[k,'v-'+k]))])`);
+  ok(admin.includes('rec-card'), '10 colonnes → fiches');
+  const cab = W(`rptLldGrid(LLD_CAB15_COLS.map(c=>[c[0],String(c[1])]), [Object.fromEntries(LLD_CAB15_COLS.map(([k])=>[k,'v-'+k]))])`);
+  ok(cab.includes('<table'), '9 colonnes → tableau conservé');
+  ok(reportHtml.includes('rec-card'), 'rapport complet : fiches présentes (5.1)');
+  ok(reportHtml.includes("tr[data-search],.rec-card[data-search]"), 'recherche couvre lignes + fiches');
+}
+
 console.log(`\n==== ${PASS} PASS, ${FAIL} FAIL ====`);
 process.exit(FAIL ? 1 : 0);

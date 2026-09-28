@@ -266,11 +266,16 @@ function rptRevisions(ws) {
    colonnes personnalisées éventuelles (lldExportCols), comme les exports
    historiques. Un bloc vide n'est tout simplement pas affiché. */
 
-// Tableau générique à partir de colonnes [[clé, libellé], …] + lignes objets
+// Tableau générique à partir de colonnes [[clé, libellé], …] + lignes objets.
+// Grilles larges (≥ 10 colonnes : FAI 5.1, WAN, extrémités 6.1…) : rendues en
+// fiches modernes plutôt qu'en tableau illisible — CHAQUE champ non vide est
+// repris, aucune info n'est perdue (les champs vides, sans info, sont omis
+// comme dans les fiches rptKv).
 function rptLldGrid(cols, rows, { searchable = true } = {}) {
   const data = (rows || []).filter(r =>
     r && cols.some(([k]) => String(r[k] ?? '').trim() !== ''));
   if (!data.length) return '';
+  if (cols.length >= 10) return rptRecCards(cols, data, searchable);
   const head = cols.map(([, lbl]) => `<th>${RPT_ESC(lbl)}</th>`).join('');
   const body = data.map(r => {
     const search = searchable ? cols.map(([k]) => String(r[k] ?? '')).join(' ').toLowerCase() : '';
@@ -278,6 +283,28 @@ function rptLldGrid(cols, rows, { searchable = true } = {}) {
       cols.map(([k]) => `<td>${RPT_ESC(r[k] ?? '').replace(/\n/g, '<br>')}</td>`).join('')}</tr>`;
   }).join('');
   return `<table class="sortable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+// Une fiche par ligne : titre = 2 premiers champs renseignés, puis grille
+// responsive libellé/valeur (recherche du rapport conservée via data-search).
+function rptRecCards(cols, rows, searchable = true) {
+  const data = (rows || []).filter(r =>
+    r && cols.some(([k]) => String(r[k] ?? '').trim() !== ''));
+  if (!data.length) return '';
+  const cards = data.map((r, i) => {
+    const fields = cols.map(([k, lbl]) => ({ lbl, v: String(r[k] ?? '').trim() }))
+      .filter(f => f.v !== '');
+    if (!fields.length) return '';
+    const title = [fields[0] && fields[0].v, fields[1] && fields[1].v]
+      .filter(Boolean).join(' — ');
+    const search = searchable ? cols.map(([k]) => String(r[k] ?? '')).join(' ').toLowerCase() : '';
+    return `<article class="rec-card"${searchable ? ` data-search="${RPT_ESC_ARIA(search)}"` : ''}>`
+      + `<h4><span class="rec-idx">${i + 1}</span><span>${RPT_ESC(title) || 'Fiche ' + (i + 1)}</span></h4>`
+      + '<dl class="rec-grid">'
+      + fields.map(f =>
+        `<div class="rec-f"><dt>${RPT_ESC(f.lbl)}</dt><dd>${RPT_ESC(f.v).replace(/\n/g, '<br>')}</dd></div>`).join('')
+      + '</dl></article>';
+  }).join('');
+  return cards ? `<div class="rec-cards">${cards}</div>` : '';
 }
 // Sous-titre + grille (vide si aucune ligne)
 const rptSub = (title, grid) => grid ? `<h3>${RPT_ESC(title)}</h3>${grid}` : '';
@@ -668,6 +695,15 @@ table.kv th{background:#f1f5f9;color:var(--ink);width:240px;font-weight:600;bord
   position:static;text-align:left;font-size:12.8px}
 .shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:10px}
 .shot{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#101318}
+.rec-cards{display:grid;gap:12px;margin-top:10px}
+.rec-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 1px 2px rgba(15,23,42,.05)}
+.rec-card h4{margin:0 0 10px;font-size:13.5px;display:flex;align-items:center;gap:8px;color:var(--ink)}
+.rec-idx{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;border-radius:8px;background:#16233d;color:#fff;font-size:12px;font-weight:700;padding:0 6px;flex:none}
+.rec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px;margin:0}
+.rec-f{background:#f8fafc;border:1px solid #e8edf3;border-radius:8px;padding:6px 9px;min-width:0}
+.rec-f dt{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin-bottom:2px}
+.rec-f dd{margin:0;font-size:12.5px;color:#0f172a;overflow-wrap:anywhere}
+@media print{.rec-card{break-inside:avoid;box-shadow:none}}
 .fdiag-report{margin-top:10px}
 .fdiag{position:relative;background:#0b1220;border-radius:10px;overflow:auto;border:1px solid var(--line)}
 .fdiag-stage{position:relative;min-width:640px;transform-origin:0 0}
@@ -782,10 +818,10 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
   var q=document.getElementById('q');
   if(q){q.addEventListener('input',function(){
     var v=q.value.trim().toLowerCase();
-    document.querySelectorAll('tr[data-search]').forEach(function(tr){
+    document.querySelectorAll('tr[data-search],.rec-card[data-search]').forEach(function(tr){
       tr.style.display=(!v||tr.dataset.search.indexOf(v)>=0)?'':'none'});
     document.querySelectorAll('details.grp').forEach(function(d){
-      var any=[].some.call(d.querySelectorAll('tr[data-search]'),function(tr){return tr.style.display!=='none'});
+      var any=[].some.call(d.querySelectorAll('tr[data-search],.rec-card[data-search]'),function(tr){return tr.style.display!=='none'});
       d.style.display=any?'':'none'});
     document.querySelectorAll('.elev,.site-block').forEach(function(f){
       var img=f.querySelector('figcaption');if(!img)return;

@@ -7291,6 +7291,54 @@ function lldDiagInitAll(root) {
       if (portEl) portEl.classList.add('on');
       if (devEl) devEl.classList.add('on');
     });
+    // --- infobulles : recadrées pour rester visibles dans le cadre ---
+    // (ports proches des bords : compensation horizontale + bascule sous
+    // l'élément si le haut est coupé). Le :hover CSS a déjà affiché le tip.
+    const tipReset = function (tip) {
+      tip.style.transform = ''; tip.style.top = ''; tip.style.bottom = '';
+    };
+    const tipHost = function (t) {
+      return t && t.closest ? t.closest('.fdiag-port, .fdiag-dev') : null;
+    };
+    const tipOf = function (host) {
+      if (!host || !host.children) return null;
+      for (let i = 0; i < host.children.length; i++) {
+        const c = host.children[i];
+        if (c.classList && c.classList.contains('fdiag-tip')) return c;
+      }
+      return null;
+    };
+    wrap.addEventListener('mouseover', function (e) {
+      const host = tipHost(e.target);
+      if (!host || !wrap.contains(host)) return;
+      const tip = tipOf(host);
+      if (!tip || !tip.getBoundingClientRect) return;
+      tipReset(tip);
+      let tr, wr;
+      try {
+        tr = tip.getBoundingClientRect(); wr = wrap.getBoundingClientRect();
+      } catch (_) { return; }
+      if (!tr || !tr.width || !wr || !wr.width) return;
+      const M = 6;
+      const overL = (wr.left + M) - tr.left;
+      const overR = tr.right - (wr.right - M);
+      if (overL > 0 || overR > 0) {
+        const shift = overL > 0 ? overL : -overR;
+        tip.style.transform = 'translateX(calc(-50% + ' + Math.round(shift) + 'px))';
+        try { tr = tip.getBoundingClientRect(); } catch (_) { return; }
+      }
+      if (tr.top < wr.top + M) {
+        tip.style.top = 'calc(100% + 8px)';
+        tip.style.bottom = 'auto';
+      }
+    });
+    wrap.addEventListener('mouseout', function (e) {
+      const host = tipHost(e.target);
+      if (!host) return;
+      if (e.relatedTarget && host.contains(e.relatedTarget)) return;
+      const tip = tipOf(host);
+      if (tip) tipReset(tip);
+    });
   });
   // --- surlignage depuis la recherche du rapport (#q) ---
   const q = root.getElementById ? root.getElementById('q') : null;
