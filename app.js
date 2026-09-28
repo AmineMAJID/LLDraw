@@ -7112,6 +7112,23 @@ function lldEnsureDiag(ws, mode) {
   return fresh;
 }
 
+/* Nº court affiché DANS la pastille sur les faces denses (> 8 ports,
+   switch / brassage) : groupe de chiffres final du nom (« Gi1/0/12 » →
+   « 12 », « LAN2 » → « 2 »), sinon position 1-based. 3 chiffres max. */
+function lldPortShort(name, idx) {
+  const m = String(name || '').match(/(\d+)(?!.*\d)/);
+  return (m ? m[1] : String((idx || 0) + 1)).slice(0, 3);
+}
+/* Fond clair ? (luminance) → couleur du nº dans la pastille. */
+function lldOnLight(css) {
+  const m = String(css || '').trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!m) return true;   // inconnu → pastille jaune par défaut = fond clair
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) >= 140;
+}
+
 function lldRenderFrontDiagEl(ws, diag, opts = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'fdiag';
@@ -7252,7 +7269,8 @@ function lldRenderFrontDiagEl(ws, diag, opts = {}) {
       + '<br><span class="ft-dim">' + (n.ports || []).length + ' ports · ' + nUp + ' câblés — cliquez pour isoler</span>';
     dev.appendChild(tip);
 
-    (n.ports || []).forEach(p => {
+    const dense = (n.ports || []).length > 8;
+    (n.ports || []).forEach((p, pi) => {
       const el = document.createElement('span');
       const key = n.id + ':' + p.id;
       const info = up.get(key);
@@ -7262,7 +7280,16 @@ function lldRenderFrontDiagEl(ws, diag, opts = {}) {
       el.style.left = (Number(p.xPct) || 50) + '%';
       el.style.top = ((Number(p.yPct) || 50) * lldDiagPhotoH(n) / (n.h || 56)) + '%';
       el.dataset.search = [p.name, p.label, p.ip, p.vlan, info && info.cable].filter(Boolean).join(' ').toLowerCase();
-      if (info || (n.ports || []).length <= 8) {
+      if (dense) {
+        // Face dense : nº DANS la pastille (marquage réel) — les
+        // étiquettes dessous se chevaucheraient sur les rangées 24/48 p.
+        const num = document.createElement('span');
+        num.className = 'fdiag-pnum';
+        num.textContent = lldPortShort(p.name, pi);
+        if (num.textContent.length > 2) num.style.fontSize = '6.5px';
+        num.style.color = lldOnLight(info ? info.color : '#fbbf24') ? '#0f172a' : '#fff';
+        el.appendChild(num);
+      } else {
         const lab = document.createElement('span');
         lab.className = 'fdiag-plab';
         lab.textContent = String(p.name || '').slice(0, 12);

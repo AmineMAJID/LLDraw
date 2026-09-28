@@ -2969,6 +2969,10 @@ body.mode3d .switch-wrap {
   background: rgba(2,6,16,.78); border-radius: 4px; padding: 1px 4px;
   pointer-events: none;
 }
+.fdiag-pnum {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  font-size: 8px; font-weight: 800; line-height: 1; pointer-events: none;
+}
 .fdiag-tip {
   display: none; position: absolute; left: 50%; bottom: calc(100% + 8px);
   transform: translateX(-50%); min-width: 190px; max-width: 300px;
