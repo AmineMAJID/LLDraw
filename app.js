@@ -7387,7 +7387,8 @@ function lldDiagInitAll(root) {
     });
     // --- infobulles : recadrées pour rester visibles dans le cadre ---
     // (ports proches des bords : compensation horizontale + bascule sous
-    // l'élément si le haut est coupé). Le :hover CSS a déjà affiché le tip.
+    // l'élément si le haut est coupé — le haut visible est le bas de la
+    // barre sticky, pas le haut du cadre). Le :hover CSS a déjà affiché le tip.
     const tipReset = function (tip) {
       tip.style.transform = ''; tip.style.top = ''; tip.style.bottom = '';
     };
@@ -7418,12 +7419,32 @@ function lldDiagInitAll(root) {
       const overR = tr.right - (wr.right - M);
       if (overL > 0 || overR > 0) {
         const shift = overL > 0 ? overL : -overR;
-        tip.style.transform = 'translateX(calc(-50% + ' + Math.round(shift) + 'px))';
+        // zoom CSS : le translateX est en px locaux, le décalage mesuré en px écran
+        tip.style.transform = 'translateX(calc(-50% + ' + Math.round(shift / (zoom || 1)) + 'px))';
         try { tr = tip.getBoundingClientRect(); } catch (_) { return; }
       }
-      if (tr.top < wr.top + M) {
-        tip.style.top = 'calc(100% + 8px)';
-        tip.style.bottom = 'auto';
+      // Haut visible = bas de la barre d'outils sticky (z-index 20 : elle
+      // recouvre l'infobulle) quand elle est affichée, sinon haut du cadre.
+      let visTop = wr.top;
+      try {
+        const br = bar ? bar.getBoundingClientRect() : null;
+        if (br && br.height > 0 && br.bottom > visTop && br.top < wr.bottom)
+          visTop = br.bottom;
+      } catch (_) {}
+      if (tr.top < visTop + M) {
+        // Bascule sous l'élément, sauf si le bas est encore plus à l'étroit
+        // (petit cadre : on garde le côté le moins coupé).
+        let flip = true;
+        try {
+          const hr = host.getBoundingClientRect();
+          const roomAbove = tr.top - visTop;
+          const roomBelow = (wr.bottom - M) - (hr.bottom + 8 + tr.height);
+          if (roomBelow < roomAbove) flip = false;
+        } catch (_) {}
+        if (flip) {
+          tip.style.top = 'calc(100% + 8px)';
+          tip.style.bottom = 'auto';
+        }
       }
     });
     wrap.addEventListener('mouseout', function (e) {

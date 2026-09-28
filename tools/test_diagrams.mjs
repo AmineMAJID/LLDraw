@@ -332,6 +332,7 @@ console.log('\n[9] infobulles + fiches (grilles larges)');
       return orig.call(this);
     };
   };
+  weval(`EL.querySelector('[data-z="reset"]').click()`);   // zoom 1:1 pour les rects factices
   stub({ left: -80, right: 120, top: 200, bottom: 280, width: 200, height: 80 });
   weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseover', {bubbles:true}))`);
   ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.transform`) === 'translateX(calc(-50% + 86px))',
@@ -340,10 +341,48 @@ console.log('\n[9] infobulles + fiches (grilles larges)');
   weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseover', {bubbles:true}))`);
   ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.transform`) === 'translateX(calc(-50% + -106px))',
     'infobulle droite coupée → recentrée (−106px)');
+  weval(`EL.querySelector('[data-z="in"]').click()`);   // zoom 125 %
+  stub({ left: -80, right: 120, top: 200, bottom: 280, width: 200, height: 80 });
+  weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseover', {bubbles:true}))`);
+  ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.transform`) === 'translateX(calc(-50% + 69px))',
+    'infobulle zoom 125 % → décalage compensé (69px)');
+  weval(`EL.querySelector('[data-z="reset"]').click()`);
   stub({ left: 300, right: 500, top: 40, bottom: 120, width: 200, height: 80 });
   weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseover', {bubbles:true}))`);
   ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.top`) === 'calc(100% + 8px)',
     'infobulle haut coupé → bascule en bas');
+  // 9a-bis. barre sticky : le haut visible est le bas de la toolbar (bug : tip
+  // sous la barre alors que tr.top > wr.top → pas de bascule → tip coupé)
+  const stub2 = (tipR, toolsR, portR, wrapR) => {
+    window.Element.prototype.getBoundingClientRect = function () {
+      if (this.classList && this.classList.contains('fdiag-tip')) return tipR;
+      if (this.classList && this.classList.contains('fdiag-tools')) return toolsR;
+      if (this.classList && this.classList.contains('fdiag-port')) return portR;
+      if (this.classList && this.classList.contains('fdiag'))
+        return wrapR || { left: 0, right: 800, top: 100, bottom: 900, width: 800, height: 800 };
+      return orig.call(this);
+    };
+  };
+  const R = (left, top, w, h) => ({ left, top, right: left + w, bottom: top + h, width: w, height: h });
+  const TOOLS = R(0, 100, 800, 43);
+  stub2(R(300, 130, 200, 80), TOOLS, R(394, 218, 12, 12));
+  weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseover', {bubbles:true}))`);
+  ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.top`) === 'calc(100% + 8px)',
+    'infobulle sous la toolbar → bascule en bas');
+  stub2(R(300, 160, 200, 80), TOOLS, R(394, 248, 12, 12));
+  weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseover', {bubbles:true}))`);
+  ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.top`) === '',
+    'infobulle sous la toolbar mais visible → pas de bascule');
+  // petit cadre : le bas est pire que le haut → on garde le haut
+  stub2(R(300, 112, 200, 80), TOOLS, R(394, 200, 12, 12), R(0, 100, 800, 160));
+  weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseover', {bubbles:true}))`);
+  ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.top`) === '',
+    'petit cadre : bas pire que haut → pas de bascule');
+  // même géométrie, cadre plus haut : la bascule a de la place → bascule
+  stub2(R(300, 112, 200, 80), TOOLS, R(394, 200, 12, 12), R(0, 100, 800, 200));
+  weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseover', {bubbles:true}))`);
+  ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.top`) === 'calc(100% + 8px)',
+    'cadre suffisant : bascule en bas');
   weval(`EL.querySelector('.fdiag-port').dispatchEvent(new MouseEvent('mouseout', {bubbles:true}))`);
   ok(W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.transform`) === ''
     && W(`EL.querySelector('.fdiag-port > .fdiag-tip').style.top`) === '', 'mouseout → styles réinitialisés');
