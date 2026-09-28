@@ -76,6 +76,7 @@ const helpers = [
   fn('lldDiagEmptyHint'),
   fn('lldDiagTitle'),
   fn('lldBuildDiagData'),
+  fn('lldDiagNeedsRebuild'),
   fn('lldEnsureDiag'),
 ].join('\n\n');
 

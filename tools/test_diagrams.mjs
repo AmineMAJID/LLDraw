@@ -119,6 +119,40 @@ for (const mode of ['fai', 'interco', 'fw']) {
     `${mode}: coordonnées finies et positives`);
 }
 
+/* ---------- 1c. Stockage : norm conserve le format, stale reconstruit ---------- */
+console.log('\n[1c] cycle stockage/normalisation — photos + ports survivants');
+weval(`WS.lld.diagrams = WS.lld.diagrams || {};
+WS.lld.diagrams.fai = lldBuildDiagData(WS, 'fai');
+normLldInfo(WS);`);
+{
+  const nd = W(`WS.lld.diagrams.fai.nodes[0]`);
+  ok(!!(nd.instId && (nd.ports || []).length > 0 && nd.sub2), 'norm conserve instId/ports/sub2');
+  const nl = W(`WS.lld.diagrams.fai.links[0]`);
+  ok(!!(nl && nl.portA && nl.cable), 'norm conserve portA/cable des liens');
+  ok(W(`(WS.lld.diagrams.fai.cols||[]).length`) > 0, 'norm conserve les en-tetes de colonnes');
+}
+weval(`WS.lld.diagrams.fai = { nodes: [{ id: 'd-x', x: 0, y: 0, w: 150, h: 56, label: 'Vieux', sub: 'vieux', kind: 'router' }], links: [] };`);
+ok(W(`lldDiagNeedsRebuild(WS.lld.diagrams.fai)`) === true, 'schema ampute detecte stale');
+{
+  const fresh = W(`lldEnsureDiag(WS, 'fai')`);
+  ok(fresh.nodes.length > 0 && fresh.nodes.every(n => n.instId), 'stale -> reconstruit avec instId');
+  ok(W(`WS.lld.diagrams.fai.nodes[0].instId`) !== '', 'schema reconstruit restocke');
+  ok(W(`lldDiagNeedsRebuild(WS.lld.diagrams.fai)`) === false, 'schema frais -> conserve tel quel');
+}
+weval(`var EL2 = lldRenderFrontDiagEl(WS, lldEnsureDiag(WS, 'fai')); document.body.appendChild(EL2);`);
+ok(W(`EL2.querySelectorAll('.fdiag-dev img').length`) > 0, 'rendu stocke : photos presentes');
+ok(W(`EL2.querySelectorAll('.fdiag-port').length`) > 0, 'rendu stocke : ports presents');
+ok(W(`EL2.querySelectorAll('.fdiag-colh').length`) > 0, 'rendu stocke : en-tetes presentes');
+{
+  const css = readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const rpt = readFileSync(path.join(ROOT, 'report.js'), 'utf8');
+  ok(css.includes('.fdiag-wires { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 4; }'), 'appli : fils z-index 4');
+  ok(css.includes('.fdiag-dev:hover { z-index: 5; }'), 'appli : device survole repasse dessus');
+  ok(css.includes('.fdiag-wires g.wire path.w-core { pointer-events: stroke; cursor: pointer; }'), 'appli : seule ame du fil capte les clics');
+  ok(rpt.includes('.fdiag-wires{position:absolute;left:0;top:0;pointer-events:none;z-index:4}'), 'rapport : fils au-dessus');
+  ok(rpt.includes('.fdiag-dev:hover{z-index:5}'), 'rapport : device survole repasse dessus');
+}
+
 /* ---------- 2. Rendu HTML interactif ---------- */
 console.log('\n[2] lldRenderFrontDiagEl — faces avant, ports, câbles, infobulles');
 weval(`var D_FAI = lldEnsureDiag(WS, 'fai'); var EL = lldRenderFrontDiagEl(WS, D_FAI); document.body.appendChild(EL);`);
@@ -169,6 +203,13 @@ console.log('\n[4] lldPaintFrontDiag + lldRenderDiagExportImgs');
 const paint = await W(`lldPaintFrontDiag(WS, D_FAI, { subtitle: WS.name })`);
 ok(paint && paint.width > 800 && paint.height > 400, `canvas ${paint.width}×${paint.height}`);
 ok(ctxCalls.includes('fillText') && ctxCalls.includes('drawImage'), 'peinture: textes + photos');
+{
+  const mark = ctxCalls.length;
+  await W(`lldPaintFrontDiag(WS, D_FAI, { subtitle: WS.name })`);
+  const slice = ctxCalls.slice(mark);
+  ok(slice.lastIndexOf('drawImage') >= 0 && slice.lastIndexOf('drawImage') < slice.lastIndexOf('stroke'),
+    'raster : fils peints apres les boitiers');
+}
 await W(`lldRenderDiagExportImgs(WS)`);
 const imgs = W(`globalThis.__LLD_DIAG_IMGS`);
 ok(['fai', 'interco', 'fw'].every(m => imgs[m] && imgs[m].dataUrl.startsWith('data:image')), '3 JPEG pré-rasterisés (fai/interco/fw)');

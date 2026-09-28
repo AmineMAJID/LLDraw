@@ -2915,8 +2915,9 @@ body.mode3d .switch-wrap {
   color: #7d8aa0; font-size: 10.5px; font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
 }
-.fdiag-wires { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 1; }
-.fdiag-wires g.wire path { pointer-events: stroke; cursor: pointer; }
+.fdiag-wires { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 4; }
+.fdiag-wires g.wire path { pointer-events: none; }
+.fdiag-wires g.wire path.w-core { pointer-events: stroke; cursor: pointer; }
 .fdiag-wires .w-halo { fill: none; stroke: rgba(2,6,16,.55); stroke-width: 7; stroke-linecap: round; }
 .fdiag-wires .w-core { fill: none; stroke-width: 3; stroke-linecap: round; }
 .fdiag-wires g.wire:hover .w-core { stroke-width: 5.5; }
@@ -2931,6 +2932,7 @@ body.mode3d .switch-wrap {
   box-shadow: 0 6px 18px rgba(0,0,0,.45);
   border: 2px solid #334155; background: #1e293b; cursor: pointer;
 }
+.fdiag-dev:hover { z-index: 5; }
 .fdiag-dev img {
   display: block; width: 100%; height: calc(100% - 34px);
   object-fit: fill; border-radius: 6px 6px 0 0; pointer-events: none;

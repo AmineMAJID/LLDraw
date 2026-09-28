@@ -62,6 +62,7 @@ const helpers = [
   fn('lldDiagEmptyHint'),
   fn('lldDiagTitle'),
   fn('lldBuildDiagData'),
+  fn('lldDiagNeedsRebuild'),
   fn('lldEnsureDiag'),
   fn('slotLabel'),
   fn('sortedRackInstances'),

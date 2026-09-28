@@ -678,13 +678,15 @@ table.kv th{background:#f1f5f9;color:var(--ink);width:240px;font-weight:600;bord
 .fdiag-stats{color:#94a3b8;font-size:11.5px;margin-left:6px;white-space:nowrap}
 .fdiag-hint{color:#64748b;font-size:11px;margin-left:auto;white-space:nowrap}
 .fdiag-colh{position:absolute;top:4px;z-index:2;color:#7d8aa0;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
-.fdiag-wires{position:absolute;left:0;top:0;pointer-events:none;z-index:1}
-.fdiag-wires g.wire path{pointer-events:stroke;cursor:pointer}
+.fdiag-wires{position:absolute;left:0;top:0;pointer-events:none;z-index:4}
+.fdiag-wires g.wire path{pointer-events:none}
+.fdiag-wires g.wire path.w-core{pointer-events:stroke;cursor:pointer}
 .fdiag-wires .w-halo{fill:none;stroke:rgba(2,6,16,.55);stroke-width:7;stroke-linecap:round}
 .fdiag-wires .w-core{fill:none;stroke-width:3;stroke-linecap:round}
 .fdiag-wires g.wire:hover .w-core{stroke-width:5.5}
 .fdiag-wires .w-lab{fill:#f8fafc;font-size:11px;font-weight:700;text-anchor:middle;paint-order:stroke;stroke:#0b1220;stroke-width:4px;pointer-events:none}
 .fdiag-dev{position:absolute;z-index:2;border-radius:8px;overflow:visible;box-shadow:0 6px 18px rgba(0,0,0,.45);border:2px solid #334155;background:#1e293b;cursor:pointer}
+.fdiag-dev:hover{z-index:5}
 .fdiag-dev img{display:block;width:100%;height:calc(100% - 34px);object-fit:fill;border-radius:6px 6px 0 0;pointer-events:none}
 .fdiag-nophoto{height:calc(100% - 34px);display:flex;align-items:center;justify-content:center;gap:10px;color:#94a3b8;background:#1e293b;border-radius:6px 6px 0 0}
 .fdiag-glyph{font-size:28px}

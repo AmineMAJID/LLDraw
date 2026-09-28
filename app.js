@@ -827,20 +827,53 @@ function normLldInfo(w) {
     for (const [k, v] of Object.entries(L.diagrams)) {
       if (v && typeof v === 'object' && Array.isArray(v.nodes) && Array.isArray(v.links)
           && ['fai', 'interco', 'fw'].includes(k)) {
+        // Format complet : l'attache à l'élévation (instId), les ports et les
+        // extrémités des liens sont VITAUX — sans eux le rendu perd les faces
+        // avant, les ports et les positions (cf. lldDiagHydrate). Seule la
+        // photo n'est pas stockée : elle est relue en direct sur l'instance.
         cleanD[k] = {
+          front: true, mode: k, empty: v.empty === true,
+          cols: (Array.isArray(v.cols) ? v.cols : []).slice(0, 12).map(c => ({
+            x: Number(c.x) || 0, label: String(c.label || '').slice(0, 56)
+          })),
           nodes: v.nodes.slice(0, 40).map(n => ({
             id: String(n.id || uid()).slice(0, 24),
             x: Number(n.x) || 0, y: Number(n.y) || 0,
             w: Number(n.w) || 150, h: Number(n.h) || 56,
             label: String(n.label || '').slice(0, 48),
             sub: String(n.sub || '').slice(0, 56),
-            kind: String(n.kind || 'dev').slice(0, 16)
+            sub2: String(n.sub2 || '').slice(0, 80),
+            kind: String(n.kind || 'dev').slice(0, 16),
+            cat: String(n.cat || 'other').slice(0, 16),
+            instId: String(n.instId || '').slice(0, 24),
+            rackId: String(n.rackId || '').slice(0, 24),
+            rackName: String(n.rackName || '').slice(0, 48),
+            brand: String(n.brand || '').slice(0, 40),
+            model: String(n.model || '').slice(0, 40),
+            serial: String(n.serial || '').slice(0, 40),
+            ip: String(n.ip || '').slice(0, 40),
+            vlan: String(n.vlan || '').slice(0, 40),
+            sizeU: Number(n.sizeU) || 1,
+            slot: (n.slot == null ? null : Number(n.slot)),
+            ports: (Array.isArray(n.ports) ? n.ports : []).slice(0, 64).map(p => ({
+              id: String(p.id || '').slice(0, 24),
+              name: String(p.name || '').slice(0, 24),
+              label: String(p.label || '').slice(0, 48),
+              ip: String(p.ip || '').slice(0, 40),
+              vlan: String(p.vlan || '').slice(0, 40),
+              xPct: Number(p.xPct), yPct: Number(p.yPct),
+              size: Number(p.size) || 1
+            }))
           })),
           links: v.links.slice(0, 60).map(l => ({
             a: String(l.a || '').slice(0, 24), b: String(l.b || '').slice(0, 24),
             label: String(l.label || '').slice(0, 48),
             color: String(l.color || '#60a5fa').slice(0, 20),
-            dashed: !!l.dashed
+            dashed: !!l.dashed,
+            portA: String(l.portA || '').slice(0, 24),
+            portB: String(l.portB || '').slice(0, 24),
+            cable: String(l.cable || '').slice(0, 48),
+            domain: String(l.domain || '').slice(0, 48)
           }))
         };
       }
@@ -6957,17 +6990,32 @@ function lldBuildDiagData(ws, mode) {
   return { nodes, links, front: true, mode, cols: colHeads };
 }
 
-// Schéma garanti frais : le stocké s'il existe, sinon construit à la volée.
-// (Les rendus HTML/canvas relisent de toute façon les données vivantes,
-// donc les exports sont toujours synchronisés avec l'élévation.)
+// Un schéma stocké est périmé dès qu'un nœud a perdu son attache à
+// l'élévation (anciens stockages amputés : sans instId, l'hydratation ne
+// retrouve ni photo, ni ports, ni positions). Il est alors reconstruit.
+function lldDiagNeedsRebuild(d) {
+  if (!d || !Array.isArray(d.nodes) || !d.nodes.length) return true;
+  return d.nodes.some(n => !n || !n.instId);
+}
+
+// Schéma garanti frais : le stocké s'il est valide, sinon reconstruit à la
+// volée depuis l'élévation (et restocké). Les rendus relisent de toute façon
+// les données vivantes : les exports sont toujours synchronisés.
 function lldEnsureDiag(ws, mode) {
   const L = (ws && ws.lld) || {};
   const d = (L.diagrams || {})[mode];
-  if (d && Array.isArray(d.nodes) && d.nodes.length) {
+  if (d && !lldDiagNeedsRebuild(d)) {
     if (!d.mode) d.mode = mode;
     return d;
   }
-  return lldBuildDiagData(ws, mode);
+  const fresh = lldBuildDiagData(ws, mode);
+  try {
+    if (ws && ws.lld && (fresh.nodes || []).length) {
+      ws.lld.diagrams = ws.lld.diagrams || {};
+      ws.lld.diagrams[mode] = fresh;
+    }
+  } catch (_) {}
+  return fresh;
 }
 
 function lldRenderFrontDiagEl(ws, diag, opts = {}) {
@@ -7353,39 +7401,6 @@ async function lldPaintFrontDiag(ws, diag, opts = {}) {
     ctx.fillStyle = '#7d8aa0';
     ctx.fillText(String(ch.label).toUpperCase().slice(0, 42), (ch.x || 0) + 2, 16);
   });
-  // --- câbles : ombre + gaine couleur + identifiant ---
-  links.forEach(l => {
-    const a = byId[l.a], b = byId[l.b];
-    if (!a || !b) return;
-    const e = lldDiagLinkEnds(a, b, l);
-    const mx = (e.a.x + e.b.x) / 2;
-    const my = Math.max(e.a.y, e.b.y) + 30;
-    const trace = () => {
-      ctx.beginPath();
-      ctx.moveTo(e.a.x, e.a.y);
-      ctx.quadraticCurveTo(mx, my, e.b.x, e.b.y);
-    };
-    ctx.lineCap = 'round';
-    trace();
-    ctx.strokeStyle = 'rgba(2,6,16,.55)';
-    ctx.lineWidth = 6.5;
-    ctx.stroke();
-    trace();
-    ctx.strokeStyle = l.color || '#38bdf8';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    const shortId = String(l.cable || '').split('·')[0].trim().slice(0, 16)
-      || String(l.label || '').slice(0, 24);
-    if (shortId) {
-      ctx.font = '700 11px "Segoe UI", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#0b1220';
-      ctx.strokeText(shortId, mx, my - 7);
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillText(shortId, mx, my - 7);
-    }
-  });
   // --- devices : face avant + cartouche 2 lignes + ports ---
   nodes.forEach((n, i) => {
     const x = n.x || 0, y = n.y || 0, w = n.w || 150, h = n.h || 56;
@@ -7450,6 +7465,39 @@ async function lldPaintFrontDiag(ws, diag, opts = {}) {
         ctx.textBaseline = 'alphabetic';
       }
     });
+  });
+  // --- câbles AU-DESSUS des boîtiers : ombre + gaine couleur + identifiant ---
+  links.forEach(l => {
+    const a = byId[l.a], b = byId[l.b];
+    if (!a || !b) return;
+    const e = lldDiagLinkEnds(a, b, l);
+    const mx = (e.a.x + e.b.x) / 2;
+    const my = Math.max(e.a.y, e.b.y) + 30;
+    const trace = () => {
+      ctx.beginPath();
+      ctx.moveTo(e.a.x, e.a.y);
+      ctx.quadraticCurveTo(mx, my, e.b.x, e.b.y);
+    };
+    ctx.lineCap = 'round';
+    trace();
+    ctx.strokeStyle = 'rgba(2,6,16,.55)';
+    ctx.lineWidth = 6.5;
+    ctx.stroke();
+    trace();
+    ctx.strokeStyle = l.color || '#38bdf8';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    const shortId = String(l.cable || '').split('·')[0].trim().slice(0, 16)
+      || String(l.label || '').slice(0, 24);
+    if (shortId) {
+      ctx.font = '700 11px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#0b1220';
+      ctx.strokeText(shortId, mx, my - 7);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText(shortId, mx, my - 7);
+    }
   });
   ctx.restore();
   return c;
@@ -7842,9 +7890,23 @@ function lldInfoRender(box, def, key) {
       const mode = def.mode || 'fai';
       const paint = () => {
         host.innerHTML = '';
-        const d = L.diagrams && L.diagrams[mode];
+        const wsNow = (typeof active === 'function' && active()) || {};
+        let d = L.diagrams && L.diagrams[mode];
+        // Auto-réparation (une fois) : un schéma stocké amputé (sans instId)
+        // est reconstruit depuis l'élévation — photos, ports et positions.
+        if (typeof lldDiagNeedsRebuild === 'function' && lldDiagNeedsRebuild(d)) {
+          try {
+            d = lldBuildDiagData(wsNow, mode);
+            L.diagrams = L.diagrams || {};
+            L.diagrams[mode] = d;
+            if (wsNow && wsNow.lld && (d.nodes || []).length) {
+              wsNow.lld.diagrams = wsNow.lld.diagrams || {};
+              wsNow.lld.diagrams[mode] = d;
+            }
+            if (typeof saveState === 'function') saveState();
+          } catch (_) {}
+        }
         if (d && (d.nodes || []).length) {
-          const wsNow = (typeof active === 'function' && active()) || {};
           host.appendChild(lldRenderFrontDiagEl(wsNow, d));
           // Barre de zoom + isolement au clic (mêmes interactions que le rapport HTML)
           if (typeof lldDiagInitAll === 'function') lldDiagInitAll(host);
