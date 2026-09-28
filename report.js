@@ -298,8 +298,21 @@ function rptDiag(ws, mode, title) {
   }
   const im = (globalThis.__LLD_DIAG_IMGS || {})[mode];
   const url = im && (im.dataUrl || im);
-  if (!url || typeof url !== 'string') return '';
-  return `<h3>${RPT_ESC(title)}</h3><figure class="shot"><img src="${url}" alt="${RPT_ESC_ARIA(title)}" loading="lazy"></figure>`;
+  if (url && typeof url === 'string')
+    return `<h3>${RPT_ESC(title)}</h3><figure class="shot"><img src="${url}" alt="${RPT_ESC_ARIA(title)}" loading="lazy"></figure>`;
+  // Repli texte (mêmes données que le schéma interactif) quand ni le rendu
+  // direct ni l'image rasterisée ne sont disponibles (harnais, export partiel).
+  const dd = (typeof lldEnsureDiag === 'function') ? lldEnsureDiag(ws, mode) : null;
+  if (!dd || !(dd.nodes || []).length) return '';
+  const byId = Object.fromEntries(dd.nodes.map(n => [n.id, n]));
+  const nodes = rptLldGrid([['a', 'Élément'], ['b', 'Type'], ['c', 'Détail']],
+    dd.nodes.map(n => ({ a: n.label || n.id || '', b: n.kind || '', c: n.sub || '' })));
+  const links = (dd.links || []).length ? rptLldGrid([['a', 'De'], ['b', 'Liaison'], ['c', 'Vers']],
+    dd.links.map(l => {
+      const a = byId[l.a], b = byId[l.b];
+      return { a: a ? a.label : (l.a || ''), b: l.label || (l.dashed ? 'secours' : '—'), c: b ? b.label : (l.b || '') };
+    })) : '';
+  return `<h3>${RPT_ESC(title)}</h3>` + nodes + (links ? `<h4>Liaisons</h4>` + links : '');
 }
 function rptShots(ws, key) {
   const L = normLldInfo(ws);
@@ -657,19 +670,49 @@ table.kv th{background:#f1f5f9;color:var(--ink);width:240px;font-weight:600;bord
 .shot{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#101318}
 .fdiag-report{margin-top:10px}
 .fdiag{position:relative;background:#0b1220;border-radius:10px;overflow:auto;border:1px solid var(--line)}
-.fdiag-stage{position:relative;min-width:640px}
+.fdiag-stage{position:relative;min-width:640px;transform-origin:0 0}
+.fdiag-note{margin:10px 14px 0;padding:8px 12px;font-size:12px;color:#fcd34d;background:#451a03;border:1px solid #92400e;border-radius:8px}
+.fdiag-tools{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:6px;padding:8px 12px;background:rgba(11,18,32,.92);border-bottom:1px solid #1e293b}
+.fdiag-tools button{min-width:30px;height:26px;padding:0 8px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700}
+.fdiag-tools button:hover{background:#334155;border-color:#475569}
+.fdiag-stats{color:#94a3b8;font-size:11.5px;margin-left:6px;white-space:nowrap}
+.fdiag-hint{color:#64748b;font-size:11px;margin-left:auto;white-space:nowrap}
+.fdiag-colh{position:absolute;top:4px;z-index:2;color:#7d8aa0;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
 .fdiag-wires{position:absolute;left:0;top:0;pointer-events:none;z-index:1}
-.fdiag-dev{position:absolute;z-index:2;border-radius:8px;overflow:visible;box-shadow:0 6px 18px rgba(0,0,0,.45);border:2px solid #334155;background:#1e293b}
-.fdiag-dev img{display:block;width:100%;height:calc(100% - 22px);object-fit:fill;border-radius:6px 6px 0 0;pointer-events:none}
-.fdiag-nophoto{height:calc(100% - 22px);display:flex;align-items:center;justify-content:center;font-size:28px;color:#94a3b8;background:#334155;border-radius:6px 6px 0 0}
-.fdiag-cap{height:22px;line-height:22px;font-size:11px;font-weight:700;color:#e2e8f0;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fdiag-port{position:absolute;width:12px;height:12px;transform:translate(-50%,-50%);border-radius:3px;background:#fbbf24;border:1px solid #0f172a;z-index:3;cursor:default;box-sizing:border-box}
-.fdiag-port.is-up{background:#38bdf8}
-.fdiag-tip{display:none;position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);min-width:180px;max-width:280px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.45;z-index:8;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;white-space:pre-line;text-align:left;font-weight:500}
+.fdiag-wires g.wire path{pointer-events:stroke;cursor:pointer}
+.fdiag-wires .w-halo{fill:none;stroke:rgba(2,6,16,.55);stroke-width:7;stroke-linecap:round}
+.fdiag-wires .w-core{fill:none;stroke-width:3;stroke-linecap:round}
+.fdiag-wires g.wire:hover .w-core{stroke-width:5.5}
+.fdiag-wires .w-lab{fill:#f8fafc;font-size:11px;font-weight:700;text-anchor:middle;paint-order:stroke;stroke:#0b1220;stroke-width:4px;pointer-events:none}
+.fdiag-dev{position:absolute;z-index:2;border-radius:8px;overflow:visible;box-shadow:0 6px 18px rgba(0,0,0,.45);border:2px solid #334155;background:#1e293b;cursor:pointer}
+.fdiag-dev img{display:block;width:100%;height:calc(100% - 34px);object-fit:fill;border-radius:6px 6px 0 0;pointer-events:none}
+.fdiag-nophoto{height:calc(100% - 34px);display:flex;align-items:center;justify-content:center;gap:10px;color:#94a3b8;background:#1e293b;border-radius:6px 6px 0 0}
+.fdiag-glyph{font-size:28px}
+.fdiag-nophlbl{font-size:11px;color:#7d8aa0}
+.fdiag-cap{height:34px;padding:3px 8px 2px;overflow:hidden;display:flex;flex-direction:column;justify-content:center}
+.fdiag-cap b{display:block;font-size:12px;font-weight:700;line-height:1.2;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fdiag-cap span{display:block;font-size:9.5px;line-height:1.25;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fdiag-card .fdiag-nophoto{background:#1e293b}
+.fdiag-port{position:absolute;width:12px;height:12px;transform:translate(-50%,-50%);border-radius:3px;background:#fbbf24;border:1px solid #0f172a;z-index:3;cursor:pointer;box-sizing:border-box}
+.fdiag-port.is-up{width:13px;height:13px;border-width:1.5px}
+.fdiag-plab{position:absolute;left:50%;top:calc(100% + 2px);transform:translateX(-50%);font-size:8.5px;font-weight:700;line-height:1.2;color:#fff;white-space:nowrap;background:rgba(2,6,16,.78);border-radius:4px;padding:1px 4px;pointer-events:none}
+.fdiag-tip{display:none;position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);min-width:190px;max-width:300px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.5;z-index:8;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;text-align:left;font-weight:500}
+.fdiag-tip b{color:#fff}
+.fdiag-tip .ft-dim{color:#7d8aa0;font-size:10.5px}
 .fdiag-dev:hover>.fdiag-tip{display:block}
 .fdiag-port:hover{z-index:9}
 .fdiag-port:hover>.fdiag-tip{display:block}
 .fdiag-dev:hover:has(.fdiag-port:hover)>.fdiag-tip{display:none}
+.fdiag.iso g.wire{opacity:.1}
+.fdiag.iso g.wire.on{opacity:1}
+.fdiag.iso g.wire.on .w-core{stroke-width:4.5}
+.fdiag.iso .fdiag-dev{opacity:.22}
+.fdiag.iso .fdiag-dev.on{opacity:1}
+.fdiag.iso .fdiag-port{opacity:.18}
+.fdiag.iso .fdiag-port.on{opacity:1}
+.fdiag.searching .fdiag-dev:not(.f-hit){opacity:.3}
+.fdiag-dev.f-hit{box-shadow:0 0 0 3px #fbbf24,0 6px 18px rgba(0,0,0,.45)}
+.fdiag-port.f-hit{box-shadow:0 0 0 3px #fbbf24;z-index:9}
 .shot img{display:block;width:100%;cursor:zoom-in;background:#101318}
 .shot figcaption{background:#fff;padding:7px 11px;font-size:12px;border-top:1px solid var(--line)}
 table{width:100%;border-collapse:collapse;font-size:12.8px;margin:8px 0}
@@ -710,6 +753,7 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
 @media(max-width:820px){.bar1{flex-wrap:wrap}#chapnav{padding:8px 12px}th{top:0;position:static}}
 @media print{
   body{background:#fff}#top,.no-print,#lb{display:none!important}
+  .fdiag{overflow:visible;border-color:#cbd5e1}
   main{max-width:none;padding:0}
   .section{border:none;border-bottom:2px solid var(--line);border-radius:0;padding:12px 0;margin:0;break-inside:auto}
   .section h2{border-color:var(--acc)}
@@ -778,6 +822,15 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
     secs.forEach(function(s){io.observe(s)})}
 })();`;
 
+  // Interactions des schémas physiques (zoom, isolement au clic, recherche,
+  // impression) : la source de lldDiagInitAll (app.js) est embarquée telle
+  // quelle pour garder UNE seule implémentation (modale = rapport).
+  let jsFull = js;
+  try {
+    if (typeof lldDiagInitAll === 'function')
+      jsFull += '\n;(' + lldDiagInitAll.toString() + ')(document);';
+  } catch (_) { /* schémas statiques mais lisibles */ }
+
   return '<!doctype html>\n<html lang="fr">\n<head>\n<meta charset="utf-8">\n'
     + `<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${RPT_ESC(title)}</title>\n`
     + `<style>${css}</style>\n</head>\n<body>\n`
@@ -805,7 +858,7 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
     + `\n</main>\n<footer class="no-print">Rapport généré par LLDraw — fichier autonome, consultable hors-ligne. `
     + `Cherchez avec la barre 🔎, triez les tableaux en cliquant les en-têtes, cliquez une image pour zoomer.</footer>\n`
     + `<div id="lb"><img id="lb-img" alt=""><span class="hint">Cliquez n'importe où (ou Échap) pour fermer</span></div>\n`
-    + `<script>${js}</`
+    + `<script>${jsFull}</`
     + `script>\n</body>\n</html>`;
 }
 

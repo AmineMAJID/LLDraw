@@ -2887,46 +2887,109 @@ body.mode3d .switch-wrap {
 }
 
 
-/* ---------- Diagramme faces avant (sommaire 📘) ---------- */
+/* ---------- Schémas physiques (sommaire 📘 + rapport HTML) ----------
+   Faces avant réelles, ports aux emplacements de l'élévation, vrais câbles.
+   Interactif : zoom, survol (device / port / câble), isolement au clic. */
 .fdiag { position: relative; background: #0b1220; border-radius: 10px; overflow: auto; }
-.fdiag-stage { position: relative; min-width: 640px; }
+.fdiag-stage { position: relative; min-width: 640px; transform-origin: 0 0; }
+.fdiag-note {
+  margin: 10px 14px 0; padding: 8px 12px; font-size: 12px; color: #fcd34d;
+  background: #451a03; border: 1px solid #92400e; border-radius: 8px;
+}
+.fdiag-tools {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; background: rgba(11,18,32,.92);
+  border-bottom: 1px solid #1e293b; backdrop-filter: blur(4px);
+}
+.fdiag-tools button {
+  min-width: 30px; height: 26px; padding: 0 8px;
+  background: #1e293b; color: #e2e8f0; border: 1px solid #334155;
+  border-radius: 7px; cursor: pointer; font-size: 12px; font-weight: 700;
+}
+.fdiag-tools button:hover { background: #334155; border-color: #475569; }
+.fdiag-stats { color: #94a3b8; font-size: 11.5px; margin-left: 6px; white-space: nowrap; }
+.fdiag-hint { color: #64748b; font-size: 11px; margin-left: auto; white-space: nowrap; }
+.fdiag-colh {
+  position: absolute; top: 4px; z-index: 2;
+  color: #7d8aa0; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
+}
 .fdiag-wires { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 1; }
+.fdiag-wires g.wire path { pointer-events: stroke; cursor: pointer; }
+.fdiag-wires .w-halo { fill: none; stroke: rgba(2,6,16,.55); stroke-width: 7; stroke-linecap: round; }
+.fdiag-wires .w-core { fill: none; stroke-width: 3; stroke-linecap: round; }
+.fdiag-wires g.wire:hover .w-core { stroke-width: 5.5; }
+.fdiag-wires .w-lab {
+  fill: #f8fafc; font-size: 11px; font-weight: 700; text-anchor: middle;
+  paint-order: stroke; stroke: #0b1220; stroke-width: 4px; pointer-events: none;
+  font-family: inherit;
+}
 .fdiag-dev {
   position: absolute; z-index: 2;
   border-radius: 8px; overflow: visible;
   box-shadow: 0 6px 18px rgba(0,0,0,.45);
-  border: 2px solid #334155; background: #1e293b;
+  border: 2px solid #334155; background: #1e293b; cursor: pointer;
 }
 .fdiag-dev img {
-  display: block; width: 100%; height: calc(100% - 22px);
+  display: block; width: 100%; height: calc(100% - 34px);
   object-fit: fill; border-radius: 6px 6px 0 0; pointer-events: none;
 }
 .fdiag-nophoto {
-  height: calc(100% - 22px); display: flex; align-items: center; justify-content: center;
-  font-size: 28px; color: #94a3b8; background: #334155; border-radius: 6px 6px 0 0;
+  height: calc(100% - 34px); display: flex; align-items: center; justify-content: center;
+  gap: 10px; color: #94a3b8; background: #1e293b; border-radius: 6px 6px 0 0;
 }
+.fdiag-glyph { font-size: 28px; }
+.fdiag-nophlbl { font-size: 11px; color: #7d8aa0; }
 .fdiag-cap {
-  height: 22px; line-height: 22px; font-size: 11px; font-weight: 700;
-  color: #e2e8f0; padding: 0 8px; white-space: nowrap; overflow: hidden;
-  text-overflow: ellipsis;
+  height: 34px; padding: 3px 8px 2px; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.fdiag-cap b {
+  display: block; font-size: 12px; font-weight: 700; line-height: 1.2;
+  color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fdiag-cap span {
+  display: block; font-size: 9.5px; line-height: 1.25; color: #94a3b8;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .fdiag-card .fdiag-nophoto { background: #1e293b; }
 .fdiag-port {
   position: absolute; width: 12px; height: 12px;
   transform: translate(-50%, -50%);
   border-radius: 3px; background: #fbbf24; border: 1px solid #0f172a;
-  z-index: 3; cursor: default; box-sizing: border-box;
+  z-index: 3; cursor: pointer; box-sizing: border-box;
 }
-.fdiag-port.is-up { background: #38bdf8; }
+.fdiag-port.is-up { width: 13px; height: 13px; border-width: 1.5px; }
+.fdiag-plab {
+  position: absolute; left: 50%; top: calc(100% + 2px); transform: translateX(-50%);
+  font-size: 8.5px; font-weight: 700; line-height: 1.2; color: #fff; white-space: nowrap;
+  background: rgba(2,6,16,.78); border-radius: 4px; padding: 1px 4px;
+  pointer-events: none;
+}
 .fdiag-tip {
   display: none; position: absolute; left: 50%; bottom: calc(100% + 8px);
-  transform: translateX(-50%); min-width: 180px; max-width: 280px;
+  transform: translateX(-50%); min-width: 190px; max-width: 300px;
   background: #0f172a; color: #e2e8f0; border: 1px solid #334155;
-  border-radius: 8px; padding: 8px 10px; font-size: 11px; line-height: 1.45;
+  border-radius: 8px; padding: 8px 10px; font-size: 11px; line-height: 1.5;
   z-index: 8; box-shadow: 0 8px 24px rgba(0,0,0,.5); pointer-events: none;
-  white-space: pre-line; text-align: left; font-weight: 500;
+  text-align: left; font-weight: 500;
 }
+.fdiag-tip b { color: #fff; }
+.fdiag-tip .ft-dim { color: #7d8aa0; font-size: 10.5px; }
 .fdiag-dev:hover > .fdiag-tip { display: block; }
 .fdiag-port:hover { z-index: 9; }
 .fdiag-port:hover > .fdiag-tip { display: block; }
 .fdiag-dev:hover:has(.fdiag-port:hover) > .fdiag-tip { display: none; }
+/* Isolement au clic : le reste passe en fantôme */
+.fdiag.iso g.wire { opacity: .1; }
+.fdiag.iso g.wire.on { opacity: 1; }
+.fdiag.iso g.wire.on .w-core { stroke-width: 4.5; }
+.fdiag.iso .fdiag-dev { opacity: .22; }
+.fdiag.iso .fdiag-dev.on { opacity: 1; }
+.fdiag.iso .fdiag-port { opacity: .18; }
+.fdiag.iso .fdiag-port.on { opacity: 1; }
+/* Surlignage depuis la recherche */
+.fdiag.searching .fdiag-dev:not(.f-hit) { opacity: .3; }
+.fdiag-dev.f-hit { box-shadow: 0 0 0 3px #fbbf24, 0 6px 18px rgba(0,0,0,.45); }
+.fdiag-port.f-hit { box-shadow: 0 0 0 3px #fbbf24; z-index: 9; }

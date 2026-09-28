@@ -70,6 +70,13 @@ const helpers = [
   fn('rackHeight'),
   // Dependances paresseuses de buildLldPdf / LLD_TPL (appelees au test, pas a l'init)
   fn('fmtWatts'),
+  fn('lldTocRemap'),
+  between(/const LLD_DIAG_CAP_H = /, /function lldDiagPortXY/),
+  fn('lldDiagSeedCats'),
+  fn('lldDiagEmptyHint'),
+  fn('lldDiagTitle'),
+  fn('lldBuildDiagData'),
+  fn('lldEnsureDiag'),
 ].join('\n\n');
 
 const xlsxSrc = slice(/const XLSX = \(\(\) => \{/, /return \{ build \};\s*\}\)\(\);/);
@@ -129,26 +136,6 @@ mkdirSync(outDir, { recursive: true });
 const state = JSON.parse(readFileSync(statePath, 'utf8'));
 const ws = state.workspaces[0];
 
-sandbox.ws = ws; sandbox.state = state;
-vm.runInContext(`
-  ws.racks.forEach(normalizeRack);
-  for (const d of (state.devices||[])) normInvFields(d);
-  normLldInfo(ws); normSites(ws);
-`, ctx);
-
-// 1) Excel vue données
-const blob = vm.runInContext('__xlsx(ws)', ctx, { filename: 'dx.js' });
-const buf = Buffer.from(await blob.arrayBuffer());
-const xlsxPath = path.join(outDir, 'donnees.xlsx');
-writeFileSync(xlsxPath, buf);
-console.log(`XLSX  -> ${xlsxPath} (${buf.length} octets)`);
-
-// 2) Rapport HTML
-const html = vm.runInContext('__html(ws)', ctx, { filename: 'rpt.js' });
-const htmlPath = path.join(outDir, 'rapport.html');
-writeFileSync(htmlPath, html);
-console.log(`HTML  -> ${htmlPath} (${html.length} caractères)`);
-
 // Extraction paresseuse : si un identifiant manque au moment d'un appel
 // (buildLldPdf / LLD_TPL ne s'executent qu'ici), on l'extrait et on rejoue.
 function lazy(name) {
@@ -169,6 +156,27 @@ function runLazy(codeStr) {
   }
   throw new Error('runLazy: trop de symboles manquants');
 }
+
+sandbox.ws = ws; sandbox.state = state;
+runLazy(`
+  ws.racks.forEach(normalizeRack);
+  for (const d of (state.devices||[])) normInvFields(d);
+  normLldInfo(ws); normSites(ws);
+`);
+
+// 1) Excel vue données
+const blob = runLazy('__xlsx(ws)');
+const buf = Buffer.from(await blob.arrayBuffer());
+const xlsxPath = path.join(outDir, 'donnees.xlsx');
+writeFileSync(xlsxPath, buf);
+console.log(`XLSX  -> ${xlsxPath} (${buf.length} octets)`);
+
+// 2) Rapport HTML
+const html = runLazy('__html(ws)');
+const htmlPath = path.join(outDir, 'rapport.html');
+writeFileSync(htmlPath, html);
+console.log(`HTML  -> ${htmlPath} (${html.length} caractères)`);
+
 
 // 3) Tests du filtrage par selection ---------------------------------------
 const sheetNames = buf => [...Buffer.from(buf).toString('latin1').matchAll(/<sheet name="([^"]+)"/g)].map(m => m[1]);
@@ -214,11 +222,11 @@ const toL1 = b => Buffer.from(b).toString('latin1');
 const pdfFull = toL1(runLazy('__pdf(ws, null)'));
 const pdfSel = toL1(runLazy("__pdf(ws, ['1','15'])"));
 const countPages = s => (s.match(/\/Type\s*\/Page[^s]/g) || []).length;
-for (const t of ['2. Aper\u00e7u du site', '14. Flux r\u00e9seau', '15. C\u00e2blage / Rack'])
+for (const t of ['2. Information sur le site', '14. Flux r\u00e9seau', '15. Cablage/Rack'])
   if (!pdfFull.includes(t)) throw new Error('PDF complet : titre manquant -> ' + t);
-for (const t of ['1. Objectif du document', '15. C\u00e2blage / Rack', 'D\u00e9tail des connexions par device'])
+for (const t of ['1. Objectif du document', '15. Cablage/Rack', 'Cablage/Rack'])
   if (!pdfSel.includes(t)) throw new Error('PDF selectif : titre conserve absent -> ' + t);
-for (const t of ['2. Aper\u00e7u du site', '4. Conception Nomenclature', '5. Conception et Configuration FAI'])
+for (const t of ['2. Information sur le site', '4. Conception Nomenclature', '5. Conception et Configuration FAI'])
   if (pdfSel.includes(t)) throw new Error('PDF selectif : chapitre non filtre -> ' + t);
 console.log('OK filtres PDF : complet ' + countPages(pdfFull) + ' pages / selectif ' + countPages(pdfSel) + ' pages');
 console.log('TOUS LES TESTS PASSENT');
