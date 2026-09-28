@@ -91,7 +91,10 @@ function rptSitesBlocks(ws) {
       ${r.maxKg ? gauge(kg, r.maxKg, 'kg') : (kg ? `<div class="meta">🏋️ ${kg} kg</div>` : '')}
     </a>`;
   };
-  let out = '';
+  const L = normLldInfo(ws);
+  const siteTbl = rptSub(rptNum(L, 'sites', '2. Information sur le site'), rptLldGrid(
+    lldExportCols(L, 'sites', LLD_SITE_COLS).map(c => [c[0], String(c[1])]), sites));
+  let out = siteTbl || '';
   for (const s of sites) {
     const racks = racksOf(s.id);
     out += `<div class="site-block">
@@ -140,101 +143,62 @@ function rptContext(ws) {
       t.split(/\n+/).map(p => `<p>${RPT_ESC(p)}</p>`).join('')}</div>`;
   };
   return block('Objectif du document', L.objectif)
-       + block('Infrastructure existante', L.existant)
-       + block('Architecture cible', L.architecture)
     || '<p class="muted">Textes non renseignés (fiche 📘 du dossier, onglet Document).</p>';
 }
 
-// Inventaire : un bloc repliable par baie, table sans colonnes répétées
+// Inventaire 15.1 : élévations du sommaire, groupées par baie (comme l'Excel)
 function rptInventory(ws) {
+  const L = normLldInfo(ws);
+  const ev = (L.elev15 || []).filter(r => r && Object.values(r).some(v => String(v ?? '').trim()));
+  if (!ev.length)
+    return '<p class="muted">' + rptNum(L, 'elev15', '15.1 : aucune élévation — bouton « 🔎 Générer depuis l\'élévation » dans le sommaire 📘.') + '</p>';
+  const cols = lldExportCols(L, 'elev15', LLD_ELEV15_COLS);
+  const dataCols = cols.filter(c => c[0] !== 'rack');
   const byRack = new Map();
-  sortedRackInstances(ws).forEach(({ rack, inst }) => {
-    if (!byRack.has(rack.id)) byRack.set(rack.id, { rack, items: [] });
-    byRack.get(rack.id).items.push(inst);
+  ev.forEach(r0 => {
+    const k = String(r0.rack || '').trim() || 'Baie';
+    if (!byRack.has(k)) byRack.set(k, []);
+    byRack.get(k).push(r0);
   });
-  if (!byRack.size) return '<p class="muted">Aucun équipement placé.</p>';
   let out = '';
-  for (const { rack, items } of byRack.values()) {
-    const rows = items.map(inst => {
-      const search = [inst.name, inst.brand, inst.model, inst.serial, inst.ipMgmt, inst.vlan,
-        catLabel(normCat(inst.cat)), slotLabel(inst)].join(' ').toLowerCase();
-      return `<tr data-search="${RPT_ESC_ARIA(search)}">
-        <td class="nowrap"><b>${RPT_ESC(slotLabel(inst))}</b></td>
-        <td class="nowrap"><b>${RPT_ESC(inst.name)}</b></td>
-        <td class="nowrap">${catIcon(normCat(inst.cat))} ${RPT_ESC(catLabel(normCat(inst.cat)))}</td>
-        <td>${RPT_ESC(inst.brand || '')}</td><td>${RPT_ESC(inst.model || '')}</td>
-        <td class="nowrap">${RPT_ESC(inst.serial || '')}</td>
-        <td class="nowrap">${RPT_ESC(inst.ipMgmt || '')}</td>
-        <td>${RPT_ESC(inst.vlan || '')}</td>
-        <td class="nw-num">${inst.watts || ''}</td><td class="nw-num">${inst.weightKg || ''}</td>
-        <td>${rptWarrantyBadge(inst)}</td></tr>`;
+  byRack.forEach((list, rackName) => {
+    const head = dataCols.map(c => `<th>${RPT_ESC(c[1])}</th>`).join('');
+    const body = list.map(r0 => {
+      const search = dataCols.map(c => r0[c[0]] ?? '').join(' ').toLowerCase();
+      return `<tr data-search="${RPT_ESC_ARIA(search)}">${
+        dataCols.map(c => `<td>${RPT_ESC(r0[c[0]] ?? '')}</td>`).join('')}</tr>`;
     }).join('');
-    // Le site n'est répété que s'il ne figure pas déjà dans le nom de la baie
-    const sName = siteName(ws, rack);
-    const showSite = sName && !rack.name.includes(sName.split('—')[0].trim());
     out += `<details class="grp" open>
-      <summary><span class="dot" style="--c:${RPT_ESC(rack.siteId ? siteColor(ws, rack) : '#94a3b8')}"></span>
-        <b>${RPT_ESC(rack.name)}</b><span class="meta">${showSite ? RPT_ESC(sName) + ' · ' : ''}${items.length} équipement${items.length > 1 ? 's' : ''} · ${rack.sizeU}U</span>
-      </summary>
-      <table class="sortable rack-table">
-        <thead><tr>
-          <th>Étage</th><th>Nom</th><th>Catégorie</th><th>Marque</th><th>Modèle</th>
-          <th>N° série</th><th>IP mgmt</th><th>VLAN(s)</th><th>W</th><th>kg</th><th>Garantie</th>
-        </tr></thead><tbody>${rows}</tbody>
-      </table>
+      <summary><b>${RPT_ESC(rackName)}</b><span class="meta">${list.length} équipement${list.length > 1 ? 's' : ''}</span></summary>
+      <table class="sortable rack-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
     </details>`;
-  }
+  });
   return out;
 }
 
-// Détail des ports d'un équipement — tableau « Ports & adressage » complet
+// Plans de ports du sommaire (feuilles Excel 4.4 / 4.4.1…4.4.5)
 function rptPorts(ws) {
-  const rows = [];
-  const cableOf = (instId, portId) => {
-    const c = (ws.cables || []).find(cb =>
-      (cb.a?.instId === instId && cb.a?.portId === portId) ||
-      (cb.b?.instId === instId && cb.b?.portId === portId));
-    return c ? c.name : '';
-  };
-  const byRack = new Map();
-  for (const { rack, inst } of sortedRackInstances(ws)) {
-    for (const p of (inst.ports || [])) {
-      if (!byRack.has(rack.id)) byRack.set(rack.id, { rack, rows: [] });
-      byRack.get(rack.id).rows.push({ inst, p, cable: cableOf(inst.id, p.id) });
-    }
-  }
-  if (!byRack.size) return '<p class="muted">Aucun port étiqueté.</p>';
-  let out = '';
-  for (const { rack, rows: items } of byRack.values()) {
-    rows.length = 0;
-    const trs = items.map(({ inst, p, cable }) => {
-      const search = [rack.name, inst.name, p.name, p.label, p.ip, p.vlan, cable].join(' ').toLowerCase();
-      return `<tr data-search="${RPT_ESC_ARIA(search)}">
-        <td class="nowrap"><b>${RPT_ESC(slotLabel(inst))}</b> ${RPT_ESC(inst.name)}</td>
-        <td class="nowrap"><b>${RPT_ESC(p.name)}</b></td>
-        <td>${RPT_ESC(p.label || '')}</td>
-        <td class="nowrap">${RPT_ESC(p.ip || '')}</td>
-        <td class="nowrap">${RPT_ESC(p.vlan || '')}</td>
-        <td class="nowrap">${RPT_ESC(cable)}</td></tr>`;
-    }).join('');
-    out += `<details class="grp" open>
-      <summary><span class="dot"></span><b>${RPT_ESC(rack.name)}</b><span class="meta">${items.length} ports</span></summary>
-      <table class="sortable"><thead><tr>
-        <th>Équipement</th><th>Port</th><th>Étiquette</th><th>IP</th><th>VLAN</th><th>Câble</th>
-      </tr></thead><tbody>${trs}</tbody></table>
-    </details>`;
-  }
-  return out;
+  const L = normLldInfo(ws);
+  const sheets = (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : []);
+  let html = '';
+  sheets.forEach(([, po, num0, lab]) => {
+    const num = (typeof lldTocRemap === 'function') ? lldTocRemap(num0) : num0;
+    const rows = L[po] || [];
+    if (!rows.length) return;
+    html += rptSub(rptNum(L, po, `${num} — Plan de ports ${lab}`), rptLldGrid(
+      lldExportCols(L, po, LLD_SW_PORT_COLS).map(c => [c[0], String(c[1])]), rows));
+  });
+  return html || '<p class="muted">' + rptNum(L, 'zones', 'Aucun plan de ports dans le sommaire 📘 (chapitre 4.4).') + '</p>';
 }
 
 // Câblage : pastille couleur, sens de lecture A → B, filtre par domaine
 function rptCabling(ws) {
   const L = normLldInfo(ws);
   if ((L.cab15 || []).length) {
-    return rptSub('15 — Tableau de câblage', rptLldGrid(
+    return rptSub(rptNum(L, 'cab15', '15 — Tableau de câblage'), rptLldGrid(
       lldExportCols(L, 'cab15', LLD_CAB15_COLS).map(c => [c[0], String(c[1])]), L.cab15));
   }
-  return '<p class="muted">Aucun câble dans le sommaire 📘 — bouton 🔎 sur le chapitre 15.</p>';
+  return '<p class="muted">' + rptNum(L, 'cab15', 'Aucun câble dans le sommaire 📘 — bouton 🔎 sur le chapitre 15.') + '</p>';
 }
 
 // Garanties : tableau trié selon échéance + pastilles (code couleur de l'app)
@@ -264,17 +228,17 @@ function rptWarranties(ws) {
 
 // Deux tableaux côte à côte : registre VLANs + nomenclature
 function rptAddressing(ws) {
-  const vl = addressingRows(ws);     // [header, ...lignes]
-  const no = nomenRows(ws);
-  const tbl = (rows) => {
-    if (rows.length < 2) return '<p class="muted">Non renseigné.</p>';
-    const head = rows[0].map(h => `<th>${RPT_ESC(h)}</th>`).join('');
-    const body = rows.slice(1).map(r =>
-      `<tr data-search="${RPT_ESC_ARIA(r.join(' ').toLowerCase())}">${
-        r.map(c => `<td>${RPT_ESC(c)}</td>`).join('')}</tr>`).join('');
-    return `<table class="sortable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-  };
-  return `<h3>Registre VLANs & subnets</h3>${tbl(vl)}<h3 style="margin-top:22px">Nomenclature</h3>${tbl(no)}`;
+  const L = normLldInfo(ws);
+  const mx = (typeof lldCh4MatrixExportRows === 'function')
+    ? lldCh4MatrixExportRows(ws, L) : [];
+  const matrix = rptSub(rptNum(L, 'addrMatrix', 'Matrice d’adressage IP (ch. 4)'), rptLldGrid(
+    [['desc', 'Description'], ['nomen', 'Nomenclature'], ['ip', 'IP'],
+     ['mask', 'Mask'], ['gw', 'GW'], ['dns', 'DNS'], ['note', 'Commentaire']], mx));
+  const vl = rptSub('Registre VLANs & subnets', rptLldGrid(
+    lldExportCols(L, 'vlans', LLD_VLAN_COLS).map(c => [c[0], String(c[1])]), L.vlans));
+  const no = rptSub('Nomenclature', rptLldGrid(
+    lldExportCols(L, 'nomen', LLD_NOMEN_COLS).map(c => [c[0], String(c[1])]), L.nomen));
+  return matrix + vl + no || '';
 }
 
 function rptFlows(ws) {
@@ -291,10 +255,10 @@ function rptRevisions(ws) {
   const L = normLldInfo(ws);
   if (!L.revs.length) return '';
   const rows = L.revs.map(r =>
-    `<tr><td class="nowrap"><b>${RPT_ESC(r.rev)}</b></td><td class="nowrap">${RPT_ESC(r.date)}</td>
-     <td>${RPT_ESC(r.author)}</td><td>${RPT_ESC(r.note)}</td></tr>`).join('');
-  return `<h3 style="margin-top:26px">Historique des révisions</h3>
-    <table><thead><tr><th>Rév</th><th>Date</th><th>Auteur</th><th>Modifications</th></tr></thead>
+    `<tr><td class="nowrap"><b>${RPT_ESC(r.rev)}</b></td><td>${RPT_ESC(r.author)}</td>
+     <td>${RPT_ESC(r.note)}</td><td class="nowrap">${RPT_ESC(r.date)}</td></tr>`).join('');
+  return `<h3 style="margin-top:26px">Statut de révision du document</h3>
+    <table><thead><tr><th>Version</th><th>Auteur</th><th>Commentaires et mises à jour</th><th>Date</th></tr></thead>
     <tbody>${rows}</tbody></table>`;
 }
 
@@ -303,11 +267,16 @@ function rptRevisions(ws) {
    colonnes personnalisées éventuelles (lldExportCols), comme les exports
    historiques. Un bloc vide n'est tout simplement pas affiché. */
 
-// Tableau générique à partir de colonnes [[clé, libellé], …] + lignes objets
+// Tableau générique à partir de colonnes [[clé, libellé], …] + lignes objets.
+// Grilles larges (≥ 10 colonnes : FAI 5.1, WAN, extrémités 6.1…) : rendues en
+// fiches modernes plutôt qu'en tableau illisible — CHAQUE champ non vide est
+// repris, aucune info n'est perdue (les champs vides, sans info, sont omis
+// comme dans les fiches rptKv).
 function rptLldGrid(cols, rows, { searchable = true } = {}) {
   const data = (rows || []).filter(r =>
     r && cols.some(([k]) => String(r[k] ?? '').trim() !== ''));
   if (!data.length) return '';
+  if (cols.length >= 10) return rptRecCards(cols, data, searchable);
   const head = cols.map(([, lbl]) => `<th>${RPT_ESC(lbl)}</th>`).join('');
   const body = data.map(r => {
     const search = searchable ? cols.map(([k]) => String(r[k] ?? '')).join(' ').toLowerCase() : '';
@@ -316,6 +285,31 @@ function rptLldGrid(cols, rows, { searchable = true } = {}) {
   }).join('');
   return `<table class="sortable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
+// Une fiche par ligne : titre = 2 premiers champs renseignés, puis grille
+// responsive libellé/valeur (recherche du rapport conservée via data-search).
+function rptRecCards(cols, rows, searchable = true) {
+  const data = (rows || []).filter(r =>
+    r && cols.some(([k]) => String(r[k] ?? '').trim() !== ''));
+  if (!data.length) return '';
+  const cards = data.map((r, i) => {
+    const fields = cols.map(([k, lbl]) => ({ lbl, v: String(r[k] ?? '').trim() }))
+      .filter(f => f.v !== '');
+    if (!fields.length) return '';
+    const title = [fields[0] && fields[0].v, fields[1] && fields[1].v]
+      .filter(Boolean).join(' — ');
+    const search = searchable ? cols.map(([k]) => String(r[k] ?? '')).join(' ').toLowerCase() : '';
+    return `<article class="rec-card"${searchable ? ` data-search="${RPT_ESC_ARIA(search)}"` : ''}>`
+      + `<h4><span class="rec-idx">${i + 1}</span><span>${RPT_ESC(title) || 'Fiche ' + (i + 1)}</span></h4>`
+      + '<dl class="rec-grid">'
+      + fields.map(f =>
+        `<div class="rec-f"><dt>${RPT_ESC(f.lbl)}</dt><dd>${RPT_ESC(f.v).replace(/\n/g, '<br>')}</dd></div>`).join('')
+      + '</dl></article>';
+  }).join('');
+  return cards ? `<div class="rec-cards">${cards}</div>` : '';
+}
+// Libellé synchronisé sur le sommaire (repli = libellé codé en dur).
+const rptNum = (L, key, fb) =>
+  (typeof lldTocSyncLabel === 'function' ? lldTocSyncLabel(L, key, fb) : fb);
 // Sous-titre + grille (vide si aucune ligne)
 const rptSub = (title, grid) => grid ? `<h3>${RPT_ESC(title)}</h3>${grid}` : '';
 // Paires « libellé : valeur » pour les fiches (profils FW, interco…) — lignes vides omises
@@ -328,6 +322,29 @@ function rptKv(fields, obj) {
     `<th>${RPT_ESC(r.label)}</th><td>${RPT_ESC(r.v)}</td></tr>`).join('') + '</tbody></table>';
 }
 // Captures d'écran d'un chapitre (glissées dans la fiche 📘) — embarquées telles quelles
+function rptDiag(ws, mode, title) {
+  if (typeof lldFrontDiagHtml === 'function') {
+    const live = lldFrontDiagHtml(ws, mode);
+    if (live) return `<h3>${RPT_ESC(title)}</h3><div class="fdiag-report">${live}</div>`;
+  }
+  const im = (globalThis.__LLD_DIAG_IMGS || {})[mode];
+  const url = im && (im.dataUrl || im);
+  if (url && typeof url === 'string')
+    return `<h3>${RPT_ESC(title)}</h3><figure class="shot"><img src="${url}" alt="${RPT_ESC_ARIA(title)}" loading="lazy"></figure>`;
+  // Repli texte (mêmes données que le schéma interactif) quand ni le rendu
+  // direct ni l'image rasterisée ne sont disponibles (harnais, export partiel).
+  const dd = (typeof lldEnsureDiag === 'function') ? lldEnsureDiag(ws, mode) : null;
+  if (!dd || !(dd.nodes || []).length) return '';
+  const byId = Object.fromEntries(dd.nodes.map(n => [n.id, n]));
+  const nodes = rptLldGrid([['a', 'Élément'], ['b', 'Type'], ['c', 'Détail']],
+    dd.nodes.map(n => ({ a: n.label || n.id || '', b: n.kind || '', c: n.sub || '' })));
+  const links = (dd.links || []).length ? rptLldGrid([['a', 'De'], ['b', 'Liaison'], ['c', 'Vers']],
+    dd.links.map(l => {
+      const a = byId[l.a], b = byId[l.b];
+      return { a: a ? a.label : (l.a || ''), b: l.label || (l.dashed ? 'secours' : '—'), c: b ? b.label : (l.b || '') };
+    })) : '';
+  return `<h3>${RPT_ESC(title)}</h3>` + nodes + (links ? `<h4>Liaisons</h4>` + links : '');
+}
 function rptShots(ws, key) {
   const L = normLldInfo(ws);
   const shots = (L[key] || []).filter(s => s && /^data:image\//.test(s.dataUrl || ''));
@@ -349,7 +366,7 @@ function rptGovernance(ws) {
   return appr + rev + revs || '';
 }
 
-// Notes de configuration par catégorie (ch. 7 → 13 du dossier LLD)
+// Notes de configuration par catégorie (ch. 4.3 → 4.9 du dossier LLD)
 function rptCatNotes(ws) {
   const L = normLldInfo(ws);
   const order = ['firewall', 'switching', 'server', 'storage', 'ids', 'cctv', 'pointage'];
@@ -358,77 +375,78 @@ function rptCatNotes(ws) {
       L.catNotes[k].trim().split(/\n+/).map(p => `<p>${RPT_ESC(p)}</p>`).join('')}</div>`).join('');
 }
 
-// 🌍 FAI & accès Internet (ch. 5) : tableau 5.1, câblage 5.2, captures
+// 🌍 FAI & accès Internet (ch. 4.1) : tableau 4.1.1, câblage 4.1.2, captures
 function rptFai(ws) {
   const L = normLldInfo(ws);
-  const t51 = rptSub('5.1 — Informations & configuration (FAI)', rptLldGrid(
+  const t51 = rptSub(rptNum(L, 'fais', '4.1.1 — Informations & configuration (FAI)'), rptLldGrid(
     lldExportCols(L, 'fais', LLD_FAI51_COLS).map(c => [c[0], String(c[1])]), L.fais));
-  const cab = rptSub('5.2 — Câblage FAI', rptLldGrid(
+  const cab = rptSub(rptNum(L, 'faiCab', '4.1.2 — Cablage FAI'), rptLldGrid(
     lldExportCols(L, 'faiCab', LLD_FAI_CAB_COLS).map(c => [c[0], String(c[1])]), L.faiCab));
-  return t51 + cab + rptShots(ws, 'shots5') || '';
+  return rptDiag(ws, 'fai', 'Diagramme d’accès FAI') + t51 + cab + rptShots(ws, 'shots5') || '';
 }
 
-// 🔗 Interconnexion site à site (ch. 6) : fiche, extrémités, WAN/LAN, câblage, VPN
+// 🔗 Interconnexion site à site (ch. 4.2) : fiche, extrémités, WAN/LAN, câblage, VPN
 function rptInterco(ws) {
   const L = normLldInfo(ws);
-  const kv = rptSub('6.1 — Liaison site à site', rptKv(LLD_IC_FIELDS, L.interco));
-  const t61 = rptSub('6.1 — Extrémités / HA', rptLldGrid(
+  const kv = rptSub(rptNum(L, 'ic61', '4.2.1 — Liaison site à site'), rptKv(LLD_IC_FIELDS, L.interco));
+  const t61 = rptSub(rptNum(L, 'ic61', '4.2.1 — Extrémités / HA'), rptLldGrid(
     lldExportCols(L, 'ic61', LLD_IC61_COLS).map(c => [c[0], String(c[1])]), L.ic61));
   const wan = rptSub('WAN Connection Settings', rptLldGrid(
     lldExportCols(L, 'icWan', LLD_IC_WAN_COLS).map(c => [c[0], String(c[1])]), L.icWan));
   const lan = rptSub('LAN / Network Settings', rptLldGrid(
     lldExportCols(L, 'icLan', LLD_IC_LAN_COLS).map(c => [c[0], String(c[1])]), L.icLan));
-  const cab = rptSub('6.2 — Câblage interconnexion', rptLldGrid(
+  const cab = rptSub(rptNum(L, 'icCab', '4.2.2 — Cablage interconnexion'), rptLldGrid(
     lldExportCols(L, 'icCab', LLD_IC_CAB_COLS).map(c => [c[0], String(c[1])]), L.icCab));
   const vpn = rptSub('Tunnels VPN site à site', rptLldGrid(
     lldExportCols(L, 'vpns', LLD_VPN_COLS).map(c => [c[0], String(c[1])]), L.vpns));
-  return kv + t61 + wan + lan + cab + vpn + rptShots(ws, 'shots6') || '';
+  return rptDiag(ws, 'interco', 'Diagramme d’interconnexion') + kv + t61 + wan + lan + cab + vpn + rptShots(ws, 'shots6') || '';
 }
 
-// 🔥 Firewall & sécurité (ch. 7 + admin) : règles/NAT, profils, alias, comptes
+// 🔥 Firewall & sécurité (ch. 4.3 + admin) : règles/NAT, profils, alias, comptes
 function rptFirewall(ws) {
   const L = normLldInfo(ws);
-  const equip = rptSub('7.1 — Équipements Firewall / Routeurs', rptLldGrid(
+  const equip = rptSub(rptNum(L, 'fwEquip', '4.3.1 — Équipements Firewall / Routeurs'), rptLldGrid(
     lldExportCols(L, 'fwEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.fwEquip));
-  const vlan = rptSub('7.2 — Interfaces VLAN', rptLldGrid(
+  const vlan = rptSub(rptNum(L, 'fwVlan', '4.3.2 — Interfaces VLAN'), rptLldGrid(
     lldExportCols(L, 'fwVlan', LLD_FW_VLAN_COLS).map(c => [c[0], String(c[1])]), L.fwVlan));
-  const rules = rptSub('7.3 — Règles & NAT', rptLldGrid(
+  const rules = rptSub(rptNum(L, 'fw', '4.3.3 — Règles & NAT'), rptLldGrid(
     lldExportCols(L, 'fw', LLD_FW_COLS).map(c => [c[0], String(c[1])]), L.fw));
   const prof = rptSub('Profils firewall', rptKv(LLD_FWP_FIELDS, L.fwProfiles));
   const aliases = rptSub('Alias firewall', rptLldGrid(
     lldExportCols(L, 'aliases', LLD_ALIAS_COLS).map(c => [c[0], String(c[1])]), L.aliases));
   const admin = rptSub("Comptes d'administration (Admin Security)", rptLldGrid(
     lldExportCols(L, 'adminSec', LLD_ADMIN_COLS).map(c => [c[0], String(c[1])]), L.adminSec));
-  return equip + vlan + rules + prof + aliases + admin + rptShots(ws, 'shots7') || '';
+  return rptDiag(ws, 'fw', 'Diagramme Firewall') + equip + vlan + rules + prof + aliases + admin + rptShots(ws, 'shots7') || '';
 }
 
 // 🖥️ Système, stockage & supervision : VMs, volumes, caméras, zones de switching
 function rptSystem(ws) {
   const L = normLldInfo(ws);
-  const zones = rptSub('Zones de switching (ch. 8)', rptLldGrid(
+  const zones = rptSub(rptNum(L, 'zones', 'Zones de switching (ch. 4.4)'), rptLldGrid(
     lldExportCols(L, 'zones', LLD_ZONE_COLS).map(c => [c[0], String(c[1])]), L.swZones));
   let swHtml = '';
-  (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : []).forEach(([eq, po, num, lab]) => {
-    swHtml += rptSub(`${num} — Équipements ${lab}`, rptLldGrid(
+  (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : []).forEach(([eq, po, num0, lab]) => {
+    const num = (typeof lldTocRemap === 'function') ? lldTocRemap(num0) : num0;
+    swHtml += rptSub(rptNum(L, eq, `${num} — Équipements ${lab}`), rptLldGrid(
       lldExportCols(L, eq, LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L[eq]));
-    swHtml += rptSub(`${num} — Plan de ports ${lab}`, rptLldGrid(
+    swHtml += rptSub(rptNum(L, po, `${num} — Plan de ports ${lab}`), rptLldGrid(
       lldExportCols(L, po, LLD_SW_PORT_COLS).map(c => [c[0], String(c[1])]), L[po]));
   });
-  const srv = rptSub('9.1 — Serveurs', rptLldGrid(
+  const srv = rptSub(rptNum(L, 'srvEquip', '4.5.1 — Serveurs'), rptLldGrid(
     lldExportCols(L, 'srvEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.srvEquip));
-  const vms = rptSub('9.2 — Machines virtuelles', rptLldGrid(
+  const vms = rptSub(rptNum(L, 'vms', '4.5.2 — Machines virtuelles'), rptLldGrid(
     lldExportCols(L, 'vms', LLD_VM_COLS).map(c => [c[0], String(c[1])]), L.vms));
-  const sto = rptSub('10.1 — Stockage', rptLldGrid(
+  const sto = rptSub(rptNum(L, 'stoEquip', '4.6.1 — Stockage'), rptLldGrid(
     lldExportCols(L, 'stoEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.stoEquip));
-  const vols = rptSub('10.2 — Volumes / LUN', rptLldGrid(
+  const vols = rptSub(rptNum(L, 'vols', '4.6.2 — Volumes / LUN'), rptLldGrid(
     lldExportCols(L, 'vols', LLD_VOL_COLS).map(c => [c[0], String(c[1])]), L.vols));
-  const ids = rptSub("11.1 — Détection d'intrusion", rptLldGrid(
+  const ids = rptSub(rptNum(L, 'idsEquip', "4.7.1 — Détection d'intrusion"), rptLldGrid(
     lldExportCols(L, 'idsEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.idsEquip));
-  const nvr = rptSub('12.1 — Caméras et enregistreur (NVR)', rptLldGrid(
+  const nvr = rptSub(rptNum(L, 'cctvEquip', '4.8.1 — Caméras et enregistreur (NVR)'), rptLldGrid(
     lldExportCols(L, 'cctvEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.cctvEquip));
-  const cams = rptSub('12.2 — Caméras', rptLldGrid(
+  const cams = rptSub(rptNum(L, 'cams', '4.8.2 — Caméras'), rptLldGrid(
     lldExportCols(L, 'cams', LLD_CAM_COLS).map(c => [c[0], String(c[1])]), L.cams));
-  const spo = rptSub('13.1 — Pointeuses', rptLldGrid(
+  const spo = rptSub(rptNum(L, 'spoEquip', '4.9.1 — Pointeuses'), rptLldGrid(
     lldExportCols(L, 'spoEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.spoEquip));
   return zones + swHtml + srv + vms + sto + vols + ids + nvr + cams + spo || '';
 }
@@ -436,7 +454,7 @@ function rptSystem(ws) {
 // Équipements & licences hors baie (table 3.1 du dossier)
 function rptOutOfRack(ws) {
   const L = normLldInfo(ws);
-  return rptSub('Équipements & licences hors baie', rptLldGrid(
+  return rptSub(rptNum(L, 'equip', '3. Architecture existante'), rptLldGrid(
     lldExportCols(L, 'equip', LLD_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.equip));
 }
 
@@ -449,20 +467,20 @@ function rptBlock(ws, key) {
     const v = def.catKey ? String((L.catNotes || {})[def.catKey] || '') : String(L[key] || '');
     const t = v.trim();
     if (!t) return '';
-    return `<div class="prose"><h3>${RPT_ESC(def.label)}</h3>${
+    return `<div class="prose"><h3>${RPT_ESC(rptNum(L, key, def.label))}</h3>${
       t.split(/\n+/).map(p => `<p>${RPT_ESC(p)}</p>`).join('')}</div>`;
   }
   if (def.kind === 'table') {
     const cols = lldExportCols(L, key, def.cols || []);
-    return rptSub(def.label, rptLldGrid(cols.map(c => [c[0], String(c[1])]), L[key]));
+    return rptSub(rptNum(L, key, def.label), rptLldGrid(cols.map(c => [c[0], String(c[1])]), L[key]));
   }
   if (def.kind === 'shots') {
     const shots = rptShots(ws, key);
-    return shots ? `<h3>${RPT_ESC(def.label)}</h3>${shots}` : '';
+    return shots ? `<h3>${RPT_ESC(rptNum(L, key, def.label))}</h3>${shots}` : '';
   }
   if (def.kind === 'fields') {
     const tgt = def.path ? (L[def.path] || {}) : L;
-    return rptSub(def.label, rptKv(def.fields || [], tgt));
+    return rptSub(rptNum(L, key, def.label), rptKv(def.fields || [], tgt));
   }
   return '';
 }
@@ -504,15 +522,25 @@ const RPT_FREE_SEC = {
   '1': 'sec-contexte', '2': 'sec-sites', '2.1': 'sec-sites', '2.2': 'sec-contexte',
   '3': 'sec-contexte', '3.1': 'sec-inv', '4': 'sec-addr',
   '5': 'sec-fai', '5.1': 'sec-fai', '5.2': 'sec-fai',
+  '4.1': 'sec-fai', '4.1.1': 'sec-fai', '4.1.2': 'sec-fai',
   '6': 'sec-ic', '6.1': 'sec-ic', '6.2': 'sec-ic',
+  '4.2': 'sec-ic', '4.2.1': 'sec-ic', '4.2.2': 'sec-ic',
   '7': 'sec-fw', '7.1': 'sec-fw', '7.2': 'sec-fw', '7.3': 'sec-fw',
+  '4.3': 'sec-fw', '4.3.1': 'sec-fw', '4.3.2': 'sec-fw', '4.3.3': 'sec-fw',
   '8': 'sec-sys', '8.1': 'sec-sys', '8.2': 'sec-sys', '8.3': 'sec-sys',
   '8.4': 'sec-sys', '8.5': 'sec-sys',
+  '4.4': 'sec-sys', '4.4.1': 'sec-sys', '4.4.2': 'sec-sys', '4.4.3': 'sec-sys',
+  '4.4.4': 'sec-sys', '4.4.5': 'sec-sys',
   '9': 'sec-sys', '9.1': 'sec-sys', '9.2': 'sec-sys',
+  '4.5': 'sec-sys', '4.5.1': 'sec-sys', '4.5.2': 'sec-sys',
   '10': 'sec-sys', '10.1': 'sec-sys', '10.2': 'sec-sys',
+  '4.6': 'sec-sys', '4.6.1': 'sec-sys', '4.6.2': 'sec-sys',
   '11': 'sec-sys', '11.1': 'sec-sys',
+  '4.7': 'sec-sys', '4.7.1': 'sec-sys',
   '12': 'sec-sys', '12.1': 'sec-sys', '12.2': 'sec-sys',
+  '4.8': 'sec-sys', '4.8.1': 'sec-sys', '4.8.2': 'sec-sys',
   '13': 'sec-sys', '13.1': 'sec-sys',
+  '4.9': 'sec-sys', '4.9.1': 'sec-sys',
   '14': 'sec-flux', '14.1': 'sec-flux',
   '15': 'sec-cab', '15.1': 'sec-elev'
 };
@@ -682,6 +710,63 @@ table.kv th{background:#f1f5f9;color:var(--ink);width:240px;font-weight:600;bord
   position:static;text-align:left;font-size:12.8px}
 .shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:10px}
 .shot{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#101318}
+.rec-cards{display:grid;gap:12px;margin-top:10px}
+.rec-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 1px 2px rgba(15,23,42,.05)}
+.rec-card h4{margin:0 0 10px;font-size:13.5px;display:flex;align-items:center;gap:8px;color:var(--ink)}
+.rec-idx{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;border-radius:8px;background:#16233d;color:#fff;font-size:12px;font-weight:700;padding:0 6px;flex:none}
+.rec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px;margin:0}
+.rec-f{background:#f8fafc;border:1px solid #e8edf3;border-radius:8px;padding:6px 9px;min-width:0}
+.rec-f dt{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin-bottom:2px}
+.rec-f dd{margin:0;font-size:12.5px;color:#0f172a;overflow-wrap:anywhere}
+@media print{.rec-card{break-inside:avoid;box-shadow:none}}
+.fdiag-report{margin-top:10px}
+.fdiag{position:relative;background:#0b1220;border-radius:10px;overflow:auto;border:1px solid var(--line)}
+.fdiag-stage{position:relative;min-width:640px;transform-origin:0 0}
+.fdiag-note{margin:10px 14px 0;padding:8px 12px;font-size:12px;color:#fcd34d;background:#451a03;border:1px solid #92400e;border-radius:8px}
+.fdiag-tools{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:6px;padding:8px 12px;background:rgba(11,18,32,.92);border-bottom:1px solid #1e293b}
+.fdiag-tools button{min-width:30px;height:26px;padding:0 8px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700}
+.fdiag-tools button:hover{background:#334155;border-color:#475569}
+.fdiag-stats{color:#94a3b8;font-size:11.5px;margin-left:6px;white-space:nowrap}
+.fdiag-hint{color:#64748b;font-size:11px;margin-left:auto;white-space:nowrap}
+.fdiag-colh{position:absolute;top:4px;z-index:2;color:#7d8aa0;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.fdiag-wires{position:absolute;left:0;top:0;pointer-events:none;z-index:4}
+.fdiag-wires g.wire path{pointer-events:none}
+.fdiag-wires g.wire path.w-core{pointer-events:stroke;cursor:pointer}
+.fdiag-wires .w-halo{fill:none;stroke:rgba(2,6,16,.55);stroke-width:7;stroke-linecap:round}
+.fdiag-wires .w-core{fill:none;stroke-width:3;stroke-linecap:round}
+.fdiag-wires g.wire:hover .w-core{stroke-width:5.5}
+.fdiag-wires .w-lab{fill:#f8fafc;font-size:11px;font-weight:700;text-anchor:middle;paint-order:stroke;stroke:#0b1220;stroke-width:4px;pointer-events:none}
+.fdiag-dev{position:absolute;z-index:2;border-radius:8px;overflow:visible;box-shadow:0 6px 18px rgba(0,0,0,.45);border:2px solid #334155;background:#1e293b;cursor:pointer}
+.fdiag-dev:hover{z-index:5}
+.fdiag-dev img{display:block;width:100%;height:calc(100% - 34px);object-fit:fill;border-radius:6px 6px 0 0;pointer-events:none}
+.fdiag-nophoto{height:calc(100% - 34px);display:flex;align-items:center;justify-content:center;gap:10px;color:#94a3b8;background:#1e293b;border-radius:6px 6px 0 0}
+.fdiag-glyph{font-size:28px}
+.fdiag-nophlbl{font-size:11px;color:#7d8aa0}
+.fdiag-cap{height:34px;padding:3px 8px 2px;overflow:hidden;display:flex;flex-direction:column;justify-content:center}
+.fdiag-cap b{display:block;font-size:12px;font-weight:700;line-height:1.2;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fdiag-cap span{display:block;font-size:9.5px;line-height:1.25;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fdiag-card .fdiag-nophoto{background:#1e293b}
+.fdiag-port{position:absolute;width:12px;height:12px;transform:translate(-50%,-50%);border-radius:3px;background:#fbbf24;border:1px solid #0f172a;z-index:3;cursor:pointer;box-sizing:border-box}
+.fdiag-port.is-up{width:13px;height:13px;border-width:1.5px}
+.fdiag-plab{position:absolute;left:50%;top:calc(100% + 2px);transform:translateX(-50%);font-size:8.5px;font-weight:700;line-height:1.2;color:#fff;white-space:nowrap;background:rgba(2,6,16,.78);border-radius:4px;padding:1px 4px;pointer-events:none}
+.fdiag-plab.above{top:auto;bottom:calc(100% + 2px)}
+.fdiag-tip{display:none;position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);min-width:190px;max-width:300px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.5;z-index:8;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;text-align:left;font-weight:500}
+.fdiag-tip b{color:#fff}
+.fdiag-tip .ft-dim{color:#7d8aa0;font-size:10.5px}
+.fdiag-dev:hover>.fdiag-tip{display:block}
+.fdiag-port:hover{z-index:9}
+.fdiag-port:hover>.fdiag-tip{display:block}
+.fdiag-dev:hover:has(.fdiag-port:hover)>.fdiag-tip{display:none}
+.fdiag.iso g.wire{opacity:.1}
+.fdiag.iso g.wire.on{opacity:1}
+.fdiag.iso g.wire.on .w-core{stroke-width:4.5}
+.fdiag.iso .fdiag-dev{opacity:.22}
+.fdiag.iso .fdiag-dev.on{opacity:1}
+.fdiag.iso .fdiag-port{opacity:.18}
+.fdiag.iso .fdiag-port.on{opacity:1}
+.fdiag.searching .fdiag-dev:not(.f-hit){opacity:.3}
+.fdiag-dev.f-hit{box-shadow:0 0 0 3px #fbbf24,0 6px 18px rgba(0,0,0,.45)}
+.fdiag-port.f-hit{box-shadow:0 0 0 3px #fbbf24;z-index:9}
 .shot img{display:block;width:100%;cursor:zoom-in;background:#101318}
 .shot figcaption{background:#fff;padding:7px 11px;font-size:12px;border-top:1px solid var(--line)}
 table{width:100%;border-collapse:collapse;font-size:12.8px;margin:8px 0}
@@ -722,6 +807,7 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
 @media(max-width:820px){.bar1{flex-wrap:wrap}#chapnav{padding:8px 12px}th{top:0;position:static}}
 @media print{
   body{background:#fff}#top,.no-print,#lb{display:none!important}
+  .fdiag{overflow:visible;border-color:#cbd5e1}
   main{max-width:none;padding:0}
   .section{border:none;border-bottom:2px solid var(--line);border-radius:0;padding:12px 0;margin:0;break-inside:auto}
   .section h2{border-color:var(--acc)}
@@ -748,10 +834,10 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
   var q=document.getElementById('q');
   if(q){q.addEventListener('input',function(){
     var v=q.value.trim().toLowerCase();
-    document.querySelectorAll('tr[data-search]').forEach(function(tr){
+    document.querySelectorAll('tr[data-search],.rec-card[data-search]').forEach(function(tr){
       tr.style.display=(!v||tr.dataset.search.indexOf(v)>=0)?'':'none'});
     document.querySelectorAll('details.grp').forEach(function(d){
-      var any=[].some.call(d.querySelectorAll('tr[data-search]'),function(tr){return tr.style.display!=='none'});
+      var any=[].some.call(d.querySelectorAll('tr[data-search],.rec-card[data-search]'),function(tr){return tr.style.display!=='none'});
       d.style.display=any?'':'none'});
     document.querySelectorAll('.elev,.site-block').forEach(function(f){
       var img=f.querySelector('figcaption');if(!img)return;
@@ -790,6 +876,15 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
     secs.forEach(function(s){io.observe(s)})}
 })();`;
 
+  // Interactions des schémas physiques (zoom, isolement au clic, recherche,
+  // impression) : la source de lldDiagInitAll (app.js) est embarquée telle
+  // quelle pour garder UNE seule implémentation (modale = rapport).
+  let jsFull = js;
+  try {
+    if (typeof lldDiagInitAll === 'function')
+      jsFull += '\n;(' + lldDiagInitAll.toString() + ')(document);';
+  } catch (_) { /* schémas statiques mais lisibles */ }
+
   return '<!doctype html>\n<html lang="fr">\n<head>\n<meta charset="utf-8">\n'
     + `<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${RPT_ESC(title)}</title>\n`
     + `<style>${css}</style>\n</head>\n<body>\n`
@@ -817,7 +912,7 @@ footer{color:var(--mut);text-align:center;font-size:12px;padding:26px}
     + `\n</main>\n<footer class="no-print">Rapport généré par LLDraw — fichier autonome, consultable hors-ligne. `
     + `Cherchez avec la barre 🔎, triez les tableaux en cliquant les en-têtes, cliquez une image pour zoomer.</footer>\n`
     + `<div id="lb"><img id="lb-img" alt=""><span class="hint">Cliquez n'importe où (ou Échap) pour fermer</span></div>\n`
-    + `<script>${js}</`
+    + `<script>${jsFull}</`
     + `script>\n</body>\n</html>`;
 }
 
@@ -870,6 +965,9 @@ $('#export-html').addEventListener('click', async () => {
   const logoSvg = await fetch('assets/logo.svg')
     .then(r => (r.ok ? r.text() : ''))
     .catch(() => '');
+  if (typeof lldRenderDiagExportImgs === 'function') {
+    try { await lldRenderDiagExportImgs(ws); } catch (_) { globalThis.__LLD_DIAG_IMGS = {}; }
+  }
   const c = await renderPlanCanvas();
   const tc = renderTopoCanvas();
   const html = buildHtmlReportFile(ws, {

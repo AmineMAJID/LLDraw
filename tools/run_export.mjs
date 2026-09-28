@@ -53,6 +53,21 @@ const helpers = [
   fn('lldExportCols'),
   // toutes les constantes de colonnes (REV…ZONE) utilisées par les exports
   between(/const LLD_REV_COLS = /, /const LLD_INFOS = \{/),
+  fn('lldIsCustomKey'),
+  fn('lldTocRemap'),
+  fn('lldTocNodeForBlock'),
+  fn('lldTocNumForBlock'),
+  fn('lldTocSyncLabel'),
+  fn('lldNumInScope'),
+  // Moteur de schémas (consts + helpers ; les fonctions lldBuildDiagData /
+  // lldEnsureDiag / … sont résolues à la volée par runResolved si besoin)
+  between(/const LLD_DIAG_CAP_H = /, /function lldDiagPortXY/),
+  fn('lldDiagSeedCats'),
+  fn('lldDiagEmptyHint'),
+  fn('lldDiagTitle'),
+  fn('lldBuildDiagData'),
+  fn('lldDiagNeedsRebuild'),
+  fn('lldEnsureDiag'),
   fn('slotLabel'),
   fn('sortedRackInstances'),
   fn('sortedRacks'),
@@ -83,7 +98,7 @@ for (let attempt = 0; attempt < 20; attempt++) {
     vm.runInContext(code, ctx, { filename: 'harness.js' });
     break;
   } catch (e) {
-    if (e instanceof ReferenceError) {
+    if ((e && e.name === 'ReferenceError')) {
       const m = /(\w+) is not defined/.exec(e.message);
       if (!m) throw e;
       const name = m[1];
@@ -110,7 +125,28 @@ const themeXml = readFileSync(path.join(ROOT, 'assets/lld/theme1.xml'), 'utf8');
 
 /* Normalisation minimale (comme au chargement de l'app) */
 sandbox.ws = ws; sandbox.state = state;
-vm.runInContext(`
+// Les erreurs de runtime (identifiants manquants dans les chemins d'export)
+// sont résolues comme à la compilation : extraction + nouvel essai.
+function runResolved(js) {
+  for (let attempt = 0; attempt < 25; attempt++) {
+    try { return vm.runInContext(js, ctx, { filename: 'run.js' }); }
+    catch (e) {
+      if (!((e && e.name === 'ReferenceError'))) throw e;
+      const m = /(\w+) is not defined/.exec(e.message);
+      if (!m) throw e;
+      console.error(`[harness] runtime manquant: ${m[1]} -> extraction`);
+      let extra;
+      try { extra = fn(m[1]); }
+      catch {
+        try { extra = between(new RegExp(`const ${m[1]} = `), /\n\/\/ |\nconst |\nfunction |\n\/\*/); }
+        catch { throw new Error(`Impossible d'extraire: ${m[1]}`); }
+      }
+      vm.runInContext(extra, ctx, { filename: 'extra.js' });
+    }
+  }
+  throw new Error('runResolved: trop de tentatives');
+}
+runResolved(`
   ws.racks.forEach(normalizeRack);
   for (const d of (state.devices||[])) normInvFields(d);
   normLldInfo(ws); normSites(ws);
@@ -121,9 +157,8 @@ vm.runInContext(`
   }
 `, ctx);
 
-const blob = vm.runInContext('__export(ws, __layout, __styles, __theme)',
-  Object.assign(ctx, { __layout: layout, __styles: stylesXml, __theme: themeXml }),
-  { filename: 'export.js' });
+Object.assign(ctx, { __layout: layout, __styles: stylesXml, __theme: themeXml });
+const blob = runResolved('__export(ws, __layout, __styles, __theme)', 'export.js');
 const buf = Buffer.from(await blob.arrayBuffer());
 writeFileSync(outPath, buf);
 console.log(`OK -> ${outPath} (${buf.length} octets)`);
