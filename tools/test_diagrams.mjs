@@ -268,6 +268,39 @@ const drawings = Object.keys(zx).filter(n => n.startsWith('xl/drawings/drawing')
 ok(drawings.length >= 3, `${drawings.length} dessins embarqués (≥3 schémas)`);
 ok(Object.keys(zx).some(n => n.startsWith('xl/media/')), 'images JPEG embarquées (xl/media)');
 ok(zx[drawings[0]].includes('diagramme-'), 'schémas nommés dans les dessins');
+// Schémas 5/6 : images dans la zone du chapitre, jamais sur les tableaux
+{
+  const anchorsOf = d => [...d.matchAll(/<xdr:from><xdr:col>(\d+)<\/xdr:col><xdr:colOff>\d+<\/xdr:colOff><xdr:row>(\d+)<\/xdr:row>[\s\S]*?<xdr:to><xdr:col>(\d+)<\/xdr:col><xdr:colOff>\d+<\/xdr:colOff><xdr:row>(\d+)<\/xdr:row>/g)]
+    .map(m => ({ c0: +m[1], r0: +m[2], c1: +m[3], r1: +m[4] }));
+  const markerRow1 = (sn, marker) => {
+    const xml = zx[`xl/worksheets/sheet${sheetIdx[sn]}.xml`];
+    const hit = [...xml.matchAll(/<row r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)].find(r => r[2].includes(marker));
+    return hit ? +hit[1] : -1;
+  };
+  const mergesBelow = (sn, r1) => {
+    const xml = zx[`xl/worksheets/sheet${sheetIdx[sn]}.xml`];
+    return [...xml.matchAll(/<mergeCell ref="[A-Z]+(\d+):[A-Z]+(\d+)"\/>/g)]
+      .every(m => +m[1] > r1 + 1 && +m[2] > r1 + 1);
+  };
+  for (const [sn, marker] of [['5', '5.1. Informations'], ['6', '6.1. Informations']]) {
+    const d = zx[`xl/drawings/drawing${sheetIdx[sn]}.xml`];
+    ok(!!d, `feuille ${sn} : dessin présent`);
+    if (!d) continue;
+    const a = anchorsOf(d)[0];
+    const content1 = markerRow1(sn, marker);
+    ok(content1 > 0, `feuille ${sn} : contenu repéré (ligne ${content1})`);
+    ok(a.r0 >= 1, `feuille ${sn} : image sous le titre (ligne ${a.r0 + 1})`);
+    ok(a.r1 < content1 - 1, `feuille ${sn} : image au-dessus des tableaux (${a.r0 + 1}-${a.r1 + 1} < ${content1})`);
+    ok(a.c1 - a.c0 <= 14, `feuille ${sn} : largeur contenue (${a.c1 - a.c0 + 1} col.)`);
+    ok(mergesBelow(sn, a.r1), `feuille ${sn} : fusions sous l'image (décalées)`);
+  }
+  // Feuille 7 (sans zone vide) : image après tout le texte
+  const d7 = zx[`xl/drawings/drawing${sheetIdx['7']}.xml`];
+  const xml7 = zx[`xl/worksheets/sheet${sheetIdx['7']}.xml`];
+  const lastText7 = Math.max(...[...xml7.matchAll(/<row r="(\d+)"[^>]*><c /g)].map(m => +m[1]));
+  const a7 = anchorsOf(d7)[0];
+  ok(a7.r0 >= lastText7 - 1, `feuille 7 : image après le texte (ligne ${a7.r0 + 1} >= ${lastText7})`);
+}
 
 /* ---------- 7. XLSX vue données (onglet Schémas) ---------- */
 console.log('\n[7] XLSX vue données — onglet Schémas');

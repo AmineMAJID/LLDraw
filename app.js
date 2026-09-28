@@ -10480,14 +10480,54 @@ const XLSX = (() => {
     for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
     return arr;
   }
-  function drawingXml(images) {
+  // Largeur de colonne Excel (caractères) -> pixels (Calibri 11 : ~7 px par chiffre + 5).
+  const colCharsToPx = w => Math.max(1, Math.round((parseFloat(w) || 8.43) * 7 + 5));
+  // Métriques réelles d'une feuille (colonnes du template + hauteurs de
+  // lignes) : l'ancre image couvre le vrai nombre de px. Sans ça, une image
+  // prévue pour 1100 px s'étale sur ~2000 px quand les colonnes du template
+  // sont larges (feuilles 5/6/7 : B=11.5, C=14.4, D=17.1…).
+  function sheetMetrics(s) {
+    const o = (s && s.opts) || {};
+    const cols = Array.isArray(o.cols) ? o.cols : null;
+    const dcw = parseFloat(o.dcw);
+    const dflt = colCharsToPx(Number.isFinite(dcw) ? dcw : 8.43);
+    const colPx = i => {
+      if (cols) {
+        for (const c of cols) {
+          if (c && typeof c === 'object' && i + 1 >= c.min && i + 1 <= c.max)
+            return colCharsToPx(c.width);
+        }
+        if (cols.length && typeof cols[0] !== 'object' && cols[i] !== undefined)
+          return colCharsToPx(cols[i]);
+      }
+      return dflt;
+    };
+    const heights = (o.heights && typeof o.heights === 'object') ? o.heights : null;
+    const rowPx = r => {
+      const pt = heights ? parseFloat(heights[r + 1]) : NaN;
+      return (Number.isFinite(pt) && pt > 0) ? Math.max(1, Math.round(pt * 96 / 72)) : 20;
+    };
+    return { colPx, rowPx };
+  }
+  function drawingXml(images, metrics) {
     const anchors = images.map((im, i) => {
       const col = im.col || 1;
       const row = Math.max(0, (im.row | 0));
-      // Ancre proportionnelle aux pixels (≈64 px par colonne, ≈20 px par
-      // ligne à la mise en forme par défaut) : l'image garde son ratio.
-      const toCol = col + Math.max(4, Math.ceil((im.widthPx || 480) / 64));
-      const toRow = row + Math.max(6, Math.ceil((im.heightPx || 240) / 20));
+      const wPx = im.widthPx || 480, hPx = im.heightPx || 240;
+      let toCol, toRow;
+      if (metrics) {
+        // Ancre au pixel près : on accumule les vraies largeurs/hauteurs.
+        let acc = 0, c = col;
+        while (acc < wPx && c - col < 120) { acc += metrics.colPx(c); c++; }
+        toCol = Math.max(col + 1, c - 1);
+        acc = 0; let r = row;
+        while (acc < hPx && r - row < 400) { acc += metrics.rowPx(r); r++; }
+        toRow = Math.max(row + 1, r - 1);
+      } else {
+        // Repli sans métriques (≈64 px par colonne, ≈20 px par ligne).
+        toCol = col + Math.max(4, Math.ceil(wPx / 64));
+        toRow = row + Math.max(6, Math.ceil(hPx / 20));
+      }
       return `<xdr:twoCellAnchor editAs="oneCell">` +
         `<xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>0</xdr:colOff>` +
         `<xdr:row>${row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>` +
@@ -10683,7 +10723,7 @@ const XLSX = (() => {
       files.push({ name: `xl/drawings/_rels/drawing${i + 1}.xml.rels`, data: XML_DECL +
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
         rels.join('') + '</Relationships>' });
-      files.push({ name: `xl/drawings/drawing${i + 1}.xml`, data: drawingXml(prepared) });
+      files.push({ name: `xl/drawings/drawing${i + 1}.xml`, data: drawingXml(prepared, sheetMetrics(s)) });
       files.push({ name: `xl/worksheets/_rels/sheet${i + 1}.xml.rels`, data: XML_DECL +
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
         `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${i + 1}.xml"/>` +
@@ -11395,7 +11435,7 @@ const LLD_TPL = (() => {
     const cfg7 = hasB('7', 'note:firewall') ? ((ws.lld && ws.lld.catNotes) || {}).firewall : '';
     if (cfg7) pushNote(rows, `Config : ${String(cfg7).split('\n')[0]}`);
     const s7 = out(sheet, rows, heights, null, [3.43, 46, 30, 22, 22, 30, 16]);
-    const im7 = insertChapterExtras(s7.rows, ws, '7');
+    const im7 = insertChapterExtras(s7.rows, ws, '7', s7.opts);
     if (im7) s7.opts.images = im7;
     return s7;
   }
@@ -12174,7 +12214,7 @@ const LLD_TPL = (() => {
        ligne FAI 2) : on défusionne pour écrire chaque champ séparément. */
     const merges5 = (sheet.merges || []).filter(m => !/^L3[6-8]:O3[6-8]$/.test(m));
     const s5 = out(sheet, rows, heights, merges5);
-    const im5 = insertChapterExtras(s5.rows, ws, '5');
+    const im5 = insertChapterExtras(s5.rows, ws, '5', s5.opts);
     if (im5) s5.opts.images = im5;
     return s5;
   }
@@ -12327,7 +12367,7 @@ const LLD_TPL = (() => {
       !/^(N30:N31|P30:P31)$/.test(m)
       && !(icLan.length > 1 && /^(B53:B55|C53:C55|D53:D55)$/.test(m)));
     const s6 = out(sheet, rows, heights, merges6);
-    const im6 = insertChapterExtras(s6.rows, ws, '6');
+    const im6 = insertChapterExtras(s6.rows, ws, '6', s6.opts);
     if (im6) s6.opts.images = im6;
     return s6;
   }
@@ -12630,8 +12670,37 @@ const LLD_TPL = (() => {
 
   /* — Feuille Excel pour un chapitre / sous-chapitre ajouté au sommaire — */
   /* Blocs de chapitre absents du template Excel (diagramme / captures) :
-     écrits dans la première zone vide sous le titre, sinon après le contenu. */
-  function insertChapterExtras(rows, ws, num) {
+     texte dans la première zone vide sous le titre, images JUSTE APRÈS
+     leur texte — jamais sur les tableaux du contenu (5.1/5.2…).
+     Si la zone vide est trop petite, on insère de vraies lignes (le contenu
+     descend ; fusions et hauteurs suivent) au lieu de recouvrir. */
+  // Réduit une image dans une boîte (ratio conservé).
+  const fitBox = (im, maxW, maxH) => {
+    const w = im.widthPx || 480, h = im.heightPx || 240;
+    const f = Math.min(1, maxW / w, maxH / h);
+    im.widthPx = Math.max(1, Math.round(w * f));
+    im.heightPx = Math.max(1, Math.round(h * f));
+  };
+  // Insère n lignes vides à l'index 0-based at + décale les références
+  // absolues (fusions, hauteurs de lignes) situées en dessous.
+  const insertRowsAt = (rows, aux, at, n) => {
+    if (!(n > 0)) return;
+    const blanks = [];
+    for (let i = 0; i < n; i++) blanks.push([]);
+    rows.splice(at, 0, ...blanks);
+    const at1 = at + 1; // Excel 1-based
+    if (aux && Array.isArray(aux.merges)) {
+      for (let i = 0; i < aux.merges.length; i++) {
+        aux.merges[i] = String(aux.merges[i]).replace(/([A-Z]+)(\d+)/g, (m, c, r) =>
+          (+r >= at1) ? c + (+r + n) : m);
+      }
+    }
+    if (aux && aux.heights && typeof aux.heights === 'object') {
+      Object.keys(aux.heights).map(Number).filter(r => r >= at1).sort((a, b) => b - a)
+        .forEach(r => { aux.heights[r + n] = aux.heights[r]; delete aux.heights[r]; });
+    }
+  };
+  function insertChapterExtras(rows, ws, num, aux) {
     // Les feuilles Excel gardent les anciens numéros (5/6/7) alors que le
     // sommaire utilise 4.1/4.2/4.3 : on tente les deux (sans ce repli, les
     // schémas n'arrivaient JAMAIS dans le classeur).
@@ -12648,27 +12717,56 @@ const LLD_TPL = (() => {
       if (def.custom || (typeof lldIsCustomKey === 'function' && lldIsCustomKey(k))) return;
       if (def.kind !== 'diagram' && def.kind !== 'shots') return;
       const local = [];
+      const mark = imgs.length;
       blockRows(k, ws, imgs).forEach(r => local.push(r));
-      if (local.length) chunks.push(local);
+      if (local.length) chunks.push({ rows: local, imgs: imgs.slice(mark) });
     });
     if (!chunks.length) return null;
-    const flat = [];
-    chunks.forEach(chunk => { flat.push([]); flat.push(...chunk); });
+    // Première ligne occupée du template (0-based) : début du contenu réel.
     let firstOcc = rows.length;
     for (let i = 1; i < rows.length; i++) {
       if (rows[i] && rows[i].length) { firstOcc = i; break; }
     }
-    const gap = Math.max(0, firstOcc - 1);
-    const use = Math.min(gap, flat.length);
-    for (let i = 0; i < use; i++) rows[1 + i] = flat[i];
-    let imgRowBase;
-    if (flat.length > use) {
-      rows.push(...flat.slice(use));
-      imgRowBase = rows.length;
-    } else {
-      imgRowBase = firstOcc;
+    // 1) Texte des blocs : zone vide d'abord (comme avant), fin de feuille
+    // si elle déborde.
+    let cur = 1, inGap = true;
+    chunks.forEach(ch => {
+      const room = Math.max(0, firstOcc - cur - 1);
+      const take = Math.min(room, ch.rows.length);
+      cur += 1; // ligne vide avant chaque bloc
+      for (let i = 0; i < take; i++) rows[cur + i] = ch.rows[i];
+      cur += take;
+      if (take < ch.rows.length) {
+        rows.push(...ch.rows.slice(take));
+        inGap = false; cur = rows.length; firstOcc = rows.length;
+      }
+    });
+    // 2) Images empilées juste après le texte (jamais sur le contenu).
+    const allImgs = [];
+    chunks.forEach(ch => ch.imgs.forEach(im => allImgs.push(im)));
+    const ROW_PX = 20; // lignes du template sans hauteur forcée (15 pt)
+    allImgs.forEach(im => fitBox(im, 1100, 560)); // lisible, sans excès
+    const imgRows = im => Math.ceil((im.heightPx || 240) / ROW_PX);
+    if (allImgs.length && inGap) {
+      let need = allImgs.reduce((t, im) => t + imgRows(im) + 1, 0);
+      const avail = firstOcc - cur;
+      const MAX_INS = 60;
+      if (need > avail + MAX_INS) {
+        // Trop d'images : on les réduit au lieu d'allonger sans fin.
+        const f = (avail + MAX_INS) / need;
+        allImgs.forEach(im => {
+          im.widthPx = Math.max(1, Math.round(im.widthPx * f));
+          im.heightPx = Math.max(1, Math.round(im.heightPx * f));
+        });
+        need = allImgs.reduce((t, im) => t + imgRows(im) + 1, 0);
+      }
+      if (need > avail) { insertRowsAt(rows, aux, firstOcc, need - avail); firstOcc += need - avail; }
+      let a = cur;
+      allImgs.forEach(im => { im.row = a; im.col = 1; a += imgRows(im) + 1; });
+    } else if (allImgs.length) {
+      let a = rows.length + 1;
+      allImgs.forEach(im => { im.row = a; im.col = 1; a += imgRows(im) + 1; });
     }
-    imgs.forEach((im, i) => { im.row = Math.max(0, imgRowBase + 1 + i * 16); });
     return imgs;
   }
 
