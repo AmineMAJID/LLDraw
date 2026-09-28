@@ -609,5 +609,55 @@ console.log('\n[12] captures par défaut retirées');
   ok(W(`lldInfoDef('shots5') && lldInfoDef('shots5').kind`) === 'shots', 'compat : def shots5 conservée');
 }
 
+/* ---------- 13. Sortie gardée de la modale 📘 ---------- */
+// bootState() async a remplacé state par le localStorage vide dès §4 :
+// on ré-enregistre WS comme workspace actif pour la modale.
+weval(`state.workspaces = [WS]; state.activeWorkspaceId = WS.id;`);
+ok(W(`active()===WS`), 'harnais : WS ré-actif');
+console.log('\n[13] confirmation si brouillon modifié (Enregistrer/Sortir/Rester)');
+const tick13 = () => new Promise(r => setTimeout(r, 10));
+const modalHidden = () => W(`document.querySelector('#lld-modal').classList.contains('hidden')`);
+const dlgCount = () => W(`document.querySelectorAll('.lld-dlg-overlay').length`);
+// 13a. brouillon propre → fermeture directe, sans dialogue
+weval(`openLldModal()`);
+ok(!modalHidden() && W(`lldIsDirty()`) === false, 'ouverture : visible, brouillon propre');
+weval(`document.querySelector('#lld-modal').dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+await tick13();
+ok(modalHidden() && dlgCount() === 0 && W(`lldDraft`) === null, 'clic dehors (propre) : fermé sans dialogue');
+// 13b. modifié → dialogue, Rester ne perd rien
+weval(`openLldModal(); lldToc()[0].title = 'XXX';`);
+ok(W(`lldIsDirty()`) === true, 'titre retouché : brouillon modifié');
+weval(`document.querySelector('#lld-modal').dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+await tick13();
+ok(!modalHidden() && dlgCount() === 1, 'clic dehors (modifié) : dialogue, modale conservée');
+ok(W(`[...document.querySelectorAll('.lld-dlg-btns .btn')].map(b => b.textContent).join('|')`) === 'Rester|Sortir sans enregistrer|💾 Enregistrer', '3 boutons : Rester / Sortir / Enregistrer');
+weval(`document.querySelector('[data-act="stay"]').click()`);
+await tick13();
+ok(dlgCount() === 0 && !modalHidden() && W(`lldToc()[0].title`) === 'XXX', 'Rester : dialogue fermé, modif intacte');
+// 13c. Sortir sans enregistrer → modif jetée, workspace intact
+weval(`document.querySelector('#lld-modal').dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+await tick13();
+weval(`document.querySelector('[data-act="exit"]').click()`);
+await tick13();
+ok(modalHidden() && W(`lldDraft`) === null && W(`WS.lld.toc[0].title`) !== 'XXX', 'Sortir : fermé, modif jetée (workspace intact)');
+// 13d. Enregistrer depuis le dialogue → reporté au workspace
+weval(`openLldModal(); lldToc()[0].title = 'YYY';`);
+weval(`document.querySelector('#lld-modal').dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+await tick13();
+weval(`document.querySelector('[data-act="save"]').click()`);
+await tick13(); await tick13();
+ok(modalHidden() && W(`WS.lld.toc[0].title`) === 'YYY', 'Enregistrer : reporté au workspace + fermé');
+// 13e. Échap → même garde ; Échap dans le dialogue = Rester
+weval(`openLldModal(); lldToc()[0].title = 'ZZZ';`);
+weval(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await tick13();
+ok(!modalHidden() && dlgCount() === 1, 'Échap (modifié) : dialogue au lieu de tout perdre');
+weval(`document.querySelector('.lld-dlg-overlay').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await tick13();
+ok(dlgCount() === 0 && !modalHidden() && W(`lldToc()[0].title`) === 'ZZZ', 'Échap dans le dialogue : Rester, modif intacte');
+weval(`document.querySelector('#lld-cancel').click()`);
+ok(modalHidden() && W(`WS.lld.toc[0].title`) !== 'ZZZ', 'Annuler : sortie immédiate explicite, modif jetée');
+ok(W(`lldIsDirty()`) === false, 'sans brouillon : pas modifié');
+
 console.log(`\n==== ${PASS} PASS, ${FAIL} FAIL ====`);
 process.exit(FAIL ? 1 : 0);

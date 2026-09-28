@@ -4000,7 +4000,11 @@ document.addEventListener('keydown', e => {
     hideCablePopoverSafe();
     hideDevicePopover();
     $('#device-modal').classList.add('hidden');
-    $('#lld-modal').classList.add('hidden');
+    // Modale 📘 : sortie gardée (confirme si brouillon modifié) plutôt
+    // qu'un simple masquage qui donnait l'impression de tout annuler.
+    const lm = $('#lld-modal');
+    if (lldDraft && lm && !lm.classList.contains('hidden')) lldRequestCloseModal();
+    else if (lm) lm.classList.add('hidden');
   }
   // Ctrl+Z / Ctrl+Y : annuler / rétablir les éditions de la modale 📘
   // (les inputs de renommage et les dialogs stopPropagation eux-mêmes :
@@ -5985,6 +5989,7 @@ function lldZonesFrom(container) {
 // ============================================================
 let lldDraft = null;    // { lld, sites, flows }
 let lldSelId = null;    // nœud du sommaire affiché à droite
+let lldSavedSnap = '';  // JSON du brouillon à l'ouverture / au dernier Enregistrer
 
 // ---- Accès au sommaire du brouillon ----
 function lldToc() { return (lldDraft && lldDraft.lld.toc) || []; }
@@ -9206,6 +9211,7 @@ function openLldModal(selectKey = null) {
   };
   normLldInfo(lldDraft);
   normSites(lldDraft);
+  lldSavedSnap = JSON.stringify(lldDraft);
   lldSelId = null;
   const body = $('#lld-detail-body');
   body.innerHTML = '';
@@ -9228,15 +9234,68 @@ function openLldModal(selectKey = null) {
 function lldCloseModal() {
   lldDraft = null;
   lldSelId = null;
+  lldSavedSnap = '';
   lldUndoStack = [];
   lldRedoStack = [];
   $('#lld-modal').classList.add('hidden');
 }
 
+/* Brouillon modifié depuis l'ouverture / le dernier enregistrement ?
+   (flush : les saisies DOM pas encore écrites comptent aussi) */
+function lldIsDirty() {
+  if (!lldDraft) return false;
+  try { lldFlushDetail(); } catch (_) {}
+  try { return JSON.stringify(lldDraft) !== lldSavedSnap; }
+  catch (_) { return true; }
+}
+
+/* ---- Confirmation de sortie (modale 📘 avec brouillon modifié) ----
+   3 issues : 'save' (💾 Enregistrer) / 'exit' (Sortir sans
+   enregistrer) / 'stay' (Rester — aussi Échap ou clic dehors, sans
+   aucune perte). Même langue visuelle que lldDialog. */
+function lldConfirmUnsaved() {
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'lld-dlg-overlay';
+    ov.innerHTML = `
+      <div class="lld-dlg" role="dialog" aria-modal="true">
+        <h3>💾 Modifications non enregistrées</h3>
+        <p class="lld-dlg-msg">Le dossier contient des modifications qui ne sont pas enregistrées.<br>Que voulez-vous faire ?</p>
+        <div class="lld-dlg-btns">
+          <button class="btn lld-dlg-cancel" type="button" data-act="stay">Rester</button>
+          <button class="btn lld-dlg-danger" type="button" data-act="exit">Sortir sans enregistrer</button>
+          <button class="btn lld-dlg-ok" type="button" data-act="save">💾 Enregistrer</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    let closed = false;
+    const done = val => { if (closed) return; closed = true; ov.remove(); resolve(val); };
+    ov.querySelector('[data-act="stay"]').addEventListener('click', () => done('stay'));
+    ov.querySelector('[data-act="exit"]').addEventListener('click', () => done('exit'));
+    ov.querySelector('[data-act="save"]').addEventListener('click', () => done('save'));
+    ov.addEventListener('mousedown', e => { if (e.target === ov) done('stay'); });
+    ov.addEventListener('keydown', e => {
+      e.stopPropagation();   // Échap géré par le dialogue SEUL (pas de re-confirmation)
+      if (e.key === 'Escape') done('stay');
+    });
+    ov.querySelector('[data-act="save"]').focus();
+  });
+}
+
+/* Sortie gardée de la modale 📘 : brouillon propre → fermeture directe,
+   sinon dialogue Enregistrer / Sortir / Rester. */
+async function lldRequestCloseModal() {
+  if (!lldDraft || !lldIsDirty()) { lldCloseModal(); return; }
+  const choice = await lldConfirmUnsaved();
+  if (choice === 'save') lldSaveModal();
+  else if (choice === 'exit') lldCloseModal();
+  // 'stay' : on reste, rien n'est perdu
+}
+
 $('#ws-info').addEventListener('click', () => openLldModal());
 $('#lld-cancel').addEventListener('click', lldCloseModal);
 $('#lld-modal').addEventListener('click', e => {
-  if (e.target === $('#lld-modal')) lldCloseModal();
+  if (e.target === $('#lld-modal')) lldRequestCloseModal();
 });
 
 // Ctrl+Z : mémorise l'état juste avant qu'on commence à saisir dans un champ.
@@ -9256,7 +9315,7 @@ $('#lld-detail-body').addEventListener('input', e => {
 });
 
 // ---- Enregistrement : brouillon -> workspace -> exports ----
-$('#lld-save').addEventListener('click', () => {
+function lldSaveModal() {
   const ws = active();
   if (!ws || !lldDraft) return;
   lldFlushDetail();
@@ -9295,6 +9354,7 @@ $('#lld-save').addEventListener('click', () => {
   ws.lld = L;
   ws.sites = D.sites;
   ws.flows = D.flows;
+  lldSavedSnap = JSON.stringify(lldDraft);
 
   // Zones supprimées -> devices switching détachés
   const zoneIds = new Set((L.swZones || []).map(z => z.id));
@@ -9321,7 +9381,8 @@ $('#lld-save').addEventListener('click', () => {
   lldCloseModal();
   renderBoard();        // met à jour les sélecteurs/pastilles de site des racks
   renderSiteFilter();
-});
+}
+$('#lld-save').addEventListener('click', lldSaveModal);
 
 /* ============================================================
    VUE TOPOLOGIE LOGIQUE — diagramme réseau du workspace

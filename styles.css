@@ -982,7 +982,7 @@ body.cabling .port.connectable {
   font: inherit; background: #fff; color: inherit;
 }
 .lld-dlg-input:focus { outline: 2px solid rgba(37, 99, 235, .30); border-color: #2563eb; }
-.lld-dlg-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.lld-dlg-btns { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .lld-dlg-btns .btn { padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: #eef2f7; cursor: pointer; font: inherit; }
 .lld-dlg-btns .lld-dlg-ok { background: #2563eb; border-color: #2563eb; color: #fff; }
 .lld-dlg-btns .lld-dlg-ok:hover { background: #1d4ed8; }
