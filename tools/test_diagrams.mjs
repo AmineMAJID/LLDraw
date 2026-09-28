@@ -659,5 +659,41 @@ weval(`document.querySelector('#lld-cancel').click()`);
 ok(modalHidden() && W(`WS.lld.toc[0].title`) !== 'ZZZ', 'Annuler : sortie immédiate explicite, modif jetée');
 ok(W(`lldIsDirty()`) === false, 'sans brouillon : pas modifié');
 
+/* ---------- 14. Vraies faces avant des devices ---------- */
+console.log('\n[14] faces avant réelles (assets + chargeur)');
+weval(`state.devices = JSON.parse(JSON.stringify(DEMO.devices));`);
+ok(W(`Object.keys(DEVICE_PHOTOS).length`) === 8, 'manifeste : 8 faces');
+{
+  const files = W(`Object.values(DEVICE_PHOTOS)`);
+  const bad = files.filter(f => {
+    try { return readFileSync(path.join(ROOT, f)).length < 1000; }
+    catch (_) { return true; }
+  });
+  ok(bad.length === 0, '8 fichiers présents et non vides' + (bad.length ? ' MANQUANT: ' + bad.join(',') : ''));
+  const total = files.reduce((n, f) => n + readFileSync(path.join(ROOT, f)).length, 0);
+  ok(total < 500 * 1024, 'poids total contenu (' + Math.round(total / 1024) + ' Ko < 500 Ko)');
+  const ids = W(`Object.keys(DEVICE_PHOTOS)`);
+  const noDev = ids.filter(id => !W('state.devices.some(d => d.id === ' + JSON.stringify(id) + ')'));
+  ok(noDev.length === 0, 'chaque face correspond à un device démo' + (noDev.length ? ' ORPHELIN: ' + noDev.join(',') : ''));
+}
+ok(W(`lldPhotoNeedsReal({ photo: null })`) === true, 'sans photo → à charger');
+ok(W(`lldPhotoNeedsReal({ photo: 'x'.repeat(12000) })`) === true, 'dessin généré (court) → remplaçable');
+ok(W(`lldPhotoNeedsReal({ photo: 'x'.repeat(60000) })`) === false, 'photo utilisateur (longue) → conservée');
+// chargement complet via fetch/FileReader simulés
+{
+  const keepFetch = window.fetch, keepFR = window.FileReader;
+  const seen = [];
+  window.fetch = async url => { seen.push(url); return { ok: true, blob: async () => ({}) }; };
+  window.FileReader = class { readAsDataURL() { this.result = 'data:image/jpeg;base64,AAAAPHOTO'; setTimeout(() => this.onloadend && this.onloadend(), 0); } };
+  weval(`state.devices.find(d => d.id === 'dev-aruba').photo = 'data:image/jpeg;base64,' + 'Z'.repeat(60000);`);
+  const changed = await W(`loadDevicePhotos()`);
+  ok(changed === true, 'chargeur : au moins une face chargée');
+  ok(W(`state.devices.find(d => d.id === 'dev-nutanix').photo`) === 'data:image/jpeg;base64,AAAAPHOTO', 'nutanix : vraie face assignée');
+  ok(W(`state.devices.filter(d => d.photo === 'data:image/jpeg;base64,AAAAPHOTO').length`) === 7, '7 faces chargées, custom épargnée');
+  ok(W(`state.devices.find(d => d.id === 'dev-aruba').photo.length`) === 60023, 'photo custom longue : intacte');
+  ok(seen.length === 7 && seen.every(u => u.startsWith('assets/dev-')), '7 fetch assets, aucun pour le custom');
+  window.fetch = keepFetch; window.FileReader = keepFR;
+}
+
 console.log(`\n==== ${PASS} PASS, ${FAIL} FAIL ====`);
 process.exit(FAIL ? 1 : 0);

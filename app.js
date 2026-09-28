@@ -156,6 +156,55 @@ async function loadWatchGuardPhoto() {
 // Charger la photo au démarrage
 loadWatchGuardPhoto();
 
+/* ---- Vraies faces avant des devices de démo ----
+   Photos produit recadrées au format du slot (assets/dev-*.jpg).
+   Remplace le dessin généré (courte data-URL) mais JAMAIS une photo
+   mise par l'utilisateur (longue data-URL). Chargé dans boot(), état
+   stabilisé, + à la demande dans l'éditeur de device. */
+const DEVICE_PHOTOS = {
+  'dev-nutanix': 'assets/dev-nutanix.jpg',
+  'dev-dell': 'assets/dev-dell.jpg',
+  'dev-nas': 'assets/dev-nas.jpg',
+  'dev-peplink': 'assets/dev-peplink.jpg',
+  'dev-aruba': 'assets/dev-aruba.jpg',
+  'dev-akcp': 'assets/dev-akcp.jpg',
+  'dev-pp': 'assets/dev-pp.jpg',
+  'dev-brush': 'assets/dev-brush.jpg'
+};
+const LLD_GEN_PHOTO_MAX = 25000;   // en-dessous = dessin généré, remplaçable
+function lldPhotoNeedsReal(dev) {
+  const p = dev && dev.photo;
+  return !p || p.length < LLD_GEN_PHOTO_MAX;
+}
+async function loadDevicePhoto(id) {
+  const file = DEVICE_PHOTOS[id];
+  const dev = file && state.devices.find(d => d.id === id);
+  if (!dev || !lldPhotoNeedsReal(dev)) return false;
+  try {
+    const res = await fetch(file);
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    dev.photo = await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+    return true;
+  } catch (e) { return false; }   // asset indisponible : on garde le dessin
+}
+async function loadDevicePhotos() {
+  let changed = false;
+  for (const id of Object.keys(DEVICE_PHOTOS)) {
+    if (await loadDevicePhoto(id)) changed = true;
+  }
+  if (changed) {
+    try { saveState(); } catch (_) {}
+    try { renderPalette(); } catch (_) {}
+    try { renderBoard(); } catch (_) {}
+  }
+  return changed;
+}
+
 // ---------- Constantes ----------
 const STORAGE_KEY = 'dc-rack-planner-v1';
 const DEFAULT_RACK_U = 12;    // taille par défaut d'un rack
@@ -3418,6 +3467,17 @@ function openEditDeviceModal(device) {
         modalPhoto = wg.photo;
         showPhotoPreviewAndDetect(modalPhoto, device.id);
       }
+    });
+  } else if (DEVICE_PHOTOS[device.id]) {
+    // Device de démo sans photo : charge sa vraie face avant
+    loadDevicePhoto(device.id).then(ok => {
+      if (!ok) return;
+      const dv = state.devices.find(d => d.id === device.id);
+      if (dv?.photo) {
+        modalPhoto = dv.photo;
+        showPhotoPreviewAndDetect(modalPhoto, device.id);
+      }
+      try { renderPalette(); renderBoard(); } catch (_) {}
     });
   } else {
     $('#d-preview').classList.add('hidden');
@@ -14247,6 +14307,7 @@ async function boot() {
   await bootState();
   renderPalette();
   renderBoard();
+  loadDevicePhotos();   // vraies faces avant (re-rendu à l'arrivée)
   // Recadrage automatique sur le contenu du workspace courant (ou vue par défaut)
   applyWorkspaceView();
   // Démarrage sur l'écran d'accueil
