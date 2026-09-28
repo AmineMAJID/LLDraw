@@ -261,9 +261,9 @@ const zx = unzipStore(buf);
 const wb = zx['xl/workbook.xml'];
 const sheetIdx = {};
 [...wb.matchAll(/<sheet name="([^"]+)" sheetId="(\d+)" r:id="rId(\d+)"\/>/g)].forEach(m => { sheetIdx[m[1]] = m[3]; });
-ok(zx[`xl/worksheets/sheet${sheetIdx['5']}.xml`].includes('Diagramme d’accès FAI'), 'feuille 5: bloc schéma présent (fix remap 5→4.1)');
-ok(zx[`xl/worksheets/sheet${sheetIdx['6']}.xml`].includes('Diagramme d’interconnexion'), 'feuille 6: bloc schéma présent');
-ok(zx[`xl/worksheets/sheet${sheetIdx['7']}.xml`].includes('Diagramme Firewall'), 'feuille 7: bloc schéma présent');
+ok(zx[`xl/worksheets/sheet${sheetIdx['4.1']}.xml`].includes('Diagramme d’accès FAI'), 'feuille 4.1: bloc schéma présent');
+ok(zx[`xl/worksheets/sheet${sheetIdx['4.2']}.xml`].includes('Diagramme d’interconnexion'), 'feuille 4.2: bloc schéma présent');
+ok(zx[`xl/worksheets/sheet${sheetIdx['4.3']}.xml`].includes('Diagramme Firewall'), 'feuille 4.3: bloc schéma présent');
 const drawings = Object.keys(zx).filter(n => n.startsWith('xl/drawings/drawing'));
 ok(drawings.length >= 3, `${drawings.length} dessins embarqués (≥3 schémas)`);
 ok(Object.keys(zx).some(n => n.startsWith('xl/media/')), 'images JPEG embarquées (xl/media)');
@@ -282,24 +282,24 @@ ok(zx[drawings[0]].includes('diagramme-'), 'schémas nommés dans les dessins');
     return [...xml.matchAll(/<mergeCell ref="[A-Z]+(\d+):[A-Z]+(\d+)"\/>/g)]
       .every(m => +m[1] > r1 + 1 && +m[2] > r1 + 1);
   };
-  for (const [sn, marker] of [['5', '5.1. Informations'], ['6', '6.1. Informations']]) {
+  for (const [sn, marker] of [['4.1', '4.1.1. Informations'], ['4.2', '4.2.1. Informations']]) {
     const d = zx[`xl/drawings/drawing${sheetIdx[sn]}.xml`];
-    ok(!!d, `feuille ${sn} : dessin présent`);
+    ok(!!d, `onglet ${sn} : dessin présent`);
     if (!d) continue;
     const a = anchorsOf(d)[0];
     const content1 = markerRow1(sn, marker);
-    ok(content1 > 0, `feuille ${sn} : contenu repéré (ligne ${content1})`);
-    ok(a.r0 >= 1, `feuille ${sn} : image sous le titre (ligne ${a.r0 + 1})`);
-    ok(a.r1 < content1 - 1, `feuille ${sn} : image au-dessus des tableaux (${a.r0 + 1}-${a.r1 + 1} < ${content1})`);
-    ok(a.c1 - a.c0 <= 14, `feuille ${sn} : largeur contenue (${a.c1 - a.c0 + 1} col.)`);
-    ok(mergesBelow(sn, a.r1), `feuille ${sn} : fusions sous l'image (décalées)`);
+    ok(content1 > 0, `onglet ${sn} : contenu repéré (ligne ${content1})`);
+    ok(a.r0 >= 1, `onglet ${sn} : image sous le titre (ligne ${a.r0 + 1})`);
+    ok(a.r1 < content1 - 1, `onglet ${sn} : image au-dessus des tableaux (${a.r0 + 1}-${a.r1 + 1} < ${content1})`);
+    ok(a.c1 - a.c0 <= 14, `onglet ${sn} : largeur contenue (${a.c1 - a.c0 + 1} col.)`);
+    ok(mergesBelow(sn, a.r1), `onglet ${sn} : fusions sous l'image (décalées)`);
   }
   // Feuille 7 (sans zone vide) : image après tout le texte
-  const d7 = zx[`xl/drawings/drawing${sheetIdx['7']}.xml`];
-  const xml7 = zx[`xl/worksheets/sheet${sheetIdx['7']}.xml`];
+  const d7 = zx[`xl/drawings/drawing${sheetIdx['4.3']}.xml`];
+  const xml7 = zx[`xl/worksheets/sheet${sheetIdx['4.3']}.xml`];
   const lastText7 = Math.max(...[...xml7.matchAll(/<row r="(\d+)"[^>]*><c /g)].map(m => +m[1]));
   const a7 = anchorsOf(d7)[0];
-  ok(a7.r0 >= lastText7 - 1, `feuille 7 : image après le texte (ligne ${a7.r0 + 1} >= ${lastText7})`);
+  ok(a7.r0 >= lastText7 - 1, `onglet 4.3 : image après le texte (ligne ${a7.r0 + 1} >= ${lastText7})`);
 }
 
 /* ---------- 7. XLSX vue données (onglet Schémas) ---------- */
@@ -428,8 +428,8 @@ ok(W(`lldNumInScope('5', null)`) === true, 'sans filtre -> tout garde');
   const b = await W(`LLD_TPL.buildAll(WS, __layout, __styles, __theme, ONLY45)`);
   const z = unzipStore(Buffer.from(await b.arrayBuffer()));
   const names = [...z['xl/workbook.xml'].matchAll(/<sheet name="([^"]+)"/g)].map(m => m[1]);
-  ok(!names.includes('9'), 'feuille 9 (4.5) exclue');
-  ok(names.includes('5'), 'feuille 5 (4.1) gardee');
+  ok(!names.includes('4.5'), 'feuille 4.5 exclue');
+  ok(names.includes('4.1'), 'feuille 4.1 gardee');
   ok(names.includes('4'), 'feuille 4 gardee en contexte');
 }
 // 10h. PDF : exclusion du sous-arbre 4.5
@@ -448,6 +448,61 @@ ok(W(`lldNumInScope('5', null)`) === true, 'sans filtre -> tout garde');
   const m = z['xl/workbook.xml'].match(/<sheet name="Contenu" sheetId="(\d+)" r:id="rId(\d+)"\/>/);
   const xml = z[`xl/worksheets/sheet${m[2]}.xml`];
   ok(/FAI MODIFIE/.test(xml), 'Contenu : titre renomme repris');
+}
+
+/* ---------- 11. Synchro totale des numéros (onglets + titres + sommaire) ---------- */
+console.log('\n[11] synchro totale des numéros');
+// 11a. onglets renommés selon le sommaire
+{
+  const names = Object.keys(sheetIdx);
+  for (const n of ['4.1', '4.2', '4.3', '4.4', '4.5', '4.6', '4.7', '4.8', '4.9', '4.4.1', '4.4.5'])
+    ok(names.includes(n), `onglet ${n} présent`);
+  for (const n of ['5', '6', '7', '8', '9', '10', '11', '12', '13', '8.1'])
+    ok(!names.includes(n), `ancien onglet ${n} supprimé`);
+}
+// 11b. A1 synchronisés (numéro + titre sommaire)
+{
+  const a1 = sn => {
+    const xml = zx[`xl/worksheets/sheet${sheetIdx[sn]}.xml`];
+    const m = xml.match(/<c r="A1"[^>]*><is><t[^>]*>([^<]*)<\/t>/);
+    return m ? m[1] : null;
+  };
+  ok(a1('4.1') === '4.1. Conception et Configuration FAI', `A1 4.1 (${a1('4.1')})`);
+  ok(a1('15') === '15. Cablage/Rack', `A1 15 (${a1('15')})`);
+  ok(a1('14') === '14. Flux réseau et diagram', `A1 14 (${a1('14')})`);
+  ok((a1('4.4') || '').startsWith('4.4. Conception et Configuration Switching'), `A1 4.4 (${a1('4.4')})`);
+}
+// 11c. sous-titres du template remappés
+{
+  const sh = sn => zx[`xl/worksheets/sheet${sheetIdx[sn]}.xml`];
+  ok(sh('4.1').includes('4.1.1. Informations &amp; Configuration'), '4.1.1 dans feuille 4.1');
+  ok(sh('4.1').includes('4.1.2. Cablage'), '4.1.2 dans feuille 4.1');
+  ok(!/>5\.1\. /.test(sh('4.1')) && !/>5\.2\. /.test(sh('4.1')), 'plus de 5.1/5.2 dans feuille 4.1');
+  ok(sh('4.2').includes('4.2.1. Informations &amp; Configuration'), '4.2.1 dans feuille 4.2');
+  ok(sh('4.2').includes('4.2.2. Cablage'), '4.2.2 dans feuille 4.2');
+  ok(sh('3').includes('3. Architecture existante'), 'feuille 3 : titre 3.x synchronisé');
+  ok(!sh('3').includes('3.1. Equipments'), 'feuille 3 : plus de 3.1. Equipments');
+  ok(!/>2\.1\. /.test(sh('2')), 'feuille 2 : plus de 2.1.');
+}
+// 11d. Contenu reconstruit depuis le sommaire
+{
+  const m = zx['xl/workbook.xml'].match(/<sheet name="Contenu" sheetId="(\d+)" r:id="rId(\d+)"\/>/);
+  const xml = zx[`xl/worksheets/sheet${m[2]}.xml`];
+  ok(xml.includes('4.3.1. '), 'Contenu : 4.3.1 présent');
+  ok(xml.includes('4.9.1. Pointeuses'), 'Contenu : 4.9.1 présent');
+  ok(xml.includes('14.1. Flux applicatifs'), 'Contenu : 14.1 présent');
+  ok(!/>5\. /.test(xml) && !/>2\.1\. Information/.test(xml) && !/>3\.1\. Equipments/.test(xml), 'Contenu : anciens numéros purgés');
+}
+// 11e. modale + recherche : labels synchronisés
+{
+  ok(W(`lldInfoDef('fais').label`).startsWith('4.1.1 —'), 'modale : bloc fais en 4.1.1');
+  ok(W(`lldInfoDef('fw').label`).startsWith('4.3.3 —'), 'modale : bloc fw en 4.3.3');
+  const toc = W(`normLldInfo(WS).toc`);
+  const nums = new Set(['cover']);
+  const walk = ns => (ns || []).forEach(n => { nums.add(n.num); walk(n.subs); });
+  walk(toc);
+  const aliases = W(`LLD_EXPORT_ALIASES.map(a => a[1])`);
+  ok(aliases.every(n => nums.has(n)), 'recherche : tous les alias résolvent');
 }
 
 console.log(`\n==== ${PASS} PASS, ${FAIL} FAIL ====`);

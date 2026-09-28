@@ -176,18 +176,19 @@ function rptInventory(ws) {
   return out;
 }
 
-// Plans de ports du sommaire (feuilles Excel 8 / 8.1…8.5)
+// Plans de ports du sommaire (feuilles Excel 4.4 / 4.4.1…4.4.5)
 function rptPorts(ws) {
   const L = normLldInfo(ws);
   const sheets = (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : []);
   let html = '';
-  sheets.forEach(([, po, num, lab]) => {
+  sheets.forEach(([, po, num0, lab]) => {
+    const num = (typeof lldTocRemap === 'function') ? lldTocRemap(num0) : num0;
     const rows = L[po] || [];
     if (!rows.length) return;
     html += rptSub(rptNum(L, po, `${num} — Plan de ports ${lab}`), rptLldGrid(
       lldExportCols(L, po, LLD_SW_PORT_COLS).map(c => [c[0], String(c[1])]), rows));
   });
-  return html || '<p class="muted">' + rptNum(L, 'zones', 'Aucun plan de ports dans le sommaire 📘 (chapitre 8).') + '</p>';
+  return html || '<p class="muted">' + rptNum(L, 'zones', 'Aucun plan de ports dans le sommaire 📘 (chapitre 4.4).') + '</p>';
 }
 
 // Câblage : pastille couleur, sens de lecture A → B, filtre par domaine
@@ -365,7 +366,7 @@ function rptGovernance(ws) {
   return appr + rev + revs || '';
 }
 
-// Notes de configuration par catégorie (ch. 7 → 13 du dossier LLD)
+// Notes de configuration par catégorie (ch. 4.3 → 4.9 du dossier LLD)
 function rptCatNotes(ws) {
   const L = normLldInfo(ws);
   const order = ['firewall', 'switching', 'server', 'storage', 'ids', 'cctv', 'pointage'];
@@ -374,41 +375,41 @@ function rptCatNotes(ws) {
       L.catNotes[k].trim().split(/\n+/).map(p => `<p>${RPT_ESC(p)}</p>`).join('')}</div>`).join('');
 }
 
-// 🌍 FAI & accès Internet (ch. 5) : tableau 5.1, câblage 5.2, captures
+// 🌍 FAI & accès Internet (ch. 4.1) : tableau 4.1.1, câblage 4.1.2, captures
 function rptFai(ws) {
   const L = normLldInfo(ws);
-  const t51 = rptSub(rptNum(L, 'fais', '5.1 — Informations & configuration (FAI)'), rptLldGrid(
+  const t51 = rptSub(rptNum(L, 'fais', '4.1.1 — Informations & configuration (FAI)'), rptLldGrid(
     lldExportCols(L, 'fais', LLD_FAI51_COLS).map(c => [c[0], String(c[1])]), L.fais));
-  const cab = rptSub(rptNum(L, 'faiCab', '5.2 — Cablage FAI'), rptLldGrid(
+  const cab = rptSub(rptNum(L, 'faiCab', '4.1.2 — Cablage FAI'), rptLldGrid(
     lldExportCols(L, 'faiCab', LLD_FAI_CAB_COLS).map(c => [c[0], String(c[1])]), L.faiCab));
   return rptDiag(ws, 'fai', 'Diagramme d’accès FAI') + t51 + cab + rptShots(ws, 'shots5') || '';
 }
 
-// 🔗 Interconnexion site à site (ch. 6) : fiche, extrémités, WAN/LAN, câblage, VPN
+// 🔗 Interconnexion site à site (ch. 4.2) : fiche, extrémités, WAN/LAN, câblage, VPN
 function rptInterco(ws) {
   const L = normLldInfo(ws);
-  const kv = rptSub(rptNum(L, 'ic61', '6.1 — Liaison site à site'), rptKv(LLD_IC_FIELDS, L.interco));
-  const t61 = rptSub(rptNum(L, 'ic61', '6.1 — Extrémités / HA'), rptLldGrid(
+  const kv = rptSub(rptNum(L, 'ic61', '4.2.1 — Liaison site à site'), rptKv(LLD_IC_FIELDS, L.interco));
+  const t61 = rptSub(rptNum(L, 'ic61', '4.2.1 — Extrémités / HA'), rptLldGrid(
     lldExportCols(L, 'ic61', LLD_IC61_COLS).map(c => [c[0], String(c[1])]), L.ic61));
   const wan = rptSub('WAN Connection Settings', rptLldGrid(
     lldExportCols(L, 'icWan', LLD_IC_WAN_COLS).map(c => [c[0], String(c[1])]), L.icWan));
   const lan = rptSub('LAN / Network Settings', rptLldGrid(
     lldExportCols(L, 'icLan', LLD_IC_LAN_COLS).map(c => [c[0], String(c[1])]), L.icLan));
-  const cab = rptSub(rptNum(L, 'icCab', '6.2 — Cablage interconnexion'), rptLldGrid(
+  const cab = rptSub(rptNum(L, 'icCab', '4.2.2 — Cablage interconnexion'), rptLldGrid(
     lldExportCols(L, 'icCab', LLD_IC_CAB_COLS).map(c => [c[0], String(c[1])]), L.icCab));
   const vpn = rptSub('Tunnels VPN site à site', rptLldGrid(
     lldExportCols(L, 'vpns', LLD_VPN_COLS).map(c => [c[0], String(c[1])]), L.vpns));
   return rptDiag(ws, 'interco', 'Diagramme d’interconnexion') + kv + t61 + wan + lan + cab + vpn + rptShots(ws, 'shots6') || '';
 }
 
-// 🔥 Firewall & sécurité (ch. 7 + admin) : règles/NAT, profils, alias, comptes
+// 🔥 Firewall & sécurité (ch. 4.3 + admin) : règles/NAT, profils, alias, comptes
 function rptFirewall(ws) {
   const L = normLldInfo(ws);
-  const equip = rptSub(rptNum(L, 'fwEquip', '7.1 — Équipements Firewall / Routeurs'), rptLldGrid(
+  const equip = rptSub(rptNum(L, 'fwEquip', '4.3.1 — Équipements Firewall / Routeurs'), rptLldGrid(
     lldExportCols(L, 'fwEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.fwEquip));
-  const vlan = rptSub(rptNum(L, 'fwVlan', '7.2 — Interfaces VLAN'), rptLldGrid(
+  const vlan = rptSub(rptNum(L, 'fwVlan', '4.3.2 — Interfaces VLAN'), rptLldGrid(
     lldExportCols(L, 'fwVlan', LLD_FW_VLAN_COLS).map(c => [c[0], String(c[1])]), L.fwVlan));
-  const rules = rptSub(rptNum(L, 'fw', '7.3 — Règles & NAT'), rptLldGrid(
+  const rules = rptSub(rptNum(L, 'fw', '4.3.3 — Règles & NAT'), rptLldGrid(
     lldExportCols(L, 'fw', LLD_FW_COLS).map(c => [c[0], String(c[1])]), L.fw));
   const prof = rptSub('Profils firewall', rptKv(LLD_FWP_FIELDS, L.fwProfiles));
   const aliases = rptSub('Alias firewall', rptLldGrid(
@@ -421,30 +422,31 @@ function rptFirewall(ws) {
 // 🖥️ Système, stockage & supervision : VMs, volumes, caméras, zones de switching
 function rptSystem(ws) {
   const L = normLldInfo(ws);
-  const zones = rptSub(rptNum(L, 'zones', 'Zones de switching (ch. 8)'), rptLldGrid(
+  const zones = rptSub(rptNum(L, 'zones', 'Zones de switching (ch. 4.4)'), rptLldGrid(
     lldExportCols(L, 'zones', LLD_ZONE_COLS).map(c => [c[0], String(c[1])]), L.swZones));
   let swHtml = '';
-  (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : []).forEach(([eq, po, num, lab]) => {
+  (typeof LLD_SW_SHEETS !== 'undefined' ? LLD_SW_SHEETS : []).forEach(([eq, po, num0, lab]) => {
+    const num = (typeof lldTocRemap === 'function') ? lldTocRemap(num0) : num0;
     swHtml += rptSub(rptNum(L, eq, `${num} — Équipements ${lab}`), rptLldGrid(
       lldExportCols(L, eq, LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L[eq]));
     swHtml += rptSub(rptNum(L, po, `${num} — Plan de ports ${lab}`), rptLldGrid(
       lldExportCols(L, po, LLD_SW_PORT_COLS).map(c => [c[0], String(c[1])]), L[po]));
   });
-  const srv = rptSub(rptNum(L, 'srvEquip', '9.1 — Serveurs'), rptLldGrid(
+  const srv = rptSub(rptNum(L, 'srvEquip', '4.5.1 — Serveurs'), rptLldGrid(
     lldExportCols(L, 'srvEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.srvEquip));
-  const vms = rptSub(rptNum(L, 'vms', '9.2 — Machines virtuelles'), rptLldGrid(
+  const vms = rptSub(rptNum(L, 'vms', '4.5.2 — Machines virtuelles'), rptLldGrid(
     lldExportCols(L, 'vms', LLD_VM_COLS).map(c => [c[0], String(c[1])]), L.vms));
-  const sto = rptSub(rptNum(L, 'stoEquip', '10.1 — Stockage'), rptLldGrid(
+  const sto = rptSub(rptNum(L, 'stoEquip', '4.6.1 — Stockage'), rptLldGrid(
     lldExportCols(L, 'stoEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.stoEquip));
-  const vols = rptSub(rptNum(L, 'vols', '10.2 — Volumes / LUN'), rptLldGrid(
+  const vols = rptSub(rptNum(L, 'vols', '4.6.2 — Volumes / LUN'), rptLldGrid(
     lldExportCols(L, 'vols', LLD_VOL_COLS).map(c => [c[0], String(c[1])]), L.vols));
-  const ids = rptSub(rptNum(L, 'idsEquip', "11.1 — Détection d'intrusion"), rptLldGrid(
+  const ids = rptSub(rptNum(L, 'idsEquip', "4.7.1 — Détection d'intrusion"), rptLldGrid(
     lldExportCols(L, 'idsEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.idsEquip));
-  const nvr = rptSub(rptNum(L, 'cctvEquip', '12.1 — Caméras et enregistreur (NVR)'), rptLldGrid(
+  const nvr = rptSub(rptNum(L, 'cctvEquip', '4.8.1 — Caméras et enregistreur (NVR)'), rptLldGrid(
     lldExportCols(L, 'cctvEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.cctvEquip));
-  const cams = rptSub(rptNum(L, 'cams', '12.2 — Caméras'), rptLldGrid(
+  const cams = rptSub(rptNum(L, 'cams', '4.8.2 — Caméras'), rptLldGrid(
     lldExportCols(L, 'cams', LLD_CAM_COLS).map(c => [c[0], String(c[1])]), L.cams));
-  const spo = rptSub(rptNum(L, 'spoEquip', '13.1 — Pointeuses'), rptLldGrid(
+  const spo = rptSub(rptNum(L, 'spoEquip', '4.9.1 — Pointeuses'), rptLldGrid(
     lldExportCols(L, 'spoEquip', LLD_CAT_EQUIP_COLS).map(c => [c[0], String(c[1])]), L.spoEquip));
   return zones + swHtml + srv + vms + sto + vols + ids + nvr + cams + spo || '';
 }
@@ -465,20 +467,20 @@ function rptBlock(ws, key) {
     const v = def.catKey ? String((L.catNotes || {})[def.catKey] || '') : String(L[key] || '');
     const t = v.trim();
     if (!t) return '';
-    return `<div class="prose"><h3>${RPT_ESC(def.label)}</h3>${
+    return `<div class="prose"><h3>${RPT_ESC(rptNum(L, key, def.label))}</h3>${
       t.split(/\n+/).map(p => `<p>${RPT_ESC(p)}</p>`).join('')}</div>`;
   }
   if (def.kind === 'table') {
     const cols = lldExportCols(L, key, def.cols || []);
-    return rptSub(def.label, rptLldGrid(cols.map(c => [c[0], String(c[1])]), L[key]));
+    return rptSub(rptNum(L, key, def.label), rptLldGrid(cols.map(c => [c[0], String(c[1])]), L[key]));
   }
   if (def.kind === 'shots') {
     const shots = rptShots(ws, key);
-    return shots ? `<h3>${RPT_ESC(def.label)}</h3>${shots}` : '';
+    return shots ? `<h3>${RPT_ESC(rptNum(L, key, def.label))}</h3>${shots}` : '';
   }
   if (def.kind === 'fields') {
     const tgt = def.path ? (L[def.path] || {}) : L;
-    return rptSub(def.label, rptKv(def.fields || [], tgt));
+    return rptSub(rptNum(L, key, def.label), rptKv(def.fields || [], tgt));
   }
   return '';
 }

@@ -271,7 +271,7 @@ function lldTocNumForBlock(L, key) {
   return n ? String(n.num) : null;
 }
 // Libellé d'export synchronisé sur le sommaire : le numéro du nœud portant
-// le bloc remplace le numéro codé en dur (« 5.1 — … », « 7.3. … », « ch. 8 »,
+// le bloc remplace le numéro codé en dur (« 4.1.1 — … », « 4.3.3. … », « ch. 4.4 »,
 // « chapitre 15 », « (avant 4.1.1) » des diagrammes = 1er sous-chapitre).
 // Sans nœud (bloc libre, sommaire modifié) : le repli est repris intact.
 function lldTocSyncLabel(L, key, fallback) {
@@ -485,7 +485,7 @@ function normLldToc(raw) {
     let blocksSeeded2 = r.blocksSeeded2 === 1 || r.blocksSeeded2 === true;
     const seedNum = String(d.num);
     // Injection unique (blocksSeeded) — ne ressuscite pas un bloc détaché :
-    //  - ch. 5/6/7 : diagramme + captures en tête
+    //  - ch. 4.1/4.2/4.3 : diagramme + captures en tête
     //  - 5.1/5.2  : tableaux Excel (fais / faiCab) si l'ancien sommaire
     //    les avait vides (modèle avant les tableaux du dossier)
     if (!blocksSeeded) {
@@ -527,7 +527,7 @@ function normLldToc(raw) {
     } else if (!blocksSeeded2 && seedNum === '4.2.1') {
       // Migration 18g : les sommaires déjà seedés (ic61 seul) reçoivent
       // WAN/LAN une seule fois — un détachement reste détaché ensuite.
-      // Insertion après ic61 (ordre visuel de la feuille Excel « 6 »).
+      // Insertion après ic61 (ordre visuel de la feuille Excel « 4.2 »).
       const need = ['icWan', 'icLan'].filter(k => !blocks.includes(k));
       if (need.length) {
         const at = blocks.indexOf('ic61');
@@ -681,7 +681,7 @@ function normLldInfo(w) {
     gw: String(v.gw ?? '').slice(0, 50),
     purpose: String(v.purpose ?? '').slice(0, 60)
   }, v)) : [];
-  // FAI (ch. 5.1) et interconnexion site à site (ch. 6.1)
+  // FAI (ch. 4.1.1) et interconnexion site à site (ch. 4.2.1)
   if (!L.fai || typeof L.fai !== 'object') L.fai = {};
   for (const k of ['operator', 'offer', 'linkType', 'down', 'up', 'publicBlock', 'cpe', 'cpeIp']) {
     if (typeof L.fai[k] !== 'string') L.fai[k] = '';
@@ -689,7 +689,7 @@ function normLldInfo(w) {
   }
   if (typeof L.fai.notes !== 'string') L.fai.notes = '';
   L.fai.notes = L.fai.notes.slice(0, 2000);
-  // FAI multiples (ch. 5) : L.fais est la liste source ; L.fai (= 1er FAI)
+  // FAI multiples (ch. 4.1) : L.fais est la liste source ; L.fai (= 1er FAI)
   // reste synchronisé pour le PDF et les traitements historiques.
   const normFai = f => {
     const o = {};
@@ -714,7 +714,7 @@ function normLldInfo(w) {
     if (typeof L.interco[k] !== 'string') L.interco[k] = '';
     L.interco[k] = L.interco[k].slice(0, 120);
   }
-  // Règles/NAT firewall (ch. 7), VMs (ch. 9), volumes/LUN (ch. 10), caméras (ch. 12)
+  // Règles/NAT firewall (ch. 4.3), VMs (ch. 4.5), volumes/LUN (ch. 4.6), caméras (ch. 4.8)
   const normTable = (arr, spec) => Array.isArray(arr)
     ? arr.filter(r => r && typeof r === 'object').map(r => {
         const o = {};
@@ -765,7 +765,7 @@ function normLldInfo(w) {
   }
   if (typeof L.interco.notes !== 'string') L.interco.notes = '';
   L.interco.notes = L.interco.notes.slice(0, 2000);
-  // Captures d’écran (ch. 5/6/7) + diagrammes générés
+  // Captures d’écran (ch. 4.1/4.2/4.3) + diagrammes générés
   const normShots = arr => (Array.isArray(arr) ? arr : [])
     .filter(s => s && typeof s === 'object' && typeof s.dataUrl === 'string'
       && s.dataUrl.startsWith('data:image/'))
@@ -939,7 +939,7 @@ function normLldInfo(w) {
     }
     L.ch4ov = clean;
   }
-  // Notes de configuration par chapitre (ch. 7 à 13)
+  // Notes de configuration par chapitre (ch. 4.3 à 4.9)
   if (!L.catNotes || typeof L.catNotes !== 'object') L.catNotes = {};
   for (const k of ['firewall', 'switching', 'server', 'storage', 'ids', 'cctv', 'pointage']) {
     if (typeof L.catNotes[k] !== 'string') L.catNotes[k] = '';
@@ -1250,7 +1250,7 @@ function normalizeRack(r) {
   if (typeof r.siteId !== 'string') r.siteId = '';   // rattachement à un site
   r.instances = Array.isArray(r.instances) ? r.instances : [];
   r.instances.forEach(i => {
-    if (typeof i.zone !== 'string') i.zone = '';   // zone de switching (ch. 8)
+    if (typeof i.zone !== 'string') i.zone = '';   // zone de switching (ch. 4.4)
     i.ports = Array.isArray(i.ports) ? i.ports : [];
     i.ports.forEach(p => {
       if (typeof p.size !== 'number') p.size = 1;
@@ -4925,7 +4925,7 @@ const LLD_FWP_FIELDS = [
   { k: 'webBlocker', label: 'WebBlocker', ph: 'Ex : WebBlocker.V1', max: 60 },
   { k: 'httpProxy', label: 'HTTP Proxy', ph: 'Ex : HTTP-Client-v1', max: 60 }
 ];
-// Champs interconnexion (ch. 6) — libellés + placeholders de l'ancienne fiche
+// Champs interconnexion (ch. 4.2) — libellés + placeholders de l'ancienne fiche
 const LLD_IC_FIELDS = [
   { k: 'tech', label: 'Technologie', type: 'select', max: 60,
     opts: ['', 'IPsec site-to-site', 'MPLS', 'SD-WAN', 'LAN-to-LAN opérateur', 'VPN SSL', 'Autre'] },
@@ -4959,21 +4959,21 @@ const LLD_IC_FIELDS = [
 // Tables par chapitre : règles/NAT firewall (7), VMs (9), volumes (10), caméras (12)
 const LLD_FW_COLS = [['type', 'Type', 74], ['name', 'Nom / Règle', 'flex'], ['src', 'Source', 130],
                      ['dst', 'Destination', 130], ['service', 'Service / Ports', 120], ['action', 'Action', 66]];
-/* Tableaux Excel ch. 7.1 / 8.x / 9.1 — mêmes 4 colonnes que equipTable() de l'export. */
+/* Tableaux Excel ch. 4.3.1 / 4.4.x / 4.5.1 — mêmes 4 colonnes que equipTable() de l'export. */
 const LLD_CAT_EQUIP_COLS = [
   ['name', 'Nom', 150],
   ['model', 'Marque / Modèle', 180],
   ['ip', 'IP mgmt', 120],
   ['pos', 'Position', 180]
 ];
-/* 7.2 Interfaces VLAN — mêmes colonnes que la section Excel 7.2. */
+/* 4.3.2 Interfaces VLAN — mêmes colonnes que la section Excel 4.3.2. */
 const LLD_FW_VLAN_COLS = [
   ['vid', 'VLAN', 90],
   ['name', 'Nom', 150],
   ['subnet', 'Sous-réseau', 150],
   ['gw', 'Passerelle', 130]
 ];
-/* Plan de ports des feuilles Excel 8 / 8.1…8.5. */
+/* Plan de ports des feuilles Excel 4.4 / 4.4.1…4.4.5. */
 const LLD_SW_PORT_COLS = [
   ['rack', 'Rack', 110],
   ['dev', 'Device', 140],
@@ -5080,7 +5080,7 @@ const LLD_CH4_CATS = [
 // branchés). La même clé rattachée à N chapitres = une seule valeur
 // partagée → synchronisation automatique + badge dans l'interface.
 // ============================================================
-/* Colonnes 5.1 — miroir exact de la feuille Excel « 5 » (tableau FAI). */
+/* Colonnes 4.1.1 — miroir exact de la feuille Excel « 4.1 » (tableau FAI). */
 const LLD_FAI51_COLS = [
   ['cat', 'Categorie', 78],
   ['desc', 'Description', 150],
@@ -5102,13 +5102,13 @@ const LLD_FAI51_COLS = [
   ['wlan', 'SSID', 90],
   ['notes', 'Commentaire', 140]
 ];
-/* Colonnes 5.2 — câblage FAI (feuille Excel « 5 », section 5.2). */
+/* Colonnes 4.1.2 — câblage FAI (feuille Excel « 4.1 », section 4.1.2). */
 const LLD_FAI_CAB_COLS = [
   ['cat', 'Categorie', 90],
   ['desc', 'Description', 160],
   ['conn', 'Connecté a', 200]
 ];
-/* Colonnes 6.1 — miroir de la feuille Excel « 6 » (extrémités / HA). */
+/* Colonnes 4.2.1 — miroir de la feuille Excel « 4.2 » (extrémités / HA). */
 const LLD_IC61_COLS = [
   ['equip', 'Equipment', 130],
   ['nomen', 'Nomenclature', 120],
@@ -5127,14 +5127,14 @@ const LLD_IC61_COLS = [
   ['mgmtMask', 'Mask', 100],
   ['note', 'Commentaire', 140]
 ];
-/* Colonnes 6.2 — câblage interconnexion (feuille Excel « 6 »). */
+/* Colonnes 4.2.2 — câblage interconnexion (feuille Excel « 4.2 »). */
 const LLD_IC_CAB_COLS = [
   ['cat', 'Categorie', 110],
   ['desc', 'Description', 140],
   ['port', 'Port', 90],
   ['conn', 'Connecté a', 180]
 ];
-/* Colonnes WAN — miroir de la feuille Excel « 6 » (WAN Connection Settings r44). */
+/* Colonnes WAN — miroir de la feuille Excel « 4.2 » (WAN Connection Settings r44). */
 const LLD_IC_WAN_COLS = [
   ['name', 'WAN Connection Settings', 150],
   ['enable', 'Enable', 55],
@@ -5235,19 +5235,19 @@ const LLD_INFOS = {
     addLabel: '＋ Ajouter un alias', filter: r => r.name.trim()
   },
   diag5: {
-    label: 'Diagramme d’accès FAI (avant 5.1)', kind: 'diagram', mode: 'fai',
+    label: 'Diagramme d’accès FAI (avant 4.1.1)', kind: 'diagram', mode: 'fai',
     hint: 'Faces avant réelles, ports et câbles du board. « 🔎 Générer depuis l’élévation » construit le schéma à partir des baies déjà posées (le rack FAI n’est pas créé ici).'
   },
   shots5: {
-    label: 'Captures d’écran — ch. 5', kind: 'shots',
+    label: 'Captures d’écran — ch. 4.1', kind: 'shots',
     hint: 'Glissez-déposez des captures (ou 📁) : contrats FAI, config CPE, tickets opérateur… exportées dans le PDF.'
   },
   diag6: {
-    label: 'Diagramme d’interconnexion (avant 6.1)', kind: 'diagram', mode: 'interco',
+    label: 'Diagramme d’interconnexion (avant 4.2.1)', kind: 'diagram', mode: 'interco',
     hint: 'Faces avant des équipements d’interconnexion, ports et câbles réels — généré depuis l’élévation.'
   },
   shots6: {
-    label: 'Captures d’écran — ch. 6', kind: 'shots',
+    label: 'Captures d’écran — ch. 4.2', kind: 'shots',
     hint: 'Glissez-déposez des captures (contrat MPLS, config IPsec, capture tunnel…) — exportées dans le PDF.'
   },
   diag7: {
@@ -5255,149 +5255,149 @@ const LLD_INFOS = {
     hint: 'Faces avant des pare-feux (côté WAN : routeurs, puis équipements reliés) + UNIQUEMENT les devices directement câblés avec eux, ports aux emplacements de l’élévation, vrais câbles — généré depuis l’élévation.'
   },
   shots7: {
-    label: 'Captures d’écran — ch. 7', kind: 'shots',
+    label: 'Captures d’écran — ch. 4.3', kind: 'shots',
     hint: 'Glissez-déposez des captures (policies, NAT, dashboard FW…) — exportées dans le PDF.'
   },
   fais: {
-    label: '5.1 — Informations & Configuration (FAI)',
+    label: '4.1.1 — Informations & Configuration (FAI)',
     kind: 'table', cols: LLD_FAI51_COLS, def: { cat: 'FAI' },
     addLabel: '＋ Ajouter une ligne',
-    hint: 'Même tableau que la section 5.1 de la feuille Excel « 5 » : modifiez ici, l’export reprend ces valeurs. '
+    hint: 'Même tableau que la section 4.1.1 de la feuille Excel « 4.1 » : modifiez ici, l’export reprend ces valeurs. '
       + '🔎 Générer depuis l’élévation pré-remplit ce qui existe (FAI, routeurs WAN, topologie) ; le reste reste vide à saisir.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
     extra: 'gen-fai51'
   },
   faiCab: {
-    label: '5.2 — Cablage FAI',
+    label: '4.1.2 — Cablage FAI',
     kind: 'table', cols: LLD_FAI_CAB_COLS, def: { cat: 'FAI' },
     addLabel: '＋ Ajouter une liaison',
-    hint: 'Section 5.2 de la feuille Excel « 5 » (Categorie / Description / Connecté a). '
+    hint: 'Section 4.1.2 de la feuille Excel « 4.1 » (Categorie / Description / Connecté a). '
       + '🔎 Générer depuis l’élévation : liaisons WAN des routeurs, CPE et câbles FAI. Généré ici d’abord, puis repris dans l’XLSX.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
     extra: 'gen-fai-cab'
   },
   adminSec: {
-    label: "Admin Security — comptes d'administration (ch. 6)", kind: 'table', cols: LLD_ADMIN_COLS,
+    label: "Admin Security — comptes d'administration (ch. 4.2)", kind: 'table', cols: LLD_ADMIN_COLS,
     addLabel: '＋ Ajouter un compte d’administration', filter: r => r.user.trim()
   },
   ic61: {
-    label: '6.1 — Informations & Configuration (extrémités / HA)',
+    label: '4.2.1 — Informations & Configuration (extrémités / HA)',
     kind: 'table', cols: LLD_IC61_COLS, def: {},
     addLabel: '＋ Ajouter une extrémité',
-    hint: 'Même tableau que la section 6.1 de la feuille Excel « 6 » : extrémités, SN, firmware, IP, HA. '
+    hint: 'Même tableau que la section 4.2.1 de la feuille Excel « 4.2 » : extrémités, SN, firmware, IP, HA. '
       + '🔎 Générer depuis l’élévation pré-remplit depuis interco, routeurs et FAI ; le reste reste vide.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
     extra: 'gen-ic61'
   },
   icCab: {
-    label: '6.2 — Cablage interconnexion',
+    label: '4.2.2 — Cablage interconnexion',
     kind: 'table', cols: LLD_IC_CAB_COLS, def: { cat: 'Interconnexion S2S' },
     addLabel: '＋ Ajouter une liaison',
-    hint: 'Section 6.2 de la feuille Excel « 6 » (Categorie / Description / Port / Connecté a). '
+    hint: 'Section 4.2.2 de la feuille Excel « 4.2 » (Categorie / Description / Port / Connecté a). '
       + '🔎 Générer depuis l’élévation : WAN/LAN des équipements d’interco et câbles du domaine.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
     extra: 'gen-ic-cab'
   },
   icWan: {
-    label: '6.1 — WAN Connection Settings (feuille Excel « 6 »)',
+    label: '4.2.1 — WAN Connection Settings (feuille Excel « 4.2 »)',
     kind: 'table', cols: LLD_IC_WAN_COLS, def: { enable: 'Oui', routingMode: 'NAT' },
     addLabel: '＋ Ajouter une connexion WAN',
-    hint: 'Même tableau que la section WAN de la feuille Excel « 6 » (lignes WAN 1…3). '
+    hint: 'Même tableau que la section WAN de la feuille Excel « 4.2 » (lignes WAN 1…3). '
       + '🔎 Générer depuis l’élévation pré-remplit depuis les FAI ; le reste reste vide à saisir. '
       + 'L’export XLSX/PDF reprend exactement ces lignes.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
     extra: 'gen-ic-wan'
   },
   icLan: {
-    label: '6.1 — LAN / Network settings (feuille Excel « 6 »)',
+    label: '4.2.1 — LAN / Network settings (feuille Excel « 4.2 »)',
     kind: 'table', cols: LLD_IC_LAN_COLS, def: {},
     addLabel: '＋ Ajouter une ligne LAN',
-    hint: 'Section LAN de la feuille Excel « 6 » (LAN / Inter-VLAN routing / Network). '
+    hint: 'Section LAN de la feuille Excel « 4.2 » (LAN / Inter-VLAN routing / Network). '
       + '🔎 Générer depuis l’élévation pré-remplit depuis interco et le registre VLANs.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim()),
     extra: 'gen-ic-lan'
   },
   fw: {
-    label: '7.3 — Règles et NAT', kind: 'table', cols: LLD_FW_COLS,
+    label: '4.3.3 — Règles et NAT', kind: 'table', cols: LLD_FW_COLS,
     addLabel: '＋ Ajouter une règle / NAT', filter: r => r.name.trim(), def: { type: 'Règle' },
-    hint: 'Même tableau que la section 7.3 de la feuille Excel « 7 » (Type, Nom, Source, Destination, Service, Action).'
+    hint: 'Même tableau que la section 4.3.3 de la feuille Excel « 4.3 » (Type, Nom, Source, Destination, Service, Action).'
   },
   fwEquip: {
-    label: '7.1 — Équipements Firewall / Routeurs',
+    label: '4.3.1 — Équipements Firewall / Routeurs',
     kind: 'table', cols: LLD_CAT_EQUIP_COLS,
     addLabel: '＋ Ajouter un équipement',
     extra: 'gen-fw-equip',
-    hint: 'Même tableau que la section 7.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 pré-remplit depuis les firewalls et routeurs de l’élévation.',
+    hint: 'Même tableau que la section 4.3.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 pré-remplit depuis les firewalls et routeurs de l’élévation.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
   },
   fwVlan: {
-    label: '7.2 — Interfaces VLAN',
+    label: '4.3.2 — Interfaces VLAN',
     kind: 'table', cols: LLD_FW_VLAN_COLS,
     addLabel: '＋ Ajouter un VLAN',
     extra: 'gen-fw-vlan',
-    hint: 'Même tableau que la section 7.2 de l’Excel (VLAN, Nom, Sous-réseau, Passerelle). 🔎 reprend le registre VLANs (ch. 4) et les VLAN vus sur les ports.',
+    hint: 'Même tableau que la section 4.3.2 de l’Excel (VLAN, Nom, Sous-réseau, Passerelle). 🔎 reprend le registre VLANs (ch. 4) et les VLAN vus sur les ports.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
   },
   zones: {
-    label: 'Zones de Switching (ch. 8)', kind: 'zones', cols: LLD_ZONE_COLS, addLabel: '＋ Ajouter une zone',
-    hint: 'Rattachez chaque switch / borne WiFi à sa zone depuis sa fiche (double-clic sur « Zone »). Les tableaux 8.1…8.5 se génèrent ensuite depuis l’élévation filtrée par zone.'
+    label: 'Zones de Switching (ch. 4.4)', kind: 'zones', cols: LLD_ZONE_COLS, addLabel: '＋ Ajouter une zone',
+    hint: 'Rattachez chaque switch / borne WiFi à sa zone depuis sa fiche (double-clic sur « Zone »). Les tableaux 4.4.1…4.4.5 se génèrent ensuite depuis l’élévation filtrée par zone.'
   },
   vms: {
-    label: '9.2 — Machines virtuelles', kind: 'table', cols: LLD_VM_COLS,
+    label: '4.5.2 — Machines virtuelles', kind: 'table', cols: LLD_VM_COLS,
     addLabel: '＋ Ajouter une VM', filter: r => r.name.trim(),
     extra: 'gen-vms',
-    hint: 'Même tableau que la section 9.2 de l’Excel (VM, Rôle, Hôte, IP / VLAN).'
+    hint: 'Même tableau que la section 4.5.2 de l’Excel (VM, Rôle, Hôte, IP / VLAN).'
   },
   srvEquip: {
-    label: '9.1 — Serveurs',
+    label: '4.5.1 — Serveurs',
     kind: 'table', cols: LLD_CAT_EQUIP_COLS,
     addLabel: '＋ Ajouter un serveur',
     extra: 'gen-srv-equip',
-    hint: 'Même tableau que la section 9.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 depuis les serveurs de l’élévation.',
+    hint: 'Même tableau que la section 4.5.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 depuis les serveurs de l’élévation.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
   },
   vols: {
-    label: '10.2 — Volumes / LUN', kind: 'table', cols: LLD_VOL_COLS,
+    label: '4.6.2 — Volumes / LUN', kind: 'table', cols: LLD_VOL_COLS,
     addLabel: '＋ Ajouter un volume', filter: r => r.name.trim(),
     extra: 'gen-vols',
-    hint: 'Même tableau que la section 10.2 de l’Excel (Volume, Capacité, Type, Serveur). 🔎 pré-remplit la colonne Serveur depuis le stockage de l’élévation.'
+    hint: 'Même tableau que la section 4.6.2 de l’Excel (Volume, Capacité, Type, Serveur). 🔎 pré-remplit la colonne Serveur depuis le stockage de l’élévation.'
   },
   cams: {
-    label: '12.2 — Caméras', kind: 'table', cols: LLD_CAM_COLS,
+    label: '4.8.2 — Caméras', kind: 'table', cols: LLD_CAM_COLS,
     addLabel: '＋ Ajouter une caméra', filter: r => r.name.trim(),
     extra: 'gen-cams',
-    hint: 'Même tableau que la section 12.2 de l’Excel (Caméra, Emplacement, Modèle, IP). 🔎 depuis les équipements CCTV de l’élévation.'
+    hint: 'Même tableau que la section 4.8.2 de l’Excel (Caméra, Emplacement, Modèle, IP). 🔎 depuis les équipements CCTV de l’élévation.'
   },
   stoEquip: {
-    label: '10.1 — Stockage',
+    label: '4.6.1 — Stockage',
     kind: 'table', cols: LLD_CAT_EQUIP_COLS,
     addLabel: '＋ Ajouter un équipement',
     extra: 'gen-sto-equip',
-    hint: 'Même tableau que la section 10.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 depuis le stockage de l’élévation.',
+    hint: 'Même tableau que la section 4.6.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 depuis le stockage de l’élévation.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
   },
   idsEquip: {
-    label: "11.1 — Détection d'intrusion",
+    label: "4.7.1 — Détection d'intrusion",
     kind: 'table', cols: LLD_CAT_EQUIP_COLS,
     addLabel: '＋ Ajouter un équipement',
     extra: 'gen-ids-equip',
-    hint: 'Même tableau que la section 11.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 depuis les IDS de l’élévation.',
+    hint: 'Même tableau que la section 4.7.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 depuis les IDS de l’élévation.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
   },
   cctvEquip: {
-    label: '12.1 — Caméras et enregistreur (NVR)',
+    label: '4.8.1 — Caméras et enregistreur (NVR)',
     kind: 'table', cols: LLD_CAT_EQUIP_COLS,
     addLabel: '＋ Ajouter un équipement',
     extra: 'gen-cctv-equip',
-    hint: 'Même tableau que la section 12.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 depuis le CCTV de l’élévation.',
+    hint: 'Même tableau que la section 4.8.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 depuis le CCTV de l’élévation.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
   },
   spoEquip: {
-    label: '13.1 — Pointeuses',
+    label: '4.9.1 — Pointeuses',
     kind: 'table', cols: LLD_CAT_EQUIP_COLS,
     addLabel: '＋ Ajouter un équipement',
     extra: 'gen-spo-equip',
-    hint: 'Même tableau que la section 13.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 depuis le pointage de l’élévation.',
+    hint: 'Même tableau que la section 4.9.1 de l’Excel (Nom / Marque-Modèle / IP mgmt / Position). 🔎 depuis le pointage de l’élévation.',
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
   },
   cab15: {
@@ -5417,31 +5417,31 @@ const LLD_INFOS = {
     filter: r => Object.values(r || {}).some(v => String(v ?? '').trim())
   },
   'note:firewall': {
-    label: 'Notes de configuration — Firewall (ch. 7)', kind: 'textarea', catKey: 'firewall',
+    label: 'Notes de configuration — Firewall (ch. 4.3)', kind: 'textarea', catKey: 'firewall',
     rows: 3, max: 2000, ph: 'Ex : policies, NAT, VLANs, haute disponibilité…'
   },
   'note:switching': {
-    label: 'Notes de configuration — Switching (ch. 8)', kind: 'textarea', catKey: 'switching',
+    label: 'Notes de configuration — Switching (ch. 4.4)', kind: 'textarea', catKey: 'switching',
     rows: 3, max: 2000, ph: 'Ex : VLANs, trunks, spanning-tree, PoE…'
   },
   'note:server': {
-    label: 'Notes de configuration — Serveurs (ch. 9)', kind: 'textarea', catKey: 'server',
+    label: 'Notes de configuration — Serveurs (ch. 4.5)', kind: 'textarea', catKey: 'server',
     rows: 3, max: 2000, ph: 'Ex : hyperviseur, adresses IP, rôles…'
   },
   'note:storage': {
-    label: 'Notes de configuration — Stockage (ch. 10)', kind: 'textarea', catKey: 'storage',
+    label: 'Notes de configuration — Stockage (ch. 4.6)', kind: 'textarea', catKey: 'storage',
     rows: 3, max: 2000, ph: 'Ex : RAID, iSCSI, capacités…'
   },
   'note:ids': {
-    label: 'Notes de configuration — Intrusion / IDS (ch. 11)', kind: 'textarea', catKey: 'ids',
+    label: 'Notes de configuration — Intrusion / IDS (ch. 4.7)', kind: 'textarea', catKey: 'ids',
     rows: 3, max: 2000, ph: 'Ex : mode détection, sondes, emplacement…'
   },
   'note:cctv': {
-    label: 'Notes de configuration — CCTV (ch. 12)', kind: 'textarea', catKey: 'cctv',
+    label: 'Notes de configuration — CCTV (ch. 4.8)', kind: 'textarea', catKey: 'cctv',
     rows: 3, max: 2000, ph: 'Ex : flux caméras, NVR, VLAN dédié…'
   },
   'note:pointage': {
-    label: 'Notes de configuration — Pointage / SPO (ch. 13)', kind: 'textarea', catKey: 'pointage',
+    label: 'Notes de configuration — Pointage / SPO (ch. 4.9)', kind: 'textarea', catKey: 'pointage',
     rows: 3, max: 2000, ph: 'Ex : badges, terminaux, serveur SPO…'
   },
   flows: {
@@ -5521,28 +5521,28 @@ const LLD_TOC_AUTO = {
   '4.2.1': 'Tableaux extrémités/HA, WAN Connection Settings et LAN — éditables ici, export XLSX/PDF identiques',
   '4.2.2': 'Tableau (Categorie / Description / Port / Connecté a) — éditable ici, + câbles interco si absents',
   '4.3': 'Diagramme Firewall + captures (avant 4.3.1)',
-  '4.3.1': 'Tableau Excel 7.1 — équipements firewall/routeurs (🔎 élévation)',
-  '4.3.2': 'Tableau Excel 7.2 — interfaces VLAN',
-  '4.3.3': 'Tableau Excel 7.3 — règles et NAT',
-  '4.4': 'Feuille Excel « 8 » Switching (HA) + zones ; 8.1…8.5 = feuilles dédiées',
-  '4.4.1': 'Feuille Excel 8.1 INFRA — équipements + plan de ports',
-  '4.4.2': 'Feuille Excel 8.2 LAN — équipements + plan de ports',
-  '4.4.3': 'Feuille Excel 8.3 AP — équipements + plan de ports',
-  '4.4.4': 'Feuille Excel 8.4 AP — équipements + plan de ports',
-  '4.4.5': 'Feuille Excel 8.5 BID — équipements + plan de ports',
+  '4.3.1': 'Tableau Excel 4.3.1 — équipements firewall/routeurs (🔎 élévation)',
+  '4.3.2': 'Tableau Excel 4.3.2 — interfaces VLAN',
+  '4.3.3': 'Tableau Excel 4.3.3 — règles et NAT',
+  '4.4': 'Feuille Excel « 4.4 » Switching (HA) + zones ; 4.4.1…4.4.5 = feuilles dédiées',
+  '4.4.1': 'Feuille Excel 4.4.1 INFRA — équipements + plan de ports',
+  '4.4.2': 'Feuille Excel 4.4.2 LAN — équipements + plan de ports',
+  '4.4.3': 'Feuille Excel 4.4.3 AP — équipements + plan de ports',
+  '4.4.4': 'Feuille Excel 4.4.4 AP — équipements + plan de ports',
+  '4.4.5': 'Feuille Excel 4.4.5 BID — équipements + plan de ports',
   '4.5': 'Notes de configuration serveurs',
-  '4.5.1': 'Tableau Excel 9.1 — serveurs physiques (🔎 élévation)',
-  '4.5.2': 'Tableau Excel 9.2 — machines virtuelles',
+  '4.5.1': 'Tableau Excel 4.5.1 — serveurs physiques (🔎 élévation)',
+  '4.5.2': 'Tableau Excel 4.5.2 — machines virtuelles',
   '4.6': 'Notes de configuration stockage',
-  '4.6.1': 'Tableau Excel 10.1 — stockage (🔎 élévation)',
-  '4.6.2': 'Tableau Excel 10.2 — volumes / LUN',
+  '4.6.1': 'Tableau Excel 4.6.1 — stockage (🔎 élévation)',
+  '4.6.2': 'Tableau Excel 4.6.2 — volumes / LUN',
   '4.7': 'Notes de configuration IDS',
-  '4.7.1': 'Tableau Excel 11.1 — détection d’intrusion (🔎 élévation)',
+  '4.7.1': 'Tableau Excel 4.7.1 — détection d’intrusion (🔎 élévation)',
   '4.8': 'Notes de configuration CCTV',
-  '4.8.1': 'Tableau Excel 12.1 — NVR / enregistreur (🔎 élévation)',
-  '4.8.2': 'Tableau Excel 12.2 — caméras',
+  '4.8.1': 'Tableau Excel 4.8.1 — NVR / enregistreur (🔎 élévation)',
+  '4.8.2': 'Tableau Excel 4.8.2 — caméras',
   '4.9': 'Notes de configuration pointage',
-  '4.9.1': 'Tableau Excel 13.1 — pointeuses (🔎 élévation)',
+  '4.9.1': 'Tableau Excel 4.9.1 — pointeuses (🔎 élévation)',
   '14': 'Diagramme de topologie (vue Topologie du workspace)',
   '14.1': 'Tableau Excel 14 — flux applicatifs',
   '15': 'Tableau Excel 15 — câblage (🔎 mode Câblage)',
@@ -5555,7 +5555,10 @@ const LLD_RESERVED_SHEETS = new Set([
   'LLD', 'Governance', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
   '11', '12', '13', '14', '15', '7.1', '7.2', '7.3', '8.1', '8.2', '8.3',
   '8.4', '8.5', '9.1', '9.2', '10.1', '10.2', '11.1', '12.1', '12.2',
-  '13.1', '14.1', '15.1'
+  '13.1', '14.1', '15.1', '4.1', '4.2', '4.3', '4.4', '4.5', '4.6', '4.7',
+  '4.8', '4.9', '4.1.1', '4.1.2', '4.2.1', '4.2.2', '4.3.1', '4.3.2', '4.3.3',
+  '4.4.1', '4.4.2', '4.4.3', '4.4.4', '4.4.5', '4.5.1', '4.5.2', '4.6.1',
+  '4.6.2', '4.7.1', '4.8.1', '4.8.2', '4.9.1'
 ]);
 
 // Types devinés à partir des préfixes les plus courants (bouton « Générer »)
@@ -5782,7 +5785,7 @@ function lldFlowsFrom(container) {
   });
 }
 
-// ---- Blocs « FAI » (ch. 5) : liste dynamique de fournisseurs d'accès ----
+// ---- Blocs « FAI » (ch. 4.1) : liste dynamique de fournisseurs d'accès ----
 function lldRenumberFais(container) {
   container.querySelectorAll('.lld-fai-num').forEach((el, i) => { el.textContent = `FAI ${i + 1}`; });
 }
@@ -6086,20 +6089,20 @@ function lldFold(s) {
 }
 // Titres des rubriques du rapport HTML (et libellés Excel proches) → nœud du sommaire
 const LLD_EXPORT_ALIASES = [
-  ['Sites & baies', '2.1', 'HTML'],
+  ['Sites & baies', '2', 'HTML'],
   ['Élévations des baies', '15', 'HTML'],
   ['Topologie réseau', '14', 'HTML'],
   ['Contexte & architecture', '1', 'HTML'],
   ['Contexte, architecture, équipements hors baie & notes', '1', 'HTML'],
-  ['Inventaire des équipements', '3.1', 'HTML'],
+  ['Inventaire des équipements', '3', 'HTML'],
   ['Câblage', '15', 'HTML'],
   ['Ports & adressage', '4', 'HTML'],
-  ['Garanties', '3.1', 'HTML'],
+  ['Garanties', '3', 'HTML'],
   ['VLANs & nomenclature', '4', 'HTML'],
-  ['FAI & accès Internet', '5', 'HTML'],
-  ['Interconnexion site à site', '6', 'HTML'],
-  ['Firewall & sécurité', '7', 'HTML'],
-  ['Système, stockage & supervision', '8', 'HTML'],
+  ['FAI & accès Internet', '4.1', 'HTML'],
+  ['Interconnexion site à site', '4.2', 'HTML'],
+  ['Firewall & sécurité', '4.3', 'HTML'],
+  ['Système, stockage & supervision', '4.4', 'HTML'],
   ['Flux réseau', '14', 'HTML'],
   ['Gouvernance du document', 'cover', 'HTML'],
   ['Page de garde', 'cover', 'Excel']
@@ -7762,7 +7765,7 @@ function lldInfoRender(box, def, key) {
       if (def.extra === 'gen-fai51') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
           () => { lldPushUndo(true); lldGenFai51(tbl, cols); },
-          'Pré-remplit le tableau 5.1 depuis l’élévation et les FAI déjà connus ; les colonnes sans source restent vides'));
+          'Pré-remplit le tableau 4.1.1 depuis l’élévation et les FAI déjà connus ; les colonnes sans source restent vides'));
       }
       if (def.extra === 'gen-fai-cab') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
@@ -7772,7 +7775,7 @@ function lldInfoRender(box, def, key) {
       if (def.extra === 'gen-ic61') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
           () => { lldPushUndo(true); lldGenIc61(tbl, cols); },
-          'Pré-remplit le tableau 6.1 (extrémités, SN, firmware, IP, HA) depuis interco, routeurs et FAI'));
+          'Pré-remplit le tableau 4.2.1 (extrémités, SN, firmware, IP, HA) depuis interco, routeurs et FAI'));
       }
       if (def.extra === 'gen-ic-cab') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
@@ -7782,17 +7785,17 @@ function lldInfoRender(box, def, key) {
       if (def.extra === 'gen-ic-wan') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
           () => { lldPushUndo(true); lldGenIcWan(tbl, cols); },
-          'Pré-remplit le tableau WAN (feuille Excel « 6 ») depuis les FAI du dossier'));
+          'Pré-remplit le tableau WAN (feuille Excel « 4.2 ») depuis les FAI du dossier'));
       }
       if (def.extra === 'gen-ic-lan') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
           () => { lldPushUndo(true); lldGenIcLan(tbl, cols); },
-          'Pré-remplit le tableau LAN (feuille Excel « 6 ») depuis interco et le registre VLANs'));
+          'Pré-remplit le tableau LAN (feuille Excel « 4.2 ») depuis interco et le registre VLANs'));
       }
       if (def.extra === 'gen-fw-equip') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
           () => { lldPushUndo(true); lldGenFwEquip(tbl, cols); },
-          'Pré-remplit le tableau 7.1 depuis les firewalls et routeurs posés dans les racks'));
+          'Pré-remplit le tableau 4.3.1 depuis les firewalls et routeurs posés dans les racks'));
       }
       if (def.extra === 'gen-fw-vlan') {
         acts.push(lldBtn('🔎 Générer depuis le registre / les ports',
@@ -7802,7 +7805,7 @@ function lldInfoRender(box, def, key) {
       if (def.extra === 'gen-srv-equip') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
           () => { lldPushUndo(true); lldGenSrvEquip(tbl, cols); },
-          'Pré-remplit le tableau 9.1 depuis les serveurs de l’élévation'));
+          'Pré-remplit le tableau 4.5.1 depuis les serveurs de l’élévation'));
       }
       if (def.extra === 'gen-vms') {
         acts.push(lldBtn("🔎 Pré-remplir depuis les serveurs",
@@ -7812,17 +7815,17 @@ function lldInfoRender(box, def, key) {
       if (def.extra === 'gen-sto-equip') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
           () => { lldPushUndo(true); lldGenStoEquip(tbl, cols); },
-          'Pré-remplit le tableau 10.1 depuis le stockage de l’élévation'));
+          'Pré-remplit le tableau 4.6.1 depuis le stockage de l’élévation'));
       }
       if (def.extra === 'gen-ids-equip') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
           () => { lldPushUndo(true); lldGenIdsEquip(tbl, cols); },
-          'Pré-remplit le tableau 11.1 depuis les IDS de l’élévation'));
+          'Pré-remplit le tableau 4.7.1 depuis les IDS de l’élévation'));
       }
       if (def.extra === 'gen-cctv-equip') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
           () => { lldPushUndo(true); lldGenCctvEquip(tbl, cols); },
-          'Pré-remplit le tableau 12.1 depuis le CCTV de l’élévation'));
+          'Pré-remplit le tableau 4.8.1 depuis le CCTV de l’élévation'));
       }
       if (def.extra === 'gen-vols') {
         acts.push(lldBtn("🔎 Pré-remplir depuis le stockage",
@@ -7832,12 +7835,12 @@ function lldInfoRender(box, def, key) {
       if (def.extra === 'gen-cams') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
           () => { lldPushUndo(true); lldGenCams(tbl, cols); },
-          'Pré-remplit le tableau 12.2 depuis les équipements CCTV de l’élévation'));
+          'Pré-remplit le tableau 4.8.2 depuis les équipements CCTV de l’élévation'));
       }
       if (def.extra === 'gen-spo-equip') {
         acts.push(lldBtn("🔎 Générer depuis l'élévation",
           () => { lldPushUndo(true); lldGenSpoEquip(tbl, cols); },
-          'Pré-remplit le tableau 13.1 depuis les pointeuses de l’élévation'));
+          'Pré-remplit le tableau 4.9.1 depuis les pointeuses de l’élévation'));
       }
       if (def.extra === 'gen-cab15') {
         acts.push(lldBtn("🔎 Générer depuis le câblage",
@@ -8359,7 +8362,7 @@ function lldGenEquip(tbl, cols) {
     { title: "🔎 Générer depuis l'élévation" });
 }
 
-// ---- Génération ch. 7 / 8 / 9 depuis l'élévation (mêmes colonnes que l'Excel) ----
+// ---- Génération ch. 4.3 / 4.4 / 4.5 depuis l'élévation (mêmes colonnes que l'Excel) ----
 function lldSwZoneBucket(ws) {
   const zones = (ws.lld && ws.lld.swZones) || [];
   return {
@@ -8444,11 +8447,11 @@ function lldGenFwVlan(tbl, cols) {
     });
   }
   if (!incoming.length) {
-    lldAlert('Aucun VLAN nouveau (registre ch. 4 et ports déjà repris).', { title: '🔎 7.2 Interfaces VLAN' });
+    lldAlert('Aucun VLAN nouveau (registre ch. 4 et ports déjà repris).', { title: '🔎 4.3.2 Interfaces VLAN' });
     return;
   }
   incoming.forEach(r => lldAddRow(tbl, C, r));
-  lldAlert(`${incoming.length} VLAN(s) ajouté(s) au tableau 7.2.`, { title: '🔎 7.2 Interfaces VLAN' });
+  lldAlert(`${incoming.length} VLAN(s) ajouté(s) au tableau 4.3.2.`, { title: '🔎 4.3.2 Interfaces VLAN' });
 }
 function lldGenSwEquip(tbl, cols, sheetNum, cats) {
   const ws = active();
@@ -8681,8 +8684,8 @@ $('#lld-toc-add-sub').addEventListener('click', () => {
   }
   const parent = loc.parent || loc.node;   // sélection d'un sous-chapitre → frère
   if (parent.noSubs) {
-    lldAlert('Le chapitre 8 est découpé automatiquement selon les zones de Switching\n'
-      + '(info « Zones de Switching ») : ajoutez une zone pour créer un sous-chapitre 8.x.',
+    lldAlert('Le chapitre 4.4 est découpé automatiquement selon les zones de Switching\n'
+      + '(info « Zones de Switching ») : ajoutez une zone pour créer un sous-chapitre 4.4.x.',
       { title: '📖 Sommaire' });
     return;
   }
@@ -8800,7 +8803,7 @@ function lldGenFai51(tbl, cols) {
   } catch (_) { /* topo absente */ }
 
   lldAlert((added || filled)
-    ? `Tableau 5.1 mis à jour : ${added} ligne(s) ajoutée(s), ${filled} fiche(s) complétée(s) sur les cellules vides.\n`
+    ? `Tableau 4.1.1 mis à jour : ${added} ligne(s) ajoutée(s), ${filled} fiche(s) complétée(s) sur les cellules vides.\n`
       + 'Les colonnes sans équivalent dans l’élévation restent vides (saisie manuelle).'
     : 'Rien de nouveau dans l’élévation — lignes 5.1 déjà à jour.',
     { title: '🔎 Générer 5.1' });
@@ -8869,7 +8872,7 @@ function lldGenFaiCab(tbl, cols) {
   } catch (_) { /* hors harnais */ }
 
   lldAlert(added
-    ? `${added} ligne(s) de câblage 5.2 ajoutée(s) (reprises dans la feuille Excel « 5 »).`
+    ? `${added} ligne(s) de câblage 5.2 ajoutée(s) (reprises dans la feuille Excel « 4.1 »).`
     : 'Rien de nouveau — câblage 5.2 déjà à jour.',
     { title: '🔎 Générer 5.2' });
 }
@@ -8957,9 +8960,9 @@ function lldGenIc61(tbl, cols) {
   });
 
   lldAlert((added || filled)
-    ? `Tableau 6.1 : ${added} ligne(s) ajoutée(s), ${filled} champ(s) complété(s) sur les cellules vides.\n`
+    ? `Tableau 4.2.1 : ${added} ligne(s) ajoutée(s), ${filled} champ(s) complété(s) sur les cellules vides.\n`
       + 'Colonnes sans source dans l’élévation restent vides (saisie manuelle).'
-    : 'Rien de nouveau — tableau 6.1 déjà à jour.',
+    : 'Rien de nouveau — tableau 4.2.1 déjà à jour.',
     { title: '🔎 Générer 6.1' });
 }
 
@@ -9035,8 +9038,8 @@ function lldGenIcCab(tbl, cols) {
   });
 
   lldAlert(added
-    ? `${added} ligne(s) de câblage 6.2 ajoutée(s) (reprises dans la feuille Excel « 6 »).`
-    : 'Rien de nouveau — câblage 6.2 déjà à jour.',
+    ? `${added} ligne(s) de câblage 4.2.2 ajoutée(s) (reprises dans la feuille Excel « 4.2 »).`
+    : 'Rien de nouveau — câblage 4.2.2 déjà à jour.',
     { title: '🔎 Générer 6.2' });
 }
 
@@ -10224,7 +10227,7 @@ function catSummaryRows(ws) {
   return rows;
 }
 
-// Nom de la zone de switching d'un device posé (ch. 8)
+// Nom de la zone de switching d'un device posé (ch. 4.4)
 function zoneNameOf(ws, inst) {
   const z = (ws?.lld?.swZones || []).find(x => x.id === (inst?.zone || ''));
   return z ? z.name : '';
@@ -10345,7 +10348,7 @@ function cablingRowsBase(ws, domain = null, withDomain = false) {
   return rows;
 }
 function cablingRows(ws) { return cablingRowsBase(ws, null, true); }
-// Câbles d'un seul domaine (ch. 5.2 FAI, 6.2 interconnexion…) : sans la colonne Domaine
+// Câbles d'un seul domaine (ch. 4.1.2 FAI, 4.2.2 interconnexion…) : sans la colonne Domaine
 function cablingRowsByDomain(ws, domain) { return cablingRowsBase(ws, domain, false); }
 function portsRows(ws) {
   const rows = [['Rack', 'Site', 'Étage', 'Device', 'Port', 'Étiquette', 'IP', 'VLAN', 'Câble']];
@@ -11396,30 +11399,30 @@ const LLD_TPL = (() => {
     if (fe.length) {
       const cols = lldExportCols(L7, 'fwEquip', LLD_CAT_EQUIP_COLS);
       rows.push([]); rows.push([]);
-      rows.push(SEC(syncNum(L7, 'fwEquip', '7.1. Equipements Firewall / Routeurs')));
+      rows.push(SEC(syncNum(L7, 'fwEquip', '4.3.1. Equipements Firewall / Routeurs')));
       rows.push([]);
       rows.push(H(cols.map(c => String(c[1]))));
       fe.forEach((r0, i) => rows.push(D(cols.map(c => String(r0[c[0]] ?? '')), i % 2)));
     } else if (hasB('7.1', 'fwEquip') || hasB('7', 'fwEquip')) {
-      pushNote(rows, syncNum(L7, 'fwEquip', "7.1 : aucun équipement — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘."));
+      pushNote(rows, syncNum(L7, 'fwEquip', "4.3.1 : aucun équipement — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘."));
     }
     const fv = tocTbl(ws, 'fwVlan', hasB('7.2', 'fwVlan') || hasB('7', 'fwVlan'));
     if (fv.length) {
       const cols = lldExportCols(L7, 'fwVlan', LLD_FW_VLAN_COLS);
       rows.push([]); rows.push([]);
-      rows.push(SEC(syncNum(L7, 'fwVlan', '7.2. Interfaces VLAN')));
+      rows.push(SEC(syncNum(L7, 'fwVlan', '4.3.2. Interfaces VLAN')));
       rows.push([]);
       rows.push(H(cols.map(c => String(c[1]))));
       fv.forEach((v, i) => rows.push(D(cols.map(c => String(v[c[0]] ?? '')), i % 2)));
     } else if (hasB('7.2', 'fwVlan') || hasB('7', 'fwVlan')) {
-      pushNote(rows, syncNum(L7, 'fwVlan', "7.2 : aucune interface VLAN — bouton « 🔎 » dans le sommaire 📘."));
+      pushNote(rows, syncNum(L7, 'fwVlan', "4.3.2 : aucune interface VLAN — bouton « 🔎 » dans le sommaire 📘."));
     }
     const fw = (hasB('7.3', 'fw') || hasB('7', 'fw')) ? ((ws.lld && ws.lld.fw) || []) : [];
     if (fw.length) {
       const Lw = ws.lld || {};
       const dyn = lldExportCols(Lw, 'fw', LLD_FW_COLS);
       rows.push([]); rows.push([]);
-      rows.push(SEC(syncNum(Lw, 'fw', '7.3. Règles et NAT')));
+      rows.push(SEC(syncNum(Lw, 'fw', '4.3.3. Règles et NAT')));
       rows.push([]);
       rows.push(H(dyn.map(c => String(c[1]))));
       fw.forEach((r0, i) => rows.push(D(dyn.map(c => String(r0[c[0]] ?? '')), i % 2)));
@@ -11440,7 +11443,7 @@ const LLD_TPL = (() => {
     return s7;
   }
 
-  /* — 8.x Switching : équipements de la zone correspondant au titre — */
+  /* — 4.4.x Switching : équipements de la zone correspondant au titre — */
   function switchZone(sheet, ws) {
     const { rows, heights } = fromLayout(sheet);
     // la feuille du template ne porte que le titre (la ligne « Config: Voir
@@ -11530,11 +11533,11 @@ const LLD_TPL = (() => {
       const { rows, heights } = fromLayout(sheet);
       const Lw = ws.lld || {};
       const ANNEX_EQ = {
-        vms:  { key: 'srvEquip',  num: '9.1',  empty: "9.1 : aucun serveur — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘." },
-        vols: { key: 'stoEquip',  num: '10.1', empty: "10.1 : aucun stockage — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘." },
-        cams: { key: 'cctvEquip', num: '12.1', empty: "12.1 : aucun NVR / CCTV — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘." }
+        vms:  { key: 'srvEquip',  num: '4.5.1',  empty: "4.5.1 : aucun serveur — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘." },
+        vols: { key: 'stoEquip',  num: '4.6.1', empty: "4.6.1 : aucun stockage — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘." },
+        cams: { key: 'cctvEquip', num: '4.8.1', empty: "4.8.1 : aucun NVR / CCTV — bouton « 🔎 Générer depuis l'élévation » dans le sommaire 📘." }
       };
-      const ANNEX_NUM = { vms: '9.2', vols: '10.2', cams: '12.2' };
+      const ANNEX_NUM = { vms: '4.5.2', vols: '4.6.2', cams: '4.8.2' };
       const meta = ANNEX_EQ[key] || null;
       const eqKey = meta ? meta.key : null;
       const eqRows = tocTbl(ws, eqKey, eqKey && (hasB(meta.num, eqKey) || hasB(sheet.name, eqKey)));
@@ -11829,7 +11832,7 @@ const LLD_TPL = (() => {
     // 2.1 : tableau des sites = mêmes colonnes que l'app / le PDF (schéma
     // dynamique, gridCols compris), un site par ligne. Remplace le formulaire
     // gravé du template (Nom/Adresse/… + « Capacité Total de FAI » +
-    // « Commentaires » : ces deux champs appartenaient à la fiche FAI ch.5).
+    // « Commentaires » : ces deux champs appartenaient à la fiche FAI ch. 4.1).
     const siteCols = lldExportCols(L, 'sites', LLD_SITE_COLS);
     for (let r = 6; r <= 10; r++) rows[r - 1] = [];   // efface le formulaire gravé
     let tblW = null;                                  // largeurs A + colonnes tableau
@@ -11953,7 +11956,7 @@ const LLD_TPL = (() => {
     const ipFrom = s => { const m = /((?:\d{1,3}\.){3}\d{1,3}(?:\/\d+)?)/.exec(String(s || '')); return m ? m[1] : ''; };
     const shortName = s => String(s || '').split(/[ (—]/)[0].trim();
     const fais = tocTbl(ws, 'fais', hasB('5.1', 'fais') || hasB('5', 'fais'));
-    // FAI (FTTH 1-3) et WAN 1-3 : adressage WAN — uniquement le tableau 5.1
+    // FAI (FTTH 1-3) et WAN 1-3 : adressage WAN — uniquement le tableau 4.1.1
     for (let i = 0; i < 3; i++) {
       const f = fais[i] || {};
       const ip = f.wanIp || (f.ipMode ? f.ipMode : '');
@@ -11981,7 +11984,7 @@ const LLD_TPL = (() => {
     set(rows, 'C10', eqOf(ic61m[1], ic.epB ? shortName(ic.epB) : ''));
     set(rows, 'D10', (ic61m[1] && ic61m[1].ip) || (ic.epB ? ipFrom(ic.epB) : ''));
     set(rows, 'D11', (ic61m[0] && ic61m[0].vip) || ic.vipA || '');
-    // Firewall : tableau 7.1 + première règle NAT du sommaire
+    // Firewall : tableau 4.3.1 + première règle NAT du sommaire
     const fe = tocTbl(ws, 'fwEquip', hasB('7.1', 'fwEquip') || hasB('7', 'fwEquip'));
     for (let i = 0; i < 2; i++) {
       set(rows, `C${19 + i}`, (fe[i] && fe[i].name) || '');
@@ -12103,7 +12106,7 @@ const LLD_TPL = (() => {
     set(rows, 'D100', (se[0] && se[0].ip) || '');
     set(rows, 'C108', (ste[0] && ste[0].name) || '');
     set(rows, 'D108', (ste[0] && ste[0].ip) || '');
-    // VM NX (BI/BC/AD/Web ×2) : appariement par mots-clés sur le tableau 9.2
+    // VM NX (BI/BC/AD/Web ×2) : appariement par mots-clés sur le tableau 4.5.2
     const vms = tocTbl(ws, 'vms', hasB('9.2', 'vms') || hasB('9', 'vms'));
     const pick = (re, idx) => vms.filter(v => re.test(`${v.name} ${v.role}`))[idx];
     [['113', /\bBI\b|BI[-_ ]/i, 0], ['114', /\bBC\b|BC[-_ ]|VEEAM|backup|sauvegarde/i, 0],
@@ -12226,7 +12229,7 @@ const LLD_TPL = (() => {
     const short = s => String(s || '').split(' — ')[0];
     // 6.1 — extrémités (r30/31) : identité, SN, firmware, adressage WAN du FAI,
     // HA (J→P), VIP partagée (N30/31), commentaire
-    // Source UNIQUE : tableau 6.1 du sommaire (pas de repli interco / élévation).
+    // Source UNIQUE : tableau 4.2.1 du sommaire (pas de repli interco / élévation).
     const ic61 = tocTbl(ws, 'ic61', hasB('6.1', 'ic61') || hasB('6', 'ic61'));
     const epFrom = (row) => {
       if (!row) {
@@ -12427,9 +12430,9 @@ const LLD_TPL = (() => {
       diag5: { label: 'Diagramme d’accès FAI (avant 4.1.1)', kind: 'diagram', mode: 'fai' },
       diag6: { label: 'Diagramme d’interconnexion (avant 4.2.1)', kind: 'diagram', mode: 'interco' },
       diag7: { label: 'Diagramme Firewall (avant le reste du ch. 4.3)', kind: 'diagram', mode: 'fw' },
-      shots5: { label: 'Captures d’écran — ch. 5', kind: 'shots' },
-      shots6: { label: 'Captures d’écran — ch. 6', kind: 'shots' },
-      shots7: { label: 'Captures d’écran — ch. 7', kind: 'shots' }
+      shots5: { label: 'Captures d’écran — ch. 4.1', kind: 'shots' },
+      shots6: { label: 'Captures d’écran — ch. 4.2', kind: 'shots' },
+      shots7: { label: 'Captures d’écran — ch. 4.3', kind: 'shots' }
     };
     return synced(m[key] || null);
   }
@@ -12591,7 +12594,7 @@ const LLD_TPL = (() => {
         return out;
       }
     }
-    // Diagramme ch. 5/6/7 — image du schéma (JPEG pré-rasterisé) si dispo ;
+    // Diagramme ch. 4.1/4.2/4.3 — image du schéma (JPEG pré-rasterisé) si dispo ;
     // sinon tableaux texte De/Liaison/Vers (repli harnais / rendu échoué).
     if (lldBlockDef(key, L) && lldBlockDef(key, L).kind === 'diagram') {
       const def = lldBlockDef(key, L);
@@ -12825,17 +12828,17 @@ const LLD_TPL = (() => {
                   '7': ch7,
                   '8': switchZone, '8.1': switchZone, '8.2': switchZone,
                   '8.3': switchZone, '8.4': switchZone, '8.5': switchZone,
-                  '9':  chapterWith('server', '9.1. Serveurs', '9.2. Machines virtuelles',
+                  '9':  chapterWith('server', '4.5.1. Serveurs', '4.5.2. Machines virtuelles',
                         [['VM', 'name'], ['Rôle', 'role'], ['Hôte', 'host'], ['IP / VLAN', 'ip']], 'vms',
                         "À compléter : rôles et affectation des machines virtuelles.", 'server'),
-                  '10': chapterWith('storage', '10.1. Stockage', '10.2. Volumes / LUN',
+                  '10': chapterWith('storage', '4.6.1. Stockage', '4.6.2. Volumes / LUN',
                         [['Volume', 'name'], ['Capacité', 'size'], ['Type', 'type'], ['Serveur', 'srv']], 'vols',
                         "À compléter : volumes/LUN et plan de sauvegarde.", 'storage'),
-                  '11': chapterEquip(['ids'], "11.1. Détection d'intrusion", null, 'ids', 'idsEquip', '11.1'),
-                  '12': chapterWith('cctv', '12.1. Caméras et enregistreur (NVR)', '12.2. Caméras',
+                  '11': chapterEquip(['ids'], "4.7.1. Détection d'intrusion", null, 'ids', 'idsEquip', '4.7.1'),
+                  '12': chapterWith('cctv', '4.8.1. Caméras et enregistreur (NVR)', '4.8.2. Caméras',
                         [['Caméra', 'name'], ['Emplacement', 'loc'], ['Modèle', 'model'], ['IP', 'ip']], 'cams',
                         "À compléter : emplacements et plans d'implantation des caméras.", 'cctv'),
-                  '13': chapterEquip(['pointage'], '13.1. Pointeuses', null, 'pointage', 'spoEquip', '13.1'),
+                  '13': chapterEquip(['pointage'], '4.9.1. Pointeuses', null, 'pointage', 'spoEquip', '4.9.1'),
                   '14': ch14, '15': ch15, '15.1': ch151 };
 
   function buildAll(ws, layout, stylesXml, themeXml, only = null) {
@@ -12857,9 +12860,23 @@ const LLD_TPL = (() => {
     })(normLldInfo(ws).toc);
     const isCustom = n => !!(n && n.custom);
     const numPrefix = /^\d+(?:\.\d+)?$/;
+    // Numéro d'affichage d'une feuille du template : le sommaire fait foi
+    // (5→4.1 … 13→4.9) ; 1, 2, 3, 4, 14, 15, 15.1 sont inchangés.
+    const dispNum = key => (numPrefix.test(String(key)) && typeof lldTocRemap === 'function')
+      ? lldTocRemap(String(key)) : String(key);
+    // Titre du sommaire pour un numéro (repli remap 5→4.1…)
+    const tocTitleFor = oldNum => {
+      const ids = [String(oldNum)];
+      if (typeof lldTocRemap === 'function') ids.push(lldTocRemap(String(oldNum)));
+      for (const id of ids) {
+        const hit = BUILD_TOC.get(id);
+        if (hit && !isCustom(hit) && !hit.cover) return hit.title;
+      }
+      return null;
+    };
     const layoutKept = layout.filter(sheet =>
       numPrefix.test(String(sheet.name)) ? keepRoot(sheet.name) : true);
-    const sheetNames = new Set(layoutKept.map(x => String(x.name)));
+    const sheetNames = new Set(layoutKept.map(x => dispNum(x.name)));
     const sheets = layoutKept.map(sheet => {
       const fill = FILLS[sheet.name];
       let s;
@@ -12869,57 +12886,70 @@ const LLD_TPL = (() => {
         s = out(sheet, built.rows, built.heights);
       }
       if (sheet.name === 'Contenu') {
-        // Sommaire Excel : titres renommés (racines + sous-chapitres)…
-        const re = /^(\d+(?:\.\d+)?)\.\s+/;
-        const tocTitleFor = oldNum => {
-          const ids = [String(oldNum)];
-          if (typeof lldTocRemap === 'function') ids.push(lldTocRemap(String(oldNum)));
-          for (const id of ids) {
-            const hit = BUILD_TOC.get(id);
-            if (hit && !isCustom(hit) && !hit.cover) return hit.title;
-          }
-          return null;
+        // Sommaire reconstruit depuis le sommaire (ordre + numéros + titres
+        // renommés, chapitres ajoutés à leur place), styles du template
+        // (50 = racine, 47 = niveau 2+). Fini les « 5. … » / « 2.1 » fantômes.
+        const head = s.rows.slice(0, 3);
+        const body = [];
+        const pushToc = (num, title, depth) => {
+          if (only && !keepRoot(num)) return;
+          body.push(depth === 0
+            ? [{ v: `${num}. ${title}`, s: 50 }, { v: '', s: 50 }]
+            : depth === 1
+              ? [{ v: '', s: 50 }, { v: `${num}. ${title}`, s: 47 }]
+              : [{ v: '', s: 50 }, { v: '', s: 47 }, { v: `${num}. ${title}`, s: 47 }]);
         };
-        s.rows.forEach(row => row.forEach(cell => {
-          if (!cell || typeof cell.v !== 'string') return;
-          const m = re.exec(cell.v);
-          if (!m) return;
-          const t = tocTitleFor(m[1]);
-          if (t) cell.v = `${m[1]}. ${t}`;
-        }));
-        if (only) {
-          // Sélecteur : retirer du sommaire les chapitres non exportés
-          s.rows = s.rows.filter(row => {
-            const first = row.find(cell => cell && typeof cell.v === 'string' && re.exec(cell.v));
-            if (!first) return true;
-            return keepRoot(re.exec(first.v)[1]);
+        (function walk(ns, depth) {
+          (ns || []).forEach(x => {
+            if (!x || x.cover) return;
+            pushToc(String(x.num), x.title, depth);
+            walk(x.subs, depth + 1);
           });
-        }
-        // … puis les chapitres/sous-chapitres ajoutés, en fin de liste
-        tocNodes.filter(n => isCustom(n) && keepRoot(n.num)).forEach(n => {
-          const isSub = String(n.num).includes('.');
-          s.rows.push(isSub
-            ? [{ v: '', s: 50 }, { v: `${n.num}. ${n.title}`, s: 47 }]
-            : [{ v: `${n.num}. ${n.title}`, s: 50 }, { v: '', s: 50 }]);
-        });
+        })(normLldInfo(ws).toc, 0);
+        s.rows = head.concat(body);
+        // Hauteurs : lignes 1-3 conservées, 21 pt comme le template ensuite.
+        const hts = (s.opts && s.opts.heights) || {};
+        Object.keys(hts).map(Number).filter(r => r > 3).forEach(r => delete hts[r]);
+        for (let r = 4; r <= 3 + body.length; r++) hts[r] = 21;
         return s;
       }
-      // Titre renommé dans le sommaire -> remplacé en A1 (« 7. … »)
-      // (repli remap : la feuille 5 lit le titre du nœud 4.1)
+      // Numéro affiché = sommaire ; A1 = « <num>. <titre du sommaire> »
+      // (la feuille 5 lit le nœud 4.1 ; les « 11. »/« 12. » gravés des
+      // feuilles 14/15/15.1 sont corrigés eux aussi).
+      const outName = dispNum(sheet.name);
       const n = BUILD_TOC.get(String(sheet.name))
         || BUILD_TOC.get(typeof lldTocRemap === 'function' ? lldTocRemap(String(sheet.name)) : String(sheet.name));
       if (n && !isCustom(n) && !n.cover) {
         const cell = s.rows[0] && s.rows[0][0];
-        const re = new RegExp('^' + String(sheet.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.\\s');
-        if (cell && re.test(String(cell.v || ''))) {
-          const next = `${sheet.name}. ${n.title}`;
-          const cur = String(cell.v || '');
-          // Garde un suffixe du template (ex. feuille 8 « (HA) ») si le
-          // titre du sommaire en est le préfixe — Contenu Excel gelé.
-          if (cur === next || !cur.startsWith(next)) cell.v = next;
+        const m = cell && /^(\d+(?:\.\d+)?)\.\s+([\s\S]*)$/.exec(String(cell.v || ''));
+        if (cell && m) {
+          const rest = m[2];
+          // Garde un suffixe du template (ex. « (HA) ») si le titre du
+          // sommaire en est le préfixe — sinon titre du sommaire.
+          cell.v = (rest === n.title || !rest.startsWith(n.title))
+            ? `${outName}. ${n.title}` : `${outName}. ${rest}`;
+        }
+      }
+      // Sous-titres du template (« 5.1. … », « 6.2. … », « 2.1. … »…) :
+      // numéros remappés + titres du sommaire (lignes 2+ ; A1 traité ci-dessus).
+      // Seuls les anciens numéros connus sont retouchés (remap différent).
+      if (n && !isCustom(n) && numPrefix.test(String(sheet.name))) {
+        const hre = /^(\d+(?:\.\d+)?)\.\s+([\s\S]*)$/;
+        for (let ri = 1; ri < s.rows.length; ri++) {
+          const row = s.rows[ri];
+          if (!row) continue;
+          for (const cell of row) {
+            if (!cell || typeof cell.v !== 'string') continue;
+            const hm = hre.exec(cell.v);
+            if (!hm) continue;
+            const mapped = (typeof lldTocRemap === 'function') ? lldTocRemap(hm[1]) : hm[1];
+            if (mapped === hm[1]) continue;
+            cell.v = `${mapped}. ${tocTitleFor(hm[1]) || hm[2]}`;
+          }
         }
       }
       // Tableau / paragraphe / capture ajoutés dans 📘 → fin de feuille
+      // (APRÈS la synchro des titres : le texte utilisateur n'est pas retouché)
       if (n && !isCustom(n) && numPrefix.test(String(sheet.name))) {
         const extraImgs = appendFreeBlocks(s.rows, ws, sheet.name, sheetNames);
         if (extraImgs && extraImgs.length) {
@@ -12927,10 +12957,11 @@ const LLD_TPL = (() => {
           s.opts.images = (s.opts.images || []).concat(extraImgs);
         }
       }
+      s.name = outName;
       return s;
     });
     // Chapitres / sous-chapitres AJOUTÉS au sommaire -> feuilles en plus
-    const reserved = new Set(layout.map(x => String(x.name)));
+    const reserved = new Set(layout.map(x => dispNum(x.name)));
     tocNodes.filter(n => isCustom(n) && keepRoot(n.num)).forEach(n => {
       let name = String(n.num).slice(0, 31);
       if (reserved.has(name)) name = (name + ' bis').slice(0, 31);
@@ -12975,7 +13006,7 @@ $('#export-xlsx').addEventListener('click', async () => {
       fetch('assets/lld/styles.xml').then(r => { if (!r.ok) throw new Error('styles'); return r.text(); }),
       fetch('assets/lld/theme1.xml').then(r => { if (!r.ok) throw new Error('theme'); return r.text(); })
     ]);
-    // Schéma ch.5/6/7 : rasterise en JPEG (sinon seuls des tableaux texte partent)
+    // Schéma ch. 4.1/4.2/4.3 : rasterise en JPEG (sinon seuls des tableaux texte partent)
     if (typeof lldRenderDiagExportImgs === 'function') {
       try { await lldRenderDiagExportImgs(ws); } catch (_) { globalThis.__LLD_DIAG_IMGS = {}; }
     }
@@ -13060,7 +13091,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     cur.push(`${color.map(c => (+c).toFixed(2)).join(' ')} rg ${(+x).toFixed(2)} ${(+yy).toFixed(2)} ${(+w).toFixed(2)} ${(+h).toFixed(2)} re f`);
   };
   const hline = (x1, x2, yy) => { if (!SKIP && !SUBSKIP) cur.push(lineOp(x1, yy, x2)); };
-  // Ligne libre (2 points) + contour de rectangle — diagrammes ch. 5/6/7
+  // Ligne libre (2 points) + contour de rectangle — diagrammes ch. 4.1/4.2/4.3
   const hexToRgb = hex => {
     const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
     if (!m) return [0.38, 0.65, 0.98];
@@ -13101,7 +13132,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     }
     return false;
   };
-  // Captures d'écran rattachées à un chapitre (ch. 5/6/7 + blocs libres
+  // Captures d'écran rattachées à un chapitre (ch. 4.1/4.2/4.3 + blocs libres
   // cshots:… des chapitres ajoutés) → images JPEG dont le numéro d'objet
   // est fixé maintenant (dessin + assemblage PDF).
   const shotImgs = [];   // { ref: '/ImS0', key, bytes, w, h, name }
@@ -13137,8 +13168,8 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     diagImgs[mode] = im;
   });
   // Titre issu du sommaire — seuls les nœuds d'origine sont surchargés
-  // (les nums dynamiques 8.x des zones ne collisionnent pas avec un
-  // sous-chapitre personnalisé, le ch. 8 n'en accepte pas).
+  // (les nums dynamiques 4.4.x des zones ne collisionnent pas avec un
+  // sous-chapitre personnalisé, le ch. 4.4 n'en accepte pas).
   const tocTitle = (label, fallback) => {
     const n = tocByNum.get(String(label));
     return n && !n.custom && !n.cover ? String(n.title || fallback) : fallback;
@@ -13397,8 +13428,8 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
       pdfDrawBlock(key);
     }
   }
-  // Sous-chapitres ajoutés dans la modale sous `parentNum` (hors ch. 8 :
-  // ses 8.x d’origine suivent le sommaire / Excel ; les custom restent ici).
+  // Sous-chapitres ajoutés dans la modale sous `parentNum` (hors ch. 4.4 :
+  // ses 4.4.x d’origine suivent le sommaire / Excel ; les custom restent ici).
   function drawCustomSubs(parentNum) {
     const p = tocByNum.get(String(parentNum));
     if (!p) return;
@@ -13797,7 +13828,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
   pagesOps.forEach((_, i) => contentObjs.push(firstPageObj + nPages + i));
   const img0Num = firstPageObj + 2 * nPages;          // élévations
   const img1Num = img0Num + 1;                        // topologie
-  const shotNum0 = img1Num + 1;                       // captures ch. 5/6/7…
+  const shotNum0 = img1Num + 1;                       // captures ch. 4.1/4.2/4.3…
   // Numéros d'objets des captures (ordre de shotImgs)
   shotImgs.forEach((im, i) => { im.num = shotNum0 + i; });
 
