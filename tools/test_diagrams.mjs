@@ -505,5 +505,30 @@ console.log('\n[11] synchro totale des numéros');
   ok(aliases.every(n => nums.has(n)), 'recherche : tous les alias résolvent');
 }
 
+/* ---------- 12. Captures par défaut retirées ---------- */
+console.log('\n[12] captures par défaut retirées');
+// 12a. sommaire par défaut : diagrammes seuls
+{
+  const subs = W(`defaultLldToc().find(n => n.num === '4').subs`);
+  const b = num => subs.find(s => s.num === num).blocks;
+  ok(JSON.stringify(b('4.1')) === '["diag5"]', 'défaut 4.1 : diagramme seul');
+  ok(JSON.stringify(b('4.2')) === '["diag6"]', 'défaut 4.2 : diagramme seul');
+  ok(b('4.3').includes('diag7') && !b('4.3').includes('shots7'), 'défaut 4.3 : sans captures');
+}
+// 12b. migration : vide → détaché, avec données → conservé
+{
+  const mk = shots => W(`normLldInfo({lld:{shots5:${shots},toc:[{num:'4',title:'C',blocks:[],subs:[{num:'4.1',title:'F',blocks:['diag5','shots5'],subs:[]}]}]}}).toc.find(n=>n.num==='4').subs.find(s=>s.num==='4.1').blocks`);
+  ok(!mk('[]').includes('shots5'), 'ancien état vide : shots5 détaché');
+  ok(mk(`[{dataUrl:'data:image/png;base64,xx',name:'c.png'}]`).includes('shots5'), 'captures existantes : conservées');
+}
+// 12c. exports : plus de section Captures
+{
+  const sh = sn => zx[`xl/worksheets/sheet${sheetIdx[sn]}.xml`];
+  ok(!sh('4.1').includes('Captures d') && !sh('4.2').includes('Captures d') && !sh('4.3').includes('Captures d'), 'Excel : aucune section Captures');
+  const rep = W(`buildHtmlReportFile(WS, { plan: null, topo: null, rackShots: new Map(), logoSvg: '' }, null)`);
+  ok(!rep.includes('class="shots"'), 'HTML : aucune section Captures');
+  ok(W(`lldInfoDef('shots5') && lldInfoDef('shots5').kind`) === 'shots', 'compat : def shots5 conservée');
+}
+
 console.log(`\n==== ${PASS} PASS, ${FAIL} FAIL ====`);
 process.exit(FAIL ? 1 : 0);

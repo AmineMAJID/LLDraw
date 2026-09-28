@@ -187,15 +187,15 @@ function defaultLldToc() {
     ch('3', 'Architecture existante', ['equip']),
     ch('4', 'Conception Nomenclature et Adressage IP Global',
        ['addrMatrix', 'vlans', 'nomen'], [
-      ch('4.1', 'Conception et Configuration FAI', ['diag5', 'shots5'], [
+      ch('4.1', 'Conception et Configuration FAI', ['diag5'], [
         sub('4.1.1', 'Informations & Configuration', ['fais']),
         sub('4.1.2', 'Cablage', ['faiCab'])
       ]),
-      ch('4.2', 'Conception et Configuration Interconnexion site 2 site', ['diag6', 'shots6'], [
+      ch('4.2', 'Conception et Configuration Interconnexion site 2 site', ['diag6'], [
         sub('4.2.1', 'Informations & Configuration', ['ic61', 'adminSec', 'icWan', 'icLan']),
         sub('4.2.2', 'Cablage', ['icCab'])
       ]),
-      ch('4.3', 'Conception et Configuration Firewall', ['diag7', 'shots7', 'note:firewall'], [
+      ch('4.3', 'Conception et Configuration Firewall', ['diag7', 'note:firewall'], [
         sub('4.3.1', 'Équipements Firewall / Routeurs', ['fwEquip']),
         sub('4.3.2', 'Interfaces VLAN', ['fwVlan']),
         sub('4.3.3', 'Règles et NAT', ['fw'])
@@ -478,23 +478,23 @@ function normLldToc(raw) {
       const rest = blocks.filter(b => !std.includes(b));
       blocks = [...std.filter(b => blocks.includes(b)), ...rest];
     }
-    // Ch. 5/6/7 : injection unique du diagramme + captures en tête de blocs
+    // Ch. 4.1/4.2/4.3 : injection unique du diagramme en tête de blocs
     // (l'ancien sommaire n'avait rien avant 5.1 / 6.1 ; blocksSeeded évite
     // de ressusciter un bloc détaché par l'utilisateur).
     let blocksSeeded = r.blocksSeeded === 1 || r.blocksSeeded === true;
     let blocksSeeded2 = r.blocksSeeded2 === 1 || r.blocksSeeded2 === true;
     const seedNum = String(d.num);
     // Injection unique (blocksSeeded) — ne ressuscite pas un bloc détaché :
-    //  - ch. 4.1/4.2/4.3 : diagramme + captures en tête
+    //  - ch. 4.1/4.2/4.3 : diagramme en tête
     //  - 5.1/5.2  : tableaux Excel (fais / faiCab) si l'ancien sommaire
     //    les avait vides (modèle avant les tableaux du dossier)
     if (!blocksSeeded) {
       const SEED = {
         '2': ['sites'],
         '3': ['equip'],
-        '4.1': ['diag5', 'shots5'],
-        '4.2': ['diag6', 'shots6'],
-        '4.3': ['diag7', 'shots7'],
+        '4.1': ['diag5'],
+        '4.2': ['diag6'],
+        '4.3': ['diag7'],
         '4.1.1': ['fais'],
         '4.1.2': ['faiCab'],
         '4.2.1': ['ic61', 'icWan', 'icLan'],
@@ -1025,6 +1025,18 @@ function normLldInfo(w) {
   }
   // Sommaire du dossier (chapitres + sous-chapitres + contenus attachés)
   L.toc = normLldToc(L.toc);
+  // Captures par défaut retirées : détache shots5/6/7 des ch. 4.1/4.2/4.3
+  // quand ils sont vides — les captures déjà déposées restent affichées.
+  const SHOT_OF = { '4.1': 'shots5', '4.2': 'shots6', '4.3': 'shots7' };
+  (function walk(ns) {
+    (ns || []).forEach(n => {
+      if (!n || typeof n !== 'object') return;
+      const sk = SHOT_OF[String(n.num)];
+      if (sk && Array.isArray(n.blocks) && n.blocks.includes(sk)
+          && !(L[sk] || []).length) n.blocks = n.blocks.filter(k => k !== sk);
+      walk(n.subs);
+    });
+  })(L.toc);
   return L;
 }
 
@@ -5515,12 +5527,12 @@ const LLD_TOC_AUTO = {
   '2': 'Tableau des sites (mêmes colonnes que la feuille Excel 2)',
   '3': 'Équipements de l’architecture existante (🔎 élévation)',
   '4': "Matrice d'adressage (feuille Excel), registre VLANs, nomenclature & ports étiquetés (depuis les devices)",
-  '4.1': 'Diagramme d’accès FAI + captures (si renseignées) avant 4.1.1',
+  '4.1': 'Diagramme d’accès FAI avant 4.1.1',
   '4.1.2': 'Tableau 4.1.2 (Categorie / Description / Connecté a) — éditable ici, + câbles FAI si absents du tableau',
-  '4.2': 'Diagramme d’interconnexion + captures (si renseignées) avant 4.2.1',
+  '4.2': 'Diagramme d’interconnexion avant 4.2.1',
   '4.2.1': 'Tableaux extrémités/HA, WAN Connection Settings et LAN — éditables ici, export XLSX/PDF identiques',
   '4.2.2': 'Tableau (Categorie / Description / Port / Connecté a) — éditable ici, + câbles interco si absents',
-  '4.3': 'Diagramme Firewall + captures (avant 4.3.1)',
+  '4.3': 'Diagramme Firewall (avant 4.3.1)',
   '4.3.1': 'Tableau Excel 4.3.1 — équipements firewall/routeurs (🔎 élévation)',
   '4.3.2': 'Tableau Excel 4.3.2 — interfaces VLAN',
   '4.3.3': 'Tableau Excel 4.3.3 — règles et NAT',
