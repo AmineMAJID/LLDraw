@@ -14044,6 +14044,33 @@ $('#export-lld').addEventListener('click', async () => {
   downloadBlob(new Blob([u8], { type: 'application/pdf' }), exportFileBase() + '-LLD.pdf');
 });
 
+/* Présentation HLD (.pptx) : deck PowerPoint moderne et animé (hldpptx.js).
+   Images embarquées : plan, topologie et logo — tout est recalculé depuis
+   le workspace au moment de l'export. */
+$('#export-pptx').addEventListener('click', async () => {
+  $('#export-menu').classList.add('hidden');
+  const ws = lldWorkspaceForExport();
+  if (!ws || !ws.racks.length) {
+    lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '🎬 Présentation HLD' });
+    return;
+  }
+  const c = await renderPlanCanvas();
+  const tc = renderTopoCanvas();
+  const logo = await fetch('assets/logo-512.png')
+    .then(r => (r.ok ? r.arrayBuffer() : null))
+    .then(b => (b ? new Uint8Array(b) : null))
+    .catch(() => null);
+  const u8 = HLD_PPTX.build(ws, {
+    plan: c ? { bytes: dataURLBytes(c.toDataURL('image/jpeg', 0.85)), w: c.width, h: c.height } : null,
+    topo: tc ? { bytes: dataURLBytes(tc.toDataURL('image/jpeg', 0.9)), w: tc.width, h: tc.height } : null,
+    logo,
+  });
+  downloadBlob(
+    new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }),
+    exportFileBase() + '-HLD.pptx'
+  );
+});
+
 
 function dataURLBytes(dataUrl) {
   const b64 = dataUrl.split(',')[1];

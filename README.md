@@ -145,6 +145,17 @@ via localStorage, en secours).
      par baie** en plan repliable (boutons ±), Garanties **colorées** et
      triées par échéance, Câblage avec **couleur réelle** des cordons, Racks
      avec % d'occupation U, plus Sites, VLANs, Nomenclature et Flux.
+  - **🎬 Présentation HLD (.pptx)** — deck PowerPoint de synthèse (~14
+    diapositives, thème sombre moderne, contenu en français) écrit à la
+    main sans dépendance : couverture, sommaire, chiffres clés, sites,
+    architecture cible en **formes natives**, topologie et plan d'ensemble
+    (images capturées depuis le workspace), nomenclature/adressage, flux,
+    capacité & puissance, garanties, sécurité, feuille de route et
+    clôture. Animé : **transitions** par diapositive (fondu, poussée,
+    fondu enchaîné, volet, zoom), **animations d'entrée** (fondu, volet,
+    cercle, damier, lames, zoom…) en cascade au clic, en-tête animé en
+    automatique ; les sections vides sont sautées ou remplacées par un
+    état « à compléter ».
    Puis les formats **historiques** (toujours disponibles) :
    - **Image PNG** / **Plan PDF (1 page)** — rendu haute définition des racks,
      devices et ports ;

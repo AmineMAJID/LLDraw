@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 tools/export.xlsx
 tools/exports-test/
+.qa-pptx/
