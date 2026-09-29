@@ -11402,26 +11402,7 @@ const DX = (() => {
   return { buildAll, SHEET_ITEMS };
 })();
 
-$('#export-xlsx-data').addEventListener('click', async () => {
-  $('#export-menu').classList.add('hidden');
-  const ws = lldWorkspaceForExport();
-  if (!ws || !ws.racks.length) {
-    lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Excel — vue données' });
-    return;
-  }
-  const only = await lldPickSections({
-    title: '📊 Excel « vue données » — que voulez-vous exporter ?',
-    hint: 'Chaque rubrique cochée devient un onglet du classeur. L\u2019onglet Sommaire (avec liens) est toujours inclus.',
-    items: DX.SHEET_ITEMS.map(([k, lbl]) => [k, lbl])
-  });
-  if (!only) return;
-  if (!only.size) { lldAlert("Cochez au moins un onglet à exporter.", { title: '📊 Excel — vue données' }); return; }
-  // Schémas : rasterisation JPEG juste avant la construction du classeur
-  if (typeof lldRenderDiagExportImgs === 'function') {
-    try { await lldRenderDiagExportImgs(ws); } catch (_) { globalThis.__LLD_DIAG_IMGS = {}; }
-  }
-  downloadBlob(DX.buildAll(ws, only), exportFileBase() + '-donnees.xlsx');
-});
+
 
 /* ============================================================
    EXPORT XLSX « template » : réplique exacte du classeur LLD
