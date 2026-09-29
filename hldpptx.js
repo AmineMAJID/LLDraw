@@ -90,20 +90,41 @@ function crc32(u8) {
   for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
   return (c ^ 0xFFFFFFFF) >>> 0;
 }
+/* DEFLATE (RFC 1951) en blocs stockés : OPC/ISO 29500-2 impose l'algorithme
+   DEFLATE (méthode zip 8) — la méthode 0 « Stored » est interdite et peut
+   déclencher la réparation PowerPoint. Blocs stockés = deflate valide. */
+function deflateStored(u8) {
+  const MAX = 65535;
+  const n = Math.max(1, Math.ceil(u8.length / MAX));
+  const out = new Uint8Array(u8.length + n * 5);
+  let p = 0, off = 0;
+  for (let i = 0; i < n; i++) {
+    const end = Math.min(off + MAX, u8.length);
+    const len = end - off;
+    out[p++] = i === n - 1 ? 0x01 : 0x00;
+    out[p++] = len & 0xFF; out[p++] = (len >>> 8) & 0xFF;
+    const nlen = (~len) & 0xFFFF;
+    out[p++] = nlen & 0xFF; out[p++] = (nlen >>> 8) & 0xFF;
+    out.set(u8.subarray(off, end), p);
+    p += len; off = end;
+  }
+  return out.subarray(0, p);
+}
 function zip(files) {
   const chunks = [], central = [];
   let offset = 0, cdSize = 0;
   const DOS_TIME = 0, DOS_DATE = ((2026 - 1980) << 9) | (1 << 5) | 1;
   for (const f of files) {
     const name = enc.encode(f.name);
-    const data = typeof f.data === 'string' ? enc.encode(f.data) : f.data;
-    const crc = crc32(data);
+    const raw = typeof f.data === 'string' ? enc.encode(f.data) : f.data;
+    const data = deflateStored(raw);
+    const crc = crc32(raw);
     const lh = new DataView(new ArrayBuffer(30));
     lh.setUint32(0, 0x04034b50, true);
     lh.setUint16(4, 20, true); lh.setUint16(6, 0, true);
-    lh.setUint16(8, 0, true);  lh.setUint16(10, DOS_TIME, true);
+    lh.setUint16(8, 8, true);  lh.setUint16(10, DOS_TIME, true);
     lh.setUint16(12, DOS_DATE, true); lh.setUint32(14, crc, true);
-    lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true);
+    lh.setUint32(18, data.length, true); lh.setUint32(22, raw.length, true);
     lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
     chunks.push(new Uint8Array(lh.buffer), name, data);
 
@@ -112,12 +133,12 @@ function zip(files) {
     ch.setUint16(4, 20, true);   // version faite par
     ch.setUint16(6, 20, true);   // version requise
     ch.setUint16(8, 0, true);    // drapeaux
-    ch.setUint16(10, 0, true);   // méthode : store
+    ch.setUint16(10, 8, true);   // méthode : deflate (OPC)
     ch.setUint16(12, DOS_TIME, true);
     ch.setUint16(14, DOS_DATE, true);
     ch.setUint32(16, crc, true);
     ch.setUint32(20, data.length, true);
-    ch.setUint32(24, data.length, true);
+    ch.setUint32(24, raw.length, true);
     ch.setUint16(28, name.length, true);
     ch.setUint16(30, 0, true);   // extra
     ch.setUint16(32, 0, true);   // commentaire
@@ -406,14 +427,14 @@ function transXml(t) {
   const spd = (t && t[1]) || 'med';
   let inner;
   switch (kind) {
-    case 'push':   inner = '<p:push dir="l"/>'; break;
+    case 'push':   inner = '<p:push/>'; break;
     case 'pushU':  inner = '<p:push dir="u"/>'; break;
-    case 'split':  inner = '<p:split orient="horz" dir="out"/>'; break;
-    case 'cover':  inner = '<p:cover dir="l"/>'; break;
+    case 'split':  inner = '<p:split/>'; break;
+    case 'cover':  inner = '<p:cover/>'; break;
     case 'coverD': inner = '<p:cover dir="d"/>'; break;
     case 'zoom':   inner = '<p:zoom dir="in"/>'; break;
     case 'dissolve': inner = '<p:dissolve/>'; break;
-    case 'wipe':   inner = '<p:wipe dir="l"/>'; break;
+    case 'wipe':   inner = '<p:wipe/>'; break;
     case 'wheel':  inner = '<p:wheel spokes="1"/>'; break;
     default:       inner = '<p:fade/>';
   }
@@ -1367,7 +1388,7 @@ function rootRelsXml() {
 function coreXml(D) {
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const creator = D.meta.author || 'LLDraw';
-  return XMLDECL + `<cp:core-properties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" ` +
+  return XMLDECL + `<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" ` +
     `xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" ` +
     `xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">` +
     `<dc:title>Dossier HLD — ${esc(D.wsName)}</dc:title>` +
@@ -1377,7 +1398,7 @@ function coreXml(D) {
     `<dc:description>Présentation HLD générée par LLDraw.</dc:description>` +
     `<dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created>` +
     `<dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified>` +
-    `<cp:revision>1</cp:revision></cp:core-properties>`;
+    `<cp:revision>1</cp:revision></cp:coreProperties>`;
 }
 function appXml(n) {
   return XMLDECL + `<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" ` +
