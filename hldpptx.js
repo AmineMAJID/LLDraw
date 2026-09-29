@@ -498,7 +498,7 @@ function header(S, kicker, title) {
   const bar = S.sp({ name: 'Barre', x: 64, y: 118, w: 74, h: 5, fill: TH.acc, ln: 'none' });
   S.anim(k, 'fade', { at: 'auto', delay: 0, dur: 450 });
   S.anim(t, 'floatU', { at: 'auto', delay: 180, dur: 550 });
-  S.anim(bar, 'wipeR', { at: 'auto', delay: 420, dur: 500 });
+  S.anim(bar, 'wipeL', { at: 'auto', delay: 420, dur: 500 });
   return { k, t, bar };
 }
 function footer(S, D, num, total) {
@@ -607,7 +607,7 @@ function sCover(S, D, media) {
   S.anim(title, 'flyB', { at: 'click', delay: 0, dur: 750 });
 
   const rule = S.sp({ name: 'Filet', x: 92, y: 398, w: 240, h: 4, fill: TH.acc2, ln: 'none' });
-  S.anim(rule, 'wipeR', { at: 'click', delay: 500, dur: 550 });
+  S.anim(rule, 'wipeL', { at: 'click', delay: 500, dur: 550 });
 
   const meta = S.sp({
     name: 'Métadonnées', x: 92, y: 424, w: 700, h: 96, fill: 'none', ln: 'none',
@@ -1224,7 +1224,7 @@ function sClosing(S, D, media) {
     paras: [{ algn: 'ctr', runs: [{ t: D.meta.author || 'Équipe infrastructure', sz: 14, b: true, c: TH.acc2 }] }] });
   S.anim(big, 'flyB', { at: 'auto', delay: 0, dur: 800 });
   S.anim(sub, 'fade', { at: 'auto', delay: 500, dur: 600 });
-  S.anim(rule, 'wipeR', { at: 'auto', delay: 900, dur: 550 });
+  S.anim(rule, 'wipeL', { at: 'auto', delay: 900, dur: 550 });
   S.anim(contact, 'fade', { at: 'auto', delay: 1150, dur: 600 });
   if (media.logo) {
     const lg = S.pic({ name: 'Logo final', media: media.logo, x: 608, y: 552, w: 64, h: 64, alpha: 85 });
