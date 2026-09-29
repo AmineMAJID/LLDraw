@@ -205,10 +205,17 @@ function spXml(id, name, o) {
   const xfrm = `<a:xfrm${o.rot ? ` rot="${Math.round(o.rot * 60000)}"` : ''}` +
     `${o.flipH ? ' flipH="1"' : ''}${o.flipV ? ' flipV="1"' : ''}>` +
     `<a:off x="${E(o.x)}" y="${E(o.y)}"/><a:ext cx="${E(o.w)}" cy="${E(o.h)}"/></a:xfrm>`;
-  const adj = o.adj != null
+  /* PowerPoint supprime (et signale en réparation) tout a:gd sous un prstGeom
+     sans guide d'ajustement — ex. rect/line n'ont PAS d'adj (ECMA-376). */
+  const geomName = o.geom || 'rect';
+  const ADJ_OK = new Set(['roundRect', 'round1Rect', 'round2SameRect', 'round2DiagRect',
+    'ellipse', 'hexagon', 'octagon', 'pentagon', 'diamond', 'parallelogram', 'trapezoid',
+    'chevron', 'homePlate', 'cube', 'can', 'donut', 'frame', 'halfFrame',
+    'snip1Rect', 'snipRoundRect', 'snip2SameRect', 'snip2DiagRect', 'plus']);
+  const adj = (o.adj != null && ADJ_OK.has(geomName))
     ? `<a:avLst><a:gd name="adj" fmla="val ${Math.round(o.adj)}"/></a:avLst>`
     : '<a:avLst/>';
-  const geom = `<a:prstGeom prst="${o.geom || 'rect'}">${adj}</a:prstGeom>`;
+  const geom = `<a:prstGeom prst="${geomName}">${adj}</a:prstGeom>`;
   const fill = o.grad ? gradXml(o.grad) : fillXml(o.fill);
   const ln = lnXml(o.ln);
   const sh = o.shadow ? shadowXml() : '';
@@ -467,7 +474,7 @@ function header(S, kicker, title) {
     name: 'Titre', x: 64, y: 66, w: 1000, h: 46, fill: 'none', ln: 'none',
     paras: [{ runs: [{ t: title, sz: 27, b: true, c: TH.ink }] }],
   });
-  const bar = S.sp({ name: 'Barre', x: 64, y: 118, w: 74, h: 5, fill: TH.acc, ln: 'none', adj: 50000 });
+  const bar = S.sp({ name: 'Barre', x: 64, y: 118, w: 74, h: 5, fill: TH.acc, ln: 'none' });
   S.anim(k, 'fade', { at: 'auto', delay: 0, dur: 450 });
   S.anim(t, 'floatU', { at: 'auto', delay: 180, dur: 550 });
   S.anim(bar, 'wipeR', { at: 'auto', delay: 420, dur: 500 });
@@ -561,7 +568,7 @@ function sCover(S, D, media) {
     logoId = S.pic({ name: 'Logo', media: media.logo, x: 64, y: 60, w: 64, h: 64 });
     S.anim(logoId, 'fade', { at: 'auto', delay: 0, dur: 500 });
   }
-  const bar = S.sp({ name: 'Barre latérale', x: 64, y: 214, w: 6, h: 118, fill: TH.acc, ln: 'none', adj: 50000 });
+  const bar = S.sp({ name: 'Barre latérale', x: 64, y: 214, w: 6, h: 118, fill: TH.acc, ln: 'none' });
   const kick = S.sp({
     name: 'Kicker', x: 92, y: 214, w: 780, h: 22, fill: 'none', ln: 'none',
     paras: [{ runs: [{ t: 'DOSSIER DE CONCEPTION — HIGH LEVEL DESIGN', sz: 11, b: true, c: TH.acc2, spc: 2.6 }] }],
@@ -578,7 +585,7 @@ function sCover(S, D, media) {
   });
   S.anim(title, 'flyB', { at: 'click', delay: 0, dur: 750 });
 
-  const rule = S.sp({ name: 'Filet', x: 92, y: 398, w: 240, h: 4, fill: TH.acc2, ln: 'none', adj: 50000 });
+  const rule = S.sp({ name: 'Filet', x: 92, y: 398, w: 240, h: 4, fill: TH.acc2, ln: 'none' });
   S.anim(rule, 'wipeR', { at: 'click', delay: 500, dur: 550 });
 
   const meta = S.sp({
@@ -1191,7 +1198,7 @@ function sClosing(S, D, media) {
       { algn: 'ctr', runs: [{ t: `Dossier HLD — ${D.meta.client}`, sz: 17, c: TH.mut }] },
       { algn: 'ctr', runs: [{ t: [D.meta.version && `version ${D.meta.version}`, fmtDate(D.meta.date)].filter(Boolean).join('  ·  ') || 'Prêt pour revue', sz: 13, c: TH.dim }], spcBef: 6 },
     ] });
-  const rule = S.sp({ name: 'Filet', x: 566, y: 440, w: 148, h: 4, fill: TH.acc, ln: 'none', adj: 50000 });
+  const rule = S.sp({ name: 'Filet', x: 566, y: 440, w: 148, h: 4, fill: TH.acc, ln: 'none' });
   const contact = S.sp({ name: 'Contact', x: 190, y: 470, w: 900, h: 40, fill: 'none', ln: 'none',
     paras: [{ algn: 'ctr', runs: [{ t: D.meta.author || 'Équipe infrastructure', sz: 14, b: true, c: TH.acc2 }] }] });
   S.anim(big, 'flyB', { at: 'auto', delay: 0, dur: 800 });
