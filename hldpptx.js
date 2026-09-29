@@ -306,8 +306,8 @@ const FX = {
   fade:     { pid: 10, sub: 0,  filter: 'fade' },
   dissolve: { pid: 9,  sub: 0,  filter: 'dissolve' },
   wipeD:    { pid: 22, sub: 4,  filter: 'wipe(down)' },    // révèle du haut vers le bas
-  wipeR:    { pid: 22, sub: 2,  filter: 'wipe(right)' },   // pousse de la gauche vers la droite
-  wipeL:    { pid: 22, sub: 8,  filter: 'wipe(left)' },
+  wipeR:    { pid: 22, sub: 2,  filter: 'wipe(right)' },   // From Right (part du bord droit → vers la gauche)
+  wipeL:    { pid: 22, sub: 8,  filter: 'wipe(left)' },   // From Left (remplissage gauche → droite)
   wipeU:    { pid: 22, sub: 1,  filter: 'wipe(up)' },
   circle:   { pid: 6,  sub: 16, filter: 'circle(in)' },
   checker:  { pid: 5,  sub: 10, filter: 'checkerboard(across)' },
@@ -769,7 +769,7 @@ function sSites(S, D) {
       const d0 = i * 170 + 360 + j * 200;
       S.anim(label, 'fade', { at: 'click', delay: d0, dur: 450 });
       S.anim(track, 'fade', { at: 'click', delay: d0, dur: 450 });
-      S.anim(fillbar, 'wipeR', { at: 'click', delay: d0 + 120, dur: 700 });
+      S.anim(fillbar, 'wipeL', { at: 'click', delay: d0 + 120, dur: 700 });
       S.anim(pc, 'fade', { at: 'click', delay: d0 + 300, dur: 450 });
     });
   });
@@ -1030,7 +1030,7 @@ function sCapacite(S, D) {
     const d0 = i * 230;
     S.anim(label, 'floatU', { at: 'click', delay: d0, dur: 520 });
     S.anim(track, 'fade', { at: 'click', delay: d0, dur: 450 });
-    S.anim(fillbar, 'wipeR', { at: 'click', delay: d0 + 140, dur: 850 });
+    S.anim(fillbar, 'wipeL', { at: 'click', delay: d0 + 140, dur: 850 });
     S.anim(pc, 'fade', { at: 'click', delay: d0 + 420, dur: 450 });
     S.anim(meta, 'fade', { at: 'click', delay: d0 + 420, dur: 450 });
   });
@@ -1082,7 +1082,7 @@ function sGaranties(S, D) {
     const sw = Math.max(24, Math.round(usable * (s.n / Math.max(1, w.known))));
     const bar = S.sp({ name: `Seg ${i + 1}`, x, y: 174, w: sw, h: 22, geom: 'roundRect', adj: 50000,
       fill: s.c, ln: 'none' });
-    S.anim(bar, 'wipeR', { at: 'click', delay: i * 260, dur: 750 });
+    S.anim(bar, 'wipeL', { at: 'click', delay: i * 260, dur: 750 });
     x += sw + gap;
   });
   const legend = S.sp({ name: 'Légende garanties', x: 64, y: 208, w: 1152, h: 34, fill: 'none', ln: 'none',
@@ -1173,7 +1173,7 @@ function sRoadmap(S, D) {
     paras: [{ runs: [{ t: 'Feuille de route de bascule en 4 jalons — de la recette des livrables à l’exploitation quotidienne.', sz: 12.5, c: TH.mut }] }] });
   S.anim(sub, 'fade', { at: 'click', delay: 0, dur: 500 });
   const line = S.sp({ name: 'Ligne', x: 130, y: 306, w: 1020, h: 3, fill: { c: TH.bd }, ln: 'none' });
-  S.anim(line, 'wipeR', { at: 'click', delay: 0, dur: 900 });
+  S.anim(line, 'wipeL', { at: 'click', delay: 0, dur: 900 });
   const steps = [
     ['1', 'Recette & validation', 'Vérification des élévations, du câblage et des plans de ports avec les équipes.', TH.acc2],
     ['2', 'Préparation', 'Formalisation IP / VLAN, nomenclature, comptes d’administration et règles firewall.', TH.acc],
