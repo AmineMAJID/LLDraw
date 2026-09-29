@@ -534,9 +534,9 @@ console.log('\n[11] synchro totale des numéros');
 // 11a. onglets renommés selon le sommaire
 {
   const names = Object.keys(sheetIdx);
-  for (const n of ['4.1', '4.2', '4.3', '4.4', '4.5', '4.6', '4.7', '4.8', '4.9', '4.4.1', '4.4.5'])
+  for (const n of ['4.1', '4.2', '4.3', '4.4', '4.5', '4.6', '4.7', '4.8', '4.9', '4.4.1', '4.4.5', '5', '6', '6.1'])
     ok(names.includes(n), `onglet ${n} présent`);
-  for (const n of ['5', '6', '7', '8', '9', '10', '11', '12', '13', '8.1'])
+  for (const n of ['7', '8', '9', '10', '11', '12', '13', '8.1'])
     ok(!names.includes(n), `ancien onglet ${n} supprimé`);
 }
 // 11b. A1 synchronisés (numéro + titre sommaire)
@@ -547,8 +547,8 @@ console.log('\n[11] synchro totale des numéros');
     return m ? m[1] : null;
   };
   ok(a1('4.1') === '4.1. Conception et Configuration FAI', `A1 4.1 (${a1('4.1')})`);
-  ok(a1('15') === '15. Cablage/Rack', `A1 15 (${a1('15')})`);
-  ok(a1('14') === '14. Flux réseau et diagram', `A1 14 (${a1('14')})`);
+  ok(a1('6') === '6. Cablage/Rack', `A1 6 (${a1('6')})`);
+  ok(a1('5') === '5. Flux réseau et diagram', `A1 5 (${a1('5')})`);
   ok((a1('4.4') || '').startsWith('4.4. Conception et Configuration Switching'), `A1 4.4 (${a1('4.4')})`);
 }
 // 11c. sous-titres du template remappés
@@ -569,8 +569,8 @@ console.log('\n[11] synchro totale des numéros');
   const xml = zx[`xl/worksheets/sheet${m[2]}.xml`];
   ok(xml.includes('4.3.1. '), 'Contenu : 4.3.1 présent');
   ok(xml.includes('4.9.1. Pointeuses'), 'Contenu : 4.9.1 présent');
-  ok(xml.includes('14.1. Flux applicatifs'), 'Contenu : 14.1 présent');
-  ok(!/>5\. /.test(xml) && !/>2\.1\. Information/.test(xml) && !/>3\.1\. Equipments/.test(xml), 'Contenu : anciens numéros purgés');
+  ok(xml.includes('5.1. Flux applicatifs'), 'Contenu : 5.1 présent');
+  ok(!/>5\. Conception/.test(xml) && !/>2\.1\. Information/.test(xml) && !/>3\.1\. Equipments/.test(xml), 'Contenu : anciens numéros purgés');
 }
 // 11e. modale + recherche : labels synchronisés
 {
