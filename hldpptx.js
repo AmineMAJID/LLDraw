@@ -144,7 +144,8 @@ function zip(files) {
 /* ==================== Texte : paragraphes / runs ======================== */
 function runXml(r, d = {}) {
   if (typeof r === 'string') r = { t: r };
-  const sz = Math.round((r.sz ?? d.sz ?? 14) * 100);
+  // ST_TextFontSize : 100..4000 (1 à 40 pt) — au-delà PowerPoint « répare ».
+  const sz = Math.min(4000, Math.max(100, Math.round((r.sz ?? d.sz ?? 14) * 100)));
   const c = hex(r.c ?? d.c ?? TH.ink);
   const b = (r.b ?? d.b) ? ' b="1"' : '';
   const it = (r.i ?? d.i) ? ' i="1"' : '';
@@ -377,7 +378,7 @@ function timingXml(anims) {
       if (!seen.has(a.spid)) { seen.add(a.spid); bld.push(a.spid); }
       return `<p:par><p:cTn id="${wid}" fill="hold">` +
         `<p:stCondLst><p:cond delay="${a.delay}"/></p:stCondLst>` +
-        `<p:childTnLst><p:par>${row}</p:par></p:childTnLst></p:cTn></p:par>`;
+        `<p:childTnLst>${row}</p:childTnLst></p:cTn></p:par>`;
     }).join('');
     gxml += `<p:par><p:cTn id="${gid}" fill="hold"><p:stCondLst>${cond}</p:stCondLst>` +
       `<p:childTnLst>${rows}</p:childTnLst></p:cTn></p:par>`;
@@ -661,7 +662,7 @@ function sKpis(S, D) {
       fill: TH.card, ln: { c: TH.bd, w: 1 }, shadow: true,
       paras: [
         { runs: [{ t: c[0], sz: 22 }], spcAft: 8 },
-        { runs: [{ t: String(c[1]), sz: 46, b: true, c: TH.ink }], lnSpc: 96 },
+        { runs: [{ t: String(c[1]), sz: 40, b: true, c: TH.ink }], lnSpc: 96 },
         { runs: [{ t: c[2], sz: 10.5, b: true, c: c[3], spc: 1.8 }], spcBef: 6 },
       ],
       ins: { l: 26, r: 20, t: 24, b: 18 },
@@ -1126,7 +1127,7 @@ function sSecurite(S, D) {
       fill: TH.card, ln: { c: TH.bd, w: 1 }, shadow: true,
       paras: [
         { runs: [{ t: it[0], sz: 22 }], spcAft: 8 },
-        { runs: [{ t: it[1] || '—', sz: 42, b: true, c: TH.ink },
+        { runs: [{ t: it[1] || '—', sz: 40, b: true, c: TH.ink },
                   { t: it[2] ? '  ' + it[2] : '', sz: 12, c: TH.mut }], lnSpc: 98 },
         { runs: [{ t: it[3], sz: 11.5, c: it[4], b: true }], spcBef: 8 },
       ],
@@ -1184,7 +1185,7 @@ function sClosing(S, D, media) {
   S.sp({ name: 'Décor B', x: 980, y: 420, w: 440, h: 440, geom: 'ellipse',
     fill: { c: TH.acc2, a: 6 }, ln: 'none' });
   const big = S.sp({ name: 'Merci', x: 140, y: 236, w: 1000, h: 96, fill: 'none', ln: 'none',
-    paras: [{ algn: 'ctr', runs: [{ t: 'Merci.', sz: 54, b: true, c: TH.ink }] }] });
+    paras: [{ algn: 'ctr', runs: [{ t: 'Merci.', sz: 40, b: true, c: TH.ink }] }] });
   const sub = S.sp({ name: 'Sous-titre', x: 190, y: 346, w: 900, h: 64, fill: 'none', ln: 'none',
     paras: [
       { algn: 'ctr', runs: [{ t: `Dossier HLD — ${D.meta.client}`, sz: 17, c: TH.mut }] },
@@ -1252,6 +1253,7 @@ function masterXml() {
     `</p:spTree></p:cSld>` +
     `<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" ` +
     `accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>` +
+    `<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>` +
     `<p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles></p:sldMaster>`;
 }
 function layoutRelsXml() {
