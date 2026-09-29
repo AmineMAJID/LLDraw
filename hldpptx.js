@@ -255,9 +255,9 @@ function tblXml(id, name, o) {
       const lnB = ci >= 0
         ? `<a:lnB w="${isHdr ? 19050 : 9525}" cap="flat"><a:solidFill><a:srgbClr val="${isHdr ? hex(TH.acc) : hex(TH.bd)}"/></a:solidFill></a:lnB>`
         : '';
-      return `<a:tc marL="${E(10)}" marR="${E(10)}" marT="${E(4)}" marB="${E(4)}" anchor="ctr">` +
+      return `<a:tc>` +
         `<a:txBody><a:bodyPr/><a:lstStyle/>${parasXml(paras)}</a:txBody>` +
-        `<a:tcPr>${lnB}${fillXml(fill)}</a:tcPr></a:tc>`;
+        `<a:tcPr marL="${E(10)}" marR="${E(10)}" marT="${E(4)}" marB="${E(4)}" anchor="ctr">${lnB}${fillXml(fill)}</a:tcPr></a:tc>`;
     }).join('');
     return `<a:tr h="${h}">${cells}</a:tr>`;
   }).join('');
