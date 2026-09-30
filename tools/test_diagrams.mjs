@@ -808,5 +808,29 @@ ok(W(`document.body.classList.contains('label-edit')`), 'classe body label-edit 
 weval(`document.querySelector('#label-edit').click()`);
 ok(W(`labelMode`) === null, 're-clic sur « Modifier les ports » sort du mode');
 
+console.log('\n[18] bibliothèque : WatchGuard et Routeur FAI supprimables');
+weval(`palCatFilter = 'all'; renderPalette()`);
+ok(W(`state.devices.some(d => d.id === 'watchguard-permanent')`), 'WatchGuard présent en bibliothèque');
+ok(W(`state.devices.some(d => d.id === 'isp-cpe-fai')`), 'Routeur FAI présent en bibliothèque');
+ok(W(`!!document.querySelector('[data-device-id="watchguard-permanent"] .mini-del')`), 'bouton ✕ visible sur le WatchGuard');
+ok(W(`!!document.querySelector('[data-device-id="isp-cpe-fai"] .mini-del')`), 'bouton ✕ visible sur le Routeur FAI');
+// Suppression du WatchGuard
+weval(`document.querySelector('[data-device-id="watchguard-permanent"] .mini-del').click()`);
+await tick13();
+ok(W(`document.querySelectorAll('.lld-dlg-overlay').length`) === 1, 'confirmation « supprimer le modèle » affichée');
+weval(`document.querySelector('.lld-dlg-overlay .lld-dlg-btns .btn:last-child').click()`);
+await tick13(); await tick13();
+ok(W(`!state.devices.some(d => d.id === 'watchguard-permanent')`), 'WatchGuard supprimé de la bibliothèque');
+ok(W(`(state.libRemoved || []).includes('watchguard-permanent')`), 'suppression mémorisée (libRemoved)');
+// Suppression du Routeur FAI
+weval(`document.querySelector('[data-device-id="isp-cpe-fai"] .mini-del').click()`);
+await tick13();
+weval(`document.querySelector('.lld-dlg-overlay .lld-dlg-btns .btn:last-child').click()`);
+await tick13(); await tick13();
+ok(W(`!state.devices.some(d => d.id === 'isp-cpe-fai')`), 'Routeur FAI supprimé de la bibliothèque');
+// Aucune résurrection au rendu suivant (renderPalette + ensure directs)
+weval(`renderPalette(); ensureWatchGuard(); ensureIspCpeDevice();`);
+ok(W(`!state.devices.some(d => d.id === 'watchguard-permanent' || d.id === 'isp-cpe-fai')`), 'pas de résurrection par les ensure');
+
 console.log(`\n==== ${PASS} PASS, ${FAIL} FAIL ====`);
 process.exit(FAIL ? 1 : 0);

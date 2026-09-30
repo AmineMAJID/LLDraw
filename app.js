@@ -12,11 +12,18 @@
    - Persistance dans localStorage
    ============================================================ */
 
-// Device permanent WatchGuard
+// Modèles de démarrage (WatchGuard + CPE FAI) — supprimables (libRemoved)
 const WATCHGUARD_ID = 'watchguard-permanent';
 const ISP_CPE_ID = 'isp-cpe-fai';
 
+/* Modèle retiré de la bibliothèque par l'utilisateur : les ensure ne le
+   recréent plus (les deux modèles de démarrage sont supprimables). */
+function libModelRemoved(id) {
+  return Array.isArray(state?.libRemoved) && state.libRemoved.includes(id);
+}
+
 function ensureWatchGuard() {
+  if (libModelRemoved(WATCHGUARD_ID)) return;
   const exists = state.devices.some(d => d.id === WATCHGUARD_ID);
   if (!exists) {
     state.devices.unshift({
@@ -24,7 +31,6 @@ function ensureWatchGuard() {
       name: 'WatchGuard',
       sizeU: 1,
       photo: null,
-      permanent: true,
       cat: 'firewall',
       brand: 'WatchGuard',
       model: 'Firebox',
@@ -105,6 +111,7 @@ function lldIspFrontPhoto(idx) {
 
 function ensureIspCpeDevice() {
   if (!state || !Array.isArray(state.devices)) return null;
+  if (libModelRemoved(ISP_CPE_ID)) return null;   // supprimé par l'utilisateur
   let d = state.devices.find(x => x.id === ISP_CPE_ID);
   if (!d) {
     d = {
@@ -112,7 +119,6 @@ function ensureIspCpeDevice() {
       name: 'Routeur FAI / CPE',
       sizeU: 1,
       photo: lldIspFrontPhoto(0),
-      permanent: true,
       cat: 'router',
       brand: 'Peplink',
       model: 'Balance 20X',
@@ -1683,8 +1689,9 @@ function mergeDemoInto(local, demo) {
   const merged = normalizeState(local);
   const wantedActive = merged.activeWorkspaceId;   // conservé s'il existe encore
   const known = new Set(merged.devices.map(d => d.id));
+  const removed = new Set(Array.isArray(merged.libRemoved) ? merged.libRemoved : []);
   for (const d of demo.devices) {
-    if (!known.has(d.id)) { merged.devices.push(d); known.add(d.id); }
+    if (!known.has(d.id) && !removed.has(d.id)) { merged.devices.push(d); known.add(d.id); }
   }
   for (const w of demo.workspaces) {
     if (!merged.workspaces.some(x => x.id === w.id)) merged.workspaces.push(w);
@@ -2149,7 +2156,7 @@ function renderPalette() {
   const list = $('#device-list');
   list.innerHTML = '';
 
-  // S'assurer que le WatchGuard permanent existe toujours
+  // Modèles de démarrage : créés s'ils manquent, jamais après suppression
   ensureWatchGuard();
   ensureIspCpeDevice();
 
@@ -2182,7 +2189,7 @@ function renderPalette() {
       </div>
       <div class="pal-actions">
         <button class="mini-edit" title="Modifier ce device">✏️</button>
-        ${d.permanent ? '' : '<button class="mini-del" title="Supprimer ce modèle de device">✕</button>'}
+        <button class="mini-del" title="Supprimer ce modèle de device">✕</button>
       </div>`;
 
     card.addEventListener('dragstart', e => {
@@ -2197,27 +2204,28 @@ function renderPalette() {
       openEditDeviceModal(d);
     });
 
-    // Bouton supprimer (seulement pour les devices non-permanents)
-    if (!d.permanent) {
-      card.querySelector('.mini-del').addEventListener('click', async () => {
-        const ok = await lldConfirm(
-          `Supprimer le modèle « ${d.name} » de la bibliothèque ?\n(Les exemplaires déjà placés sont conservés.)`,
-          { title: '🗑 Supprimer le modèle', okLabel: 'Supprimer' });
-        if (ok) {
-          pushHistory();
-          // Les exemplaires posés qui affichent la photo du modèle la
-          // conservent : on la leur matérialise avant de retirer le modèle.
-          if (d.photo) {
-            state.workspaces.forEach(w => w.racks.forEach(r => r.instances.forEach(i => {
-              if (i.deviceId === d.id && !i.photo) i.photo = d.photo;
-            })));
-          }
-          state.devices = state.devices.filter(x => x.id !== d.id);
-          saveState();
-          renderPalette();
+    // Bouton supprimer (tous les modèles, y compris ceux de démarrage)
+    card.querySelector('.mini-del').addEventListener('click', async () => {
+      const ok = await lldConfirm(
+        `Supprimer le modèle « ${d.name} » de la bibliothèque ?\n(Les exemplaires déjà placés sont conservés.)`,
+        { title: '🗑 Supprimer le modèle', okLabel: 'Supprimer' });
+      if (ok) {
+        pushHistory();
+        // Mémoriser la suppression : les ensure du démarrage ne
+        // doivent pas recréer ce modèle (et la démo ne le réintègre pas).
+        state.libRemoved = [...new Set([...(state.libRemoved || []), d.id])];
+        // Les exemplaires posés qui affichent la photo du modèle la
+        // conservent : on la leur matérialise avant de retirer le modèle.
+        if (d.photo) {
+          state.workspaces.forEach(w => w.racks.forEach(r => r.instances.forEach(i => {
+            if (i.deviceId === d.id && !i.photo) i.photo = d.photo;
+          })));
         }
-      });
-    }
+        state.devices = state.devices.filter(x => x.id !== d.id);
+        saveState();
+        renderPalette();
+      }
+    });
 
     list.appendChild(card);
   });
