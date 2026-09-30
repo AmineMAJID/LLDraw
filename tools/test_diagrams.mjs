@@ -659,5 +659,33 @@ weval(`document.querySelector('#lld-cancel').click()`);
 ok(modalHidden() && W(`WS.lld.toc[0].title`) !== 'ZZZ', 'Annuler : sortie immédiate explicite, modif jetée');
 ok(W(`lldIsDirty()`) === false, 'sans brouillon : pas modifié');
 
+/* ---------- 14. Catégories de devices (filtres) ---------- */
+console.log('\n[14] catégories : gestionnaire (ajout / renommage / suppression)');
+weval(`document.querySelector('#pal-cat-manage').click()`);
+ok(W(`!!document.querySelector('#lc-overlay')`), 'gestionnaire de catégories ouvert');
+// 14a. ajout de « Cloud » (filtre absent de la liste d’origine)
+weval(`document.querySelector('#lc-ico').value = '☁️'; document.querySelector('#lc-lbl').value = 'Cloud'; document.querySelector('#lc-add').click()`);
+ok(W(`DEV_CATEGORIES.some(c => c[2] === 'Cloud')`), 'ajout : catégorie « Cloud » créée');
+ok(W(`DEV_CATEGORIES.find(c => c[2] === 'Cloud')[0]`) === 'c-cloud', 'identifiant sluggé « c-cloud »');
+ok(W(`[...document.querySelectorAll('#pal-cat-filter option')].some(o => o.value === 'c-cloud')`), 'select « Filtrer par catégorie » mis à jour');
+ok(W(`[...document.querySelectorAll('#d-cat option')].some(o => o.value === 'c-cloud')`), 'select Catégorie de la modale device mis à jour');
+// 14b. renommage (correction d’une faute de frappe)
+weval(`(function(){ const i = document.querySelector('input[data-cat-lbl="c-cloud"]'); i.value = 'Cloud IaaS'; i.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+ok(W(`DEV_CATEGORIES.find(c => c[0] === 'c-cloud')[2]`) === 'Cloud IaaS', 'renommage appliqué');
+// 14c. suppression avec avertissement d’usage → réaffectation à « Autre »
+weval(`state.devices[0].cat = 'c-cloud'; renderPalette();`);
+weval(`document.querySelector('button[data-cat-del="c-cloud"]').click()`);
+await tick13();
+ok(W(`document.querySelectorAll('.lld-dlg-overlay:not(#lc-overlay)').length`) === 1, 'confirmation de suppression affichée');
+ok(String(W(`document.querySelector('.lld-dlg-overlay:not(#lc-overlay) .lld-dlg-msg')?.textContent || ''`)).includes('utilisée par 1'), 'avertissement : 1 équipement concerné');
+weval(`document.querySelector('.lld-dlg-overlay:not(#lc-overlay) .lld-dlg-btns .btn:last-child').click()`);
+await tick13();
+ok(W(`!DEV_CATEGORIES.some(c => c[0] === 'c-cloud')`), 'catégorie supprimée de la liste');
+ok(W(`state.devices[0].cat`) === 'other', 'device réaffecté à « Autre »');
+// 14d. fermé + état persisté
+weval(`document.querySelector('#lc-close').click()`);
+ok(W(`!document.querySelector('#lc-overlay')`), 'gestionnaire fermé');
+ok(W(`Array.isArray(state.devCats)`), 'liste des catégories persistée dans l’état');
+
 console.log(`\n==== ${PASS} PASS, ${FAIL} FAIL ====`);
 process.exit(FAIL ? 1 : 0);

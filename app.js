@@ -1101,7 +1101,7 @@ function fmtWatts(w) {
 // Chaque device (modèle de la bibliothèque ET exemplaire posé) porte une
 // catégorie métier : elle structure le dossier LLD (ch. 3.1 Équipements et
 // futurs chapitres 7 à 13) et permet de filtrer la bibliothèque.
-const DEV_CATEGORIES = [
+const DEV_CATEGORIES_DEF = [
   ['router',   '\ud83c\udf10', 'Routeur / FAI'],
   ['firewall', '\ud83d\udee1\ufe0f', 'Firewall'],
   ['switch',   '\ud83d\udd00', 'Switch'],
@@ -1115,7 +1115,30 @@ const DEV_CATEGORIES = [
   ['patch',    '\ud83d\udd0c', 'Brassage (panneau)'],
   ['other',    '\ud83d\udce6', 'Autre']
 ];
-const DEV_CAT_MAP = Object.fromEntries(DEV_CATEGORIES.map(([id, ico, lbl]) => [id, { ico, lbl }]));
+/* Liste ACTIVE des catégories = state.devCats (même tableau, éditable dans
+   « Gérer les catégories » : ajouter / renommer / supprimer un filtre). */
+let DEV_CATEGORIES = DEV_CATEGORIES_DEF.map(a => a.slice());
+let DEV_CAT_MAP = Object.fromEntries(DEV_CATEGORIES.map(([id, ico, lbl]) => [id, { ico, lbl }]));
+
+function rebuildDevCats() {
+  DEV_CAT_MAP = Object.fromEntries(DEV_CATEGORIES.map(([id, ico, lbl]) => [id, { ico, lbl }]));
+  const f = $('#pal-cat-filter');
+  if (f) f.innerHTML = '<option value="all">Toutes les catégories</option>' +
+    DEV_CATEGORIES.map(([id, ico, lbl]) =>
+      `<option value="${id}">${ico} ${escapeHtml(lbl)}</option>`).join('');
+  const d = $('#d-cat');
+  if (d) {
+    const keep = d.value;
+    d.innerHTML = DEV_CATEGORIES.map(([id, ico, lbl]) =>
+      `<option value="${id}">${ico} ${escapeHtml(lbl)}</option>`).join('');
+    if (DEV_CAT_MAP[keep]) d.value = keep;
+  }
+}
+function syncDevCatsFromState() {
+  if (!Array.isArray(state.devCats)) state.devCats = DEV_CATEGORIES_DEF.map(a => a.slice());
+  DEV_CATEGORIES = state.devCats;
+  rebuildDevCats();
+}
 
 function normCat(cat) {
   return (typeof cat === 'string' && DEV_CAT_MAP[cat]) ? cat : 'other';
@@ -1372,7 +1395,8 @@ function makeWorkspace(name, racks = []) {
 }
 
 function emptyState() {
-  return { devices: [], workspaces: [], activeWorkspaceId: null, demoDismissed: false };
+  return { devices: [], workspaces: [], activeWorkspaceId: null, demoDismissed: false,
+           devCats: DEV_CATEGORIES_DEF.map(a => a.slice()) };
 }
 
 // Normalise un état chargé (localStorage ou serveur) : structure,
@@ -1381,6 +1405,14 @@ function normalizeState(s) {
   if (!s || !Array.isArray(s.devices)) {
     return emptyState();
   }
+  // Catégories de devices (filtres) : liste éditable persistée dans l'état.
+  // DOIT précéder la normalisation des devices (normCatField lit DEV_CAT_MAP).
+  s.devCats = Array.isArray(s.devCats)
+    ? s.devCats.filter(c => Array.isArray(c) && String(c[0] ?? '').trim())
+        .map(c => [String(c[0]).trim(), String(c[1] || '\ud83d\udce6'), String(c[2] || c[0]).slice(0, 60)])
+    : DEV_CATEGORIES_DEF.map(a => a.slice());
+  DEV_CATEGORIES = s.devCats;
+  rebuildDevCats();
 
   // Migration d'une ancienne version (racks au niveau global)
   if (!Array.isArray(s.workspaces)) {
@@ -1802,6 +1834,7 @@ function undo() {
   if (!undoStack.length) return;
   redoStack.push(cloneState());
   state = undoStack.pop();
+  syncDevCatsFromState();
   pendingPort = null;
   hideCablePopoverSafe();
   saveState();
@@ -1810,9 +1843,10 @@ function undo() {
 }
 
 function redo() {
-  if (!redoStack.length) return;
+  if (!undoStack.length) return;
   undoStack.push(cloneState());
   state = redoStack.pop();
+  syncDevCatsFromState();
   pendingPort = null;
   hideCablePopoverSafe();
   saveState();
@@ -2057,11 +2091,7 @@ $('#z-reset').addEventListener('click', () => {
 
 // Options des sélecteurs de catégorie (bibliothèque + modale device)
 (function fillCatSelects() {
-  const f = $('#pal-cat-filter');
-  if (f) f.innerHTML = '<option value="all">Toutes les catégories</option>' +
-    DEV_CATEGORIES.map(([id, ico, lbl]) => `<option value="${id}">${ico} ${lbl}</option>`).join('');
-  const d = $('#d-cat');
-  if (d) d.innerHTML = DEV_CATEGORIES.map(([id, ico, lbl]) => `<option value="${id}">${ico} ${lbl}</option>`).join('');
+  rebuildDevCats();
   const cd = $('#c-domain');
   if (cd) cd.innerHTML = CABLE_DOMAINS.map(([id, lbl]) => `<option value="${id}">${lbl}</option>`).join('');
 })();
@@ -4089,6 +4119,121 @@ function lldDialog(opts) {
 const lldConfirm = (message, opts) => lldDialog(Object.assign({ message, okLabel: 'Confirmer', cancelLabel: 'Annuler', danger: true }, opts));
 const lldPrompt  = (message, value, opts) => lldDialog(Object.assign({ message, input: value ?? '', okLabel: 'Créer' }, opts));
 const lldAlert   = (message, opts) => lldDialog(Object.assign({ message, okLabel: 'OK', cancelLabel: 'OK', hideCancel: true }, opts));
+
+/* ---- Gestion des catégories de devices (les « filtres » de la bibliothèque) ---- */
+function devCatUsage(id) {
+  let n = 0;
+  for (const d of state.devices) if (d.cat === id) n++;
+  for (const w of (state.workspaces || []))
+    for (const r of (w.racks || []))
+      for (const i of (r.instances || [])) if (i.cat === id) n++;
+  return n;
+}
+function devCatSlug(lbl) {
+  const base = String(lbl || '').toLowerCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'cat';
+  let id = 'c-' + base, n = 2;
+  while (DEV_CAT_MAP[id]) id = 'c-' + base + '-' + (n++);
+  return id;
+}
+function devCatAssign(id, cat) {
+  for (const d of state.devices) if (d.cat === id) d.cat = cat;
+  for (const w of (state.workspaces || []))
+    for (const r of (w.racks || []))
+      for (const i of (r.instances || [])) if (i.cat === id) i.cat = cat;
+}
+function openCatManager() {
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const ov = document.createElement('div');
+  ov.className = 'lld-dlg-overlay';
+  ov.id = 'lc-overlay';
+  const rowsHtml = () => DEV_CATEGORIES.map(([id, ico, lbl]) => `
+    <div class="lc-row" style="display:flex;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid rgba(148,163,184,.16)">
+      <span style="width:26px;text-align:center;font-size:15px">${ico}</span>
+      <input type="text" data-cat-lbl="${esc(id)}" value="${esc(lbl)}" spellcheck="false"
+             style="flex:1;min-width:0" title="Renommer (Entrée / clic ailleurs pour valider)">
+      <button type="button" class="btn" data-cat-del="${esc(id)}" title="Supprimer cette catégorie"
+              style="padding:3px 8px">🗑</button>
+    </div>`).join('');
+  ov.innerHTML = `
+    <div class="lld-dlg" role="dialog" aria-modal="true" style="min-width:min(430px,92vw)">
+      <h3>⚙︎ Gérer les catégories</h3>
+      <p class="lld-dlg-msg">Chaque catégorie est un <strong>filtre</strong> de la bibliothèque et une valeur
+      du champ « Catégorie » des devices. Renommez une ligne pour corriger une faute,
+      🗑 pour la supprimer, ou ajoutez-en une en bas.</p>
+      <div class="lc-rows" style="max-height:44vh;overflow:auto">${rowsHtml()}</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:10px">
+        <input id="lc-ico" type="text" maxlength="4" placeholder="📦" spellcheck="false"
+               style="width:54px;text-align:center" title="Emoji (facultatif)">
+        <input id="lc-lbl" type="text" placeholder="Nouvelle catégorie (ex : Cloud)" spellcheck="false"
+               style="flex:1;min-width:0" maxlength="60">
+        <button id="lc-add" type="button" class="btn lld-dlg-ok">＋ Ajouter</button>
+      </div>
+      <div class="lld-dlg-btns"><button id="lc-close" type="button" class="btn lld-dlg-ok">Fermer</button></div>
+    </div>`;
+  document.body.appendChild(ov);
+  const refresh = () => { ov.querySelector('.lc-rows').innerHTML = rowsHtml(); bindRows(); };
+  const afterChange = () => { rebuildDevCats(); renderPalette(); saveState(); };
+  function bindRows() {
+    ov.querySelectorAll('input[data-cat-lbl]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        const id = inp.dataset.catLbl;
+        const row = DEV_CATEGORIES.find(c => c[0] === id);
+        const lbl = inp.value.trim();
+        if (!row) return;
+        if (!lbl || lbl === row[2]) { inp.value = row[2]; return; }
+        row[2] = lbl.slice(0, 60);
+        afterChange();
+      });
+      inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') inp.blur(); });
+    });
+    ov.querySelectorAll('button[data-cat-del]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.catDel;
+        const row = DEV_CATEGORIES.find(c => c[0] === id);
+        if (!row) return;
+        const n = devCatUsage(id);
+        const msg = n
+          ? `« ${row[2]} » est utilisée par ${n} équipement(s).\nIls repasseront à la catégorie « Autre ». Supprimer ?`
+          : `Supprimer la catégorie « ${row[2]} » ?`;
+        const ok = await lldConfirm(msg, { title: '🗑 Catégorie' });
+        if (!ok) return;
+        const i = DEV_CATEGORIES.findIndex(c => c[0] === id);
+        if (i !== -1) DEV_CATEGORIES.splice(i, 1);
+        devCatAssign(id, 'other');
+        if (palCatFilter === id) { palCatFilter = 'all'; const f = $('#pal-cat-filter'); if (f) f.value = 'all'; }
+        afterChange();
+        refresh();
+      });
+    });
+  }
+  bindRows();
+  ov.querySelector('#lc-add').addEventListener('click', () => {
+    const lblInp = ov.querySelector('#lc-lbl'), icoInp = ov.querySelector('#lc-ico');
+    const lbl = lblInp.value.trim();
+    if (!lbl) { lblInp.focus(); return; }
+    const ico = icoInp.value.trim() || '\ud83d\udce6';
+    DEV_CATEGORIES.push([devCatSlug(lbl), ico, lbl.slice(0, 60)]);
+    lblInp.value = ''; icoInp.value = '';
+    afterChange();
+    refresh();
+    lblInp.focus();
+  });
+  ov.querySelector('#lc-lbl').addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') ov.querySelector('#lc-add').click();
+  });
+  ov.querySelector('#lc-close').addEventListener('click', () => ov.remove());
+  ov.addEventListener('mousedown', e => { if (e.target === ov) ov.remove(); });
+  ov.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Escape') ov.remove();
+  });
+  ov.querySelector('#lc-lbl').focus();
+}
+$('#pal-cat-manage').addEventListener('click', openCatManager);
+$('#d-cat-add').addEventListener('click', openCatManager);
 
 /* ---- Sélecteur de rubriques d'export ----
    items = [[clé, libellé], …] affichés en cases à cocher (toutes cochées par
