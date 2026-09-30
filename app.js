@@ -2918,8 +2918,9 @@ function setLabelMode(mode) {
   renderBoard();
 }
 
-$('#label-create').addEventListener('click', () => setLabelMode('create'));
-$('#label-edit').addEventListener('click', () => setLabelMode('edit'));
+// Re-cliquer sur le mode actif le désactive (sortie directe)
+$('#label-create').addEventListener('click', () => setLabelMode(labelMode === 'create' ? null : 'create'));
+$('#label-edit').addEventListener('click', () => setLabelMode(labelMode === 'edit' ? null : 'edit'));
 
 function openPortPopover(clientX, clientY, rack, inst, port, xPct = null, yPct = null) {
   const pop = $('#port-popover');
@@ -10074,6 +10075,13 @@ $('#topo-import-cables').addEventListener('click', () => {
 $('#topo-new-link').addEventListener('click', () => {
   const ws = active();
   if (!ws) return;
+  // Re-cliquer sur « Nouveau lien » pendant le mode liaison en sort (toggle)
+  if (document.body.classList.contains('topo-linking')) {
+    exitTopoLinking();
+    topoLinkSel = null;
+    renderTopology(ws);
+    return;
+  }
   const topo = ensureTopology(ws);
   if (topo.nodes.length < 2) {
     lldAlert('Il faut au moins 2 noeuds : « ⚡ Générer depuis les racks » ou double-cliquez sur le canevas pour créer un noeud libre.',
@@ -10083,7 +10091,7 @@ $('#topo-new-link').addEventListener('click', () => {
   exitTopoLinking();
   topoLinkSel = null;
   document.body.classList.add('topo-linking');
-  $('#mode-hint').textContent = 'Nouveau lien : cliquez le premier noeud, puis le second (Échap pour annuler).';
+  $('#mode-hint').textContent = 'Nouveau lien : cliquez le premier noeud, puis le second (Échap ou re-clic sur « Nouveau lien » pour annuler).';
 });
 
 // --- Popover d'édition d'un lien ---

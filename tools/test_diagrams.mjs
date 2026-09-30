@@ -742,9 +742,13 @@ await tick13();
 ok(W(`WS.topology.links.length`) === T0 + 1, 'liaison créée manuellement');
 ok(W(`!document.querySelector('#link-popover').classList.contains('hidden')`), 'fenêtre d\'édition du lien ouverte');
 weval(`document.querySelector('#tl-cancel').click()`);
-// 16d. Échap annule bien le mode liaison
+// 16d. re-clic sur « Nouveau lien » = sortir du mode ; Échap annule aussi
 weval(`document.querySelector('#topo-new-link').click()`);
 ok(W(`document.body.classList.contains('topo-linking')`), 'mode liaison ré-activé');
+weval(`document.querySelector('#topo-new-link').click()`);
+ok(W(`!document.body.classList.contains('topo-linking')`), 're-clic sur « Nouveau lien » sort du mode');
+weval(`document.querySelector('#topo-new-link').click()`);
+ok(W(`document.body.classList.contains('topo-linking')`), 'mode liaison ré-activé (2e fois)');
 weval(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
 ok(W(`!document.body.classList.contains('topo-linking')`), 'Échap annule le mode liaison');
 // 16e. suppression de la liaison via clic droit
@@ -764,6 +768,18 @@ ok(W(`WS.topology.nodes.length`) === N0 + 1, 'noeud supprimé (avec ses liens)')
 // 16g. retour en élévations
 weval(`setBoardMode('elev')`);
 ok(W(`boardMode`) === 'elev', 'retour en vue élévations');
+
+console.log('\n[17] port/étiquetage : re-clic sur le mode actif pour en sortir');
+weval(`document.querySelector('#label-create').click()`);
+ok(W(`labelMode`) === 'create', 'mode « Créer des ports » activé');
+ok(W(`document.body.classList.contains('label-create')`), 'classe body label-create posée');
+weval(`document.querySelector('#label-create').click()`);
+ok(W(`labelMode`) === null, 're-clic sur « Créer des ports » sort du mode');
+weval(`document.querySelector('#label-edit').click()`);
+ok(W(`labelMode`) === 'edit', 'mode « Modifier les ports » activé');
+ok(W(`document.body.classList.contains('label-edit')`), 'classe body label-edit posée');
+weval(`document.querySelector('#label-edit').click()`);
+ok(W(`labelMode`) === null, 're-clic sur « Modifier les ports » sort du mode');
 
 console.log(`\n==== ${PASS} PASS, ${FAIL} FAIL ====`);
 process.exit(FAIL ? 1 : 0);

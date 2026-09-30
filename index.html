@@ -183,7 +183,7 @@
         <button id="topo-gen" class="tt-btn" title="Créer un noeud pour chaque device posé dans les racks">⚡ <span>Générer depuis les racks</span></button>
         <button id="topo-add-node" class="tt-btn" title="Ajouter un noeud libre (Internet, Cloud…) sans génération">🧩 <span>Noeud</span></button>
         <button id="topo-import-cables" class="tt-btn" title="Créer un lien pour chaque câble physique existant">🔌 <span>Importer les câbles</span></button>
-        <button id="topo-new-link" class="tt-btn tt-primary" title="Relier deux noeuds par un lien logique">➕ <span>Nouveau lien</span></button>
+        <button id="topo-new-link" class="tt-btn tt-primary" title="Relier deux noeuds — re-cliquez sur le bouton pour quitter le mode liaison">➕ <span>Nouveau lien</span></button>
         <select id="topo-flow-sel" class="tt-flow-sel hidden" title="Mettre en évidence les équipements d'un flux"></select>
       </div>
 
@@ -192,7 +192,7 @@
         <p>Vue <strong>topologie logique</strong> : le diagramme réseau du workspace</p>
         <small><strong>⚡ Générer depuis les racks</strong> crée un noeud par device,<br>
         <strong>🧩 Noeud</strong> ou <strong>double-clic sur le canevas</strong> ajoute un noeud libre (Internet, Cloud…)<br>
-        puis reliez-les avec <strong>➕ Nouveau lien</strong> — clic sur un lien : éditer / supprimer (clic droit = supprimer)</small>
+        puis reliez-les avec <strong>➕ Nouveau lien</strong> (re-clic sur le bouton = quitter le mode) — clic sur un lien : éditer / supprimer (clic droit = supprimer)</small>
       </div>
 
       <!-- ============ VUE 3D IMMERSIVE ============ -->
@@ -516,7 +516,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=138"></script>
+  <script src="app.js?v=139"></script>
   <script src="report.js?v=22"></script>
   <script src="hldpptx.js?v=7"></script>
   <script type="importmap">
