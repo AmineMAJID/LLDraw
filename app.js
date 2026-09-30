@@ -236,8 +236,10 @@ function defaultLldToc() {
 
 }
 
-// Anciens numéros du sommaire → nouveaux (5→4.1 … 13→4.9, 2.1→2, 3.1→3).
-// Les feuilles Excel restent 5…13 ; seuls l’affichage 📘 / PDF / HTML changent.
+// Anciens numéros du sommaire → nouveaux (5→4.1 … 13→4.9, 2.1→2, 3.1→3,
+// 14→5, 14.1→5.1, 15→6, 15.1→6.1) : la continuité après 4.9 s’affiche 5, 6.
+// Les onglets/feuilles Excel restent 5…15.1 ; seuls l’affichage 📘 / PDF /
+// HTML (et les libellés d’export) changent.
 const LLD_TOC_REMAP = {
   '2.1': '2', '3.1': '3',
   '5': '4.1', '5.1': '4.1.1', '5.2': '4.1.2',
@@ -248,11 +250,21 @@ const LLD_TOC_REMAP = {
   '10': '4.6', '10.1': '4.6.1', '10.2': '4.6.2',
   '11': '4.7', '11.1': '4.7.1',
   '12': '4.8', '12.1': '4.8.1', '12.2': '4.8.2',
-  '13': '4.9', '13.1': '4.9.1'
+  '13': '4.9', '13.1': '4.9.1',
+  '14': '5', '14.1': '5.1',
+  '15': '6', '15.1': '6.1'
 };
 function lldTocRemap(num) {
   const s = String(num);
-  return LLD_TOC_REMAP[s] || s;
+  if (LLD_TOC_REMAP[s]) return LLD_TOC_REMAP[s];
+  // Sous-chapitres ajoutés sous le 14 / 15 bruts (14.2 → 5.2, 15.3 → 6.3) :
+  // seule la tête « 14 »/« 15 » est renumérotée, le reste suit.
+  const i = s.indexOf('.');
+  if (i > 0) {
+    const head = LLD_TOC_REMAP[s.slice(0, i)];
+    if (head === '5' || head === '6') return head + s.slice(i);
+  }
+  return s;
 }
 
 // Nœud du sommaire portant le bloc `key` (le plus profond en cas de doublon).
@@ -278,10 +290,11 @@ function lldTocSyncLabel(L, key, fallback) {
   let s = String(fallback);
   const n = (typeof key === 'string') ? lldTocNodeForBlock(L, key) : null;
   if (!n) return s;
-  const num = String(n.num);
+  const num = String(typeof lldTocRemap === 'function' ? lldTocRemap(n.num) : n.num);
   if (key.startsWith('diag')) {
     const firstSub = (n.subs || []).map(x => x && x.num).filter(Boolean)[0];
-    if (firstSub) s = s.replace(/\(avant\s+[\d.]+\)/, `(avant ${firstSub})`);
+    if (firstSub) s = s.replace(/\(avant\s+[\d.]+\)/,
+      `(avant ${typeof lldTocRemap === 'function' ? lldTocRemap(firstSub) : firstSub})`);
     return s;
   }
   const lead = /^(\d+(?:\.\d+)*)(\s*[\u2014\-.:]\s+[\s\S]*)$/.exec(s);
@@ -6009,7 +6022,7 @@ function lldLocate(id, nodes = lldToc(), parent = null) {
 }
 
 function lldNodeLabel(n) {
-  return n.cover ? `📄 ${n.title}` : `${n.num}. ${n.title}`;
+  return n.cover ? `📄 ${n.title}` : `${lldTocRemap(n.num)}. ${n.title}`;
 }
 
 function lldNodesWithKey(key) {
@@ -6042,7 +6055,7 @@ function lldRenderToc() {
     const nb = (node.blocks || []).length;
     const num = document.createElement('span');
     num.className = 'lld-toc-num';
-    num.textContent = node.cover ? '📄' : node.num;
+    num.textContent = node.cover ? '📄' : lldTocRemap(node.num);
     const span = document.createElement('span');
     span.className = 'lld-toc-title';
     span.textContent = node.title;
@@ -6149,7 +6162,7 @@ function lldSearchToc(query) {
     return 0;
   };
   lldAllNodes().forEach(n => {
-    const label = n.cover ? n.title : `${n.num}. ${n.title}`;
+    const label = n.cover ? n.title : `${lldTocRemap(n.num)}. ${n.title}`;
     let best = 0, why = '';
     const tryHay = (hay, base, w) => {
       const s = scoreOf(hay, base);
@@ -6158,6 +6171,7 @@ function lldSearchToc(query) {
     tryHay(n.title, 80, n.custom ? 'Titre (HTML / Excel)' : 'Titre du chapitre');
     tryHay(label, 78, 'Excel · n° + titre');
     tryHay(n.num, 70, 'Numéro de chapitre');
+    tryHay(lldTocRemap(n.num), 70, 'Numéro de chapitre');
     if (best) push({ nodeId: n.id, node: n, blockKey: null, score: best, title: label, sub: why, why });
     (n.blocks || []).forEach(key => {
       const def = lldInfoDef(key);
@@ -6176,7 +6190,7 @@ function lldSearchToc(query) {
     if (!n) return;
     push({
       nodeId: n.id, node: n, blockKey: null, score: s,
-      title, sub: `${src} → ${n.cover ? n.title : n.num + '. ' + n.title}`, why: src
+      title, sub: `${src} → ${n.cover ? n.title : lldTocRemap(n.num) + '. ' + n.title}`, why: src
     });
   });
   hits.sort((a, b) => b.score - a.score || String(a.title).localeCompare(String(b.title), 'fr'));
@@ -8217,7 +8231,7 @@ function lldRenderDetail(node) {
   head.className = 'lld-detail-head';
   const num = document.createElement('span');
   num.className = 'lld-detail-num';
-  num.textContent = node.cover ? '📄' : node.num;
+  num.textContent = node.cover ? '📄' : lldTocRemap(node.num);
   const titles = document.createElement('div');
   titles.className = 'lld-detail-titles';
   const h = document.createElement('h4');
@@ -11388,26 +11402,7 @@ const DX = (() => {
   return { buildAll, SHEET_ITEMS };
 })();
 
-$('#export-xlsx-data').addEventListener('click', async () => {
-  $('#export-menu').classList.add('hidden');
-  const ws = lldWorkspaceForExport();
-  if (!ws || !ws.racks.length) {
-    lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '📊 Excel — vue données' });
-    return;
-  }
-  const only = await lldPickSections({
-    title: '📊 Excel « vue données » — que voulez-vous exporter ?',
-    hint: 'Chaque rubrique cochée devient un onglet du classeur. L\u2019onglet Sommaire (avec liens) est toujours inclus.',
-    items: DX.SHEET_ITEMS.map(([k, lbl]) => [k, lbl])
-  });
-  if (!only) return;
-  if (!only.size) { lldAlert("Cochez au moins un onglet à exporter.", { title: '📊 Excel — vue données' }); return; }
-  // Schémas : rasterisation JPEG juste avant la construction du classeur
-  if (typeof lldRenderDiagExportImgs === 'function') {
-    try { await lldRenderDiagExportImgs(ws); } catch (_) { globalThis.__LLD_DIAG_IMGS = {}; }
-  }
-  downloadBlob(DX.buildAll(ws, only), exportFileBase() + '-donnees.xlsx');
-});
+
 
 /* ============================================================
    EXPORT XLSX « template » : réplique exacte du classeur LLD
@@ -12986,7 +12981,7 @@ const LLD_TPL = (() => {
     const isCustom = n => !!(n && n.custom);
     const numPrefix = /^\d+(?:\.\d+)?$/;
     // Numéro d'affichage d'une feuille du template : le sommaire fait foi
-    // (5→4.1 … 13→4.9) ; 1, 2, 3, 4, 14, 15, 15.1 sont inchangés.
+    // (5→4.1 … 13→4.9, 14→5, 15→6) ; onglets Excel conservés tels quels.
     const dispNum = key => (numPrefix.test(String(key)) && typeof lldTocRemap === 'function')
       ? lldTocRemap(String(key)) : String(key);
     // Titre du sommaire pour un numéro (repli remap 5→4.1…)
@@ -13001,7 +12996,7 @@ const LLD_TPL = (() => {
     };
     const layoutKept = layout.filter(sheet =>
       numPrefix.test(String(sheet.name)) ? keepRoot(sheet.name) : true);
-    const sheetNames = new Set(layoutKept.map(x => dispNum(x.name)));
+    const sheetNames = new Set(layoutKept.flatMap(x => [String(x.name), dispNum(x.name)]));
     const sheets = layoutKept.map(sheet => {
       const fill = FILLS[sheet.name];
       let s;
@@ -13018,11 +13013,12 @@ const LLD_TPL = (() => {
         const body = [];
         const pushToc = (num, title, depth) => {
           if (only && !keepRoot(num)) return;
+          const disp = (typeof lldTocRemap === 'function') ? lldTocRemap(num) : String(num);
           body.push(depth === 0
-            ? [{ v: `${num}. ${title}`, s: 50 }, { v: '', s: 50 }]
+            ? [{ v: `${disp}. ${title}`, s: 50 }, { v: '', s: 50 }]
             : depth === 1
-              ? [{ v: '', s: 50 }, { v: `${num}. ${title}`, s: 47 }]
-              : [{ v: '', s: 50 }, { v: '', s: 47 }, { v: `${num}. ${title}`, s: 47 }]);
+              ? [{ v: '', s: 50 }, { v: `${disp}. ${title}`, s: 47 }]
+              : [{ v: '', s: 50 }, { v: '', s: 47 }, { v: `${disp}. ${title}`, s: 47 }]);
         };
         (function walk(ns, depth) {
           (ns || []).forEach(x => {
@@ -13309,13 +13305,14 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     SUBSKIP = false;
     if (SKIP) return;
     title = tocTitle(label, title);
+    const disp = (typeof lldTocRemap === 'function') ? lldTocRemap(label) : String(label);
     if (opts.flow) {          // chapitre compact : peut rester sur la page en cours
       if (y < M + 110) newPage(); else y -= 12;
     } else {
       newPage();
     }
-    tocEntries.push({ label: String(label), title, level: 0, pageIdx: pagesOps.length - 1 });
-    txt(M, y - 13, `${label}. ${title}`, 15, true, [0.12, 0.31, 0.47]);
+    tocEntries.push({ label: String(disp), title, level: 0, pageIdx: pagesOps.length - 1 });
+    txt(M, y - 13, `${disp}. ${title}`, 15, true, [0.12, 0.31, 0.47]);
     hline(M, PW - M, y - 21);
     y -= 33;
   }
@@ -13323,9 +13320,10 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH, opts = 
     SUBSKIP = !!(onlySet && !inScopeSelf(label));
     if (SUBSKIP) return;
     title = tocTitle(label, title);
+    const disp = (typeof lldTocRemap === 'function') ? lldTocRemap(label) : String(label);
     if (y < M + 70) newPage();
-    tocEntries.push({ label: String(label), title, level: 1, pageIdx: pagesOps.length - 1 });
-    txt(M + 14, y - 10, `${label}. ${title}`, 12, true, [0.2, 0.35, 0.5]);
+    tocEntries.push({ label: String(disp), title, level: 1, pageIdx: pagesOps.length - 1 });
+    txt(M + 14, y - 10, `${disp}. ${title}`, 12, true, [0.2, 0.35, 0.5]);
     y -= 26;
   }
   function miniTitle(s) {     // titre de bloc interne (n'apparaît pas au sommaire)
@@ -14007,7 +14005,7 @@ function lldChapterPickItems(ws) {
   const items = [];
   const walk = (ns, depth) => (ns || []).forEach(n => {
     if (!n || n.cover || String(n.num) === '📄') return;
-    items.push([String(n.num), `${n.num}. ${n.title}`, depth]);
+    items.push([String(n.num), `${lldTocRemap(n.num)}. ${n.title}`, depth]);
     walk(n.subs, depth + 1);
   });
   walk(normLldInfo(ws).toc, 0);
@@ -14042,6 +14040,33 @@ $('#export-lld').addEventListener('click', async () => {
   }
   const u8 = buildLldPdf(ws, jpeg, w, h, tj, tw, th, { only });
   downloadBlob(new Blob([u8], { type: 'application/pdf' }), exportFileBase() + '-LLD.pdf');
+});
+
+/* Présentation HLD (.pptx) : deck PowerPoint moderne et animé (hldpptx.js).
+   Images embarquées : plan, topologie et logo — tout est recalculé depuis
+   le workspace au moment de l'export. */
+$('#export-pptx').addEventListener('click', async () => {
+  $('#export-menu').classList.add('hidden');
+  const ws = lldWorkspaceForExport();
+  if (!ws || !ws.racks.length) {
+    lldAlert('Ce workspace ne contient aucun rack à exporter.', { title: '🎬 Présentation HLD' });
+    return;
+  }
+  const c = await renderPlanCanvas();
+  const tc = renderTopoCanvas();
+  const logo = await fetch('assets/logo-512.png')
+    .then(r => (r.ok ? r.arrayBuffer() : null))
+    .then(b => (b ? new Uint8Array(b) : null))
+    .catch(() => null);
+  const u8 = HLD_PPTX.build(ws, {
+    plan: c ? { bytes: dataURLBytes(c.toDataURL('image/jpeg', 0.85)), w: c.width, h: c.height } : null,
+    topo: tc ? { bytes: dataURLBytes(tc.toDataURL('image/jpeg', 0.9)), w: tc.width, h: tc.height } : null,
+    logo,
+  });
+  downloadBlob(
+    new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }),
+    exportFileBase() + '-HLD.pptx'
+  );
 });
 
 

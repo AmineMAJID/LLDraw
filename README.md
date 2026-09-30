@@ -145,6 +145,17 @@ via localStorage, en secours).
      par baie** en plan repliable (boutons ±), Garanties **colorées** et
      triées par échéance, Câblage avec **couleur réelle** des cordons, Racks
      avec % d'occupation U, plus Sites, VLANs, Nomenclature et Flux.
+  - **🎬 Présentation HLD (.pptx)** — deck PowerPoint de synthèse (~14
+    diapositives, thème sombre moderne, contenu en français) écrit à la
+    main sans dépendance : couverture, sommaire, chiffres clés, sites,
+    architecture cible en **formes natives**, topologie et plan d'ensemble
+    (images capturées depuis le workspace), nomenclature/adressage, flux,
+    capacité & puissance, garanties, sécurité, feuille de route et
+    clôture. Animé : **transitions** par diapositive (fondu, poussée,
+    fondu enchaîné, volet, zoom), **animations d'entrée** (fondu, volet,
+    cercle, damier, lames, zoom…) en cascade au clic, en-tête animé en
+    automatique ; les sections vides sont sautées ou remplacées par un
+    état « à compléter ».
    Puis les formats **historiques** (toujours disponibles) :
    - **Image PNG** / **Plan PDF (1 page)** — rendu haute définition des racks,
      devices et ports ;
@@ -152,10 +163,10 @@ via localStorage, en secours).
      **15 chapitres** avec **sommaire** (numéros de page) : 1. Objectif,
      2. Aperçu du site, 3. Architecture cible (+ 3.1 Équipements/inventaire et
      suivi des garanties),
-     4. Nomenclature & adressage IP global, 5. FAI, 6. Interconnexion
-     site 2 site, 7. Firewall, 8. Switching (5 sous-sections), 9. Serveurs,
-     10. Stockage, 11. IDS, 12. CCTV, 13. Pointage, 14. Flux réseau &
-     diagramme (topologie), 15. Câblage/Rack (synthèse, tableau de câblage,
+     4. Nomenclature & adressage IP global (4.1 FAI, 4.2 Interconnexion
+     site 2 site, 4.3 Firewall, 4.4 Switching — 5 sous-sections, 4.5 Serveurs,
+     4.6 Stockage, 4.7 IDS, 4.8 CCTV, 4.9 Pointage), 5. Flux réseau &
+     diagramme (topologie), 6. Câblage/Rack (synthèse, tableau de câblage,
      élévations). Page de garde (client, auteur, version, révisions,
      statistiques). Les chapitres non encore renseignés affichent
      « Section à compléter ». Pieds de page numérotés (date, page X/Y).
@@ -288,9 +299,9 @@ via localStorage, en secours).
     - **Clic sur un nœud** : à droite, **seules les informations insertibles
       de ce chapitre** s'affichent (page de garde : client/auteur/version +
       révisions/approbateurs/réviseurs ; ch. 4 : nomenclature, VLANs, profils
-      firewall, VPN, alias ; ch. 5 : FAI ; ch. 6 : interconnexion + comptes
-      d'administration ; ch. 7 à 13 : règles/NAT, zones de Switching, VMs,
-      volumes, caméras et notes de configuration ; ch. 14 : flux…). Chaque
+      firewall, VPN, alias ; ch. 4.1 : FAI ; ch. 4.2 : interconnexion + comptes
+      d'administration ; ch. 4.3 à 4.9 : règles/NAT, zones de Switching, VMs,
+      volumes, caméras et notes de configuration ; ch. 5 : flux…). Chaque
       bloc indique aussi les sections **incluses automatiquement** à l'export
       (équipements, ports, câblage…) ;
     - **Informations synchronisées** : « ＋ Ajouter cette info » rattache au
@@ -342,14 +353,14 @@ via localStorage, en secours).
       (bouton **Enregistrer**) et lues telles quelles par le **PDF** et
       l'**Excel** à chaque export ; retirer une information d'un chapitre la
       retire aussi de sa section d'export. La recherche globale ouvre la
-      fiche directement sur le chapitre concerné (site → 2.1, flux → ch. 14).
+      fiche directement sur le chapitre concerné (site → 2, flux → ch. 5).
     Rappel des blocs historiques : **sites** (Site A / Site B par défaut,
     pastille colorée sur les racks, filtrage du board), **registre VLANs**
     avec **🔎 Détecter depuis les ports**, **nomenclature** avec **🔎 Générer
-    depuis les devices**, **FAI / Interconnexion** (ch. 5-6), **zones de
-    Switching** (découpent les sous-chapitres 8.x du PDF : INFRA, LAN Site B,
+    depuis les devices**, **FAI / Interconnexion** (ch. 4.1-4.2), **zones de
+    Switching** (découpent les sous-chapitres 4.4.x du PDF : INFRA, LAN Site B,
     Aruba AP Site A, Aruba AP Site B, LAN Site A par défaut — ajout,
-    suppression, réordonnancement ↑↓) et **matrice des flux** (ch. 14,
+    suppression, réordonnancement ↑↓) et **matrice des flux** (ch. 5,
     surbrillance en vue Topologie).
 
 Tout est sauvegardé automatiquement : sur le **serveur (fichier `data/state.json`)**

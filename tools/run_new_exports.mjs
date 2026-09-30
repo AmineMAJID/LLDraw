@@ -214,11 +214,11 @@ const tplSelBuf = Buffer.from(await runLazy("__tpl(ws, tplAssets.layout, tplAsse
 const fullTn = sheetNames(tplFullBuf), selTn = sheetNames(tplSelBuf);
 if (!(fullTn.length > selTn.length)) throw new Error('Template selectif : pas de reduction des onglets');
 const rootOf = n => n.split('.')[0];
-if (!fullTn.includes('1') || !fullTn.includes('2') || !fullTn.includes('15'))
+if (!fullTn.includes('1') || !fullTn.includes('2') || !fullTn.includes('6'))
   throw new Error('Template complet : onglets attendus absents -> ' + fullTn.join('|'));
-if (!selTn.includes('1') || !selTn.includes('15'))
+if (!selTn.includes('1') || !selTn.includes('6'))
   throw new Error('Template selectif : chapitre conserve absent -> ' + selTn.join('|'));
-if (selTn.some(n => startsNum(n) && rootOf(n) !== '1' && rootOf(n) !== '15'))
+if (selTn.some(n => startsNum(n) && rootOf(n) !== '1' && rootOf(n) !== '6'))
   throw new Error('Template selectif : onglet non filtre -> ' + selTn.join('|'));
 console.log('OK filtre XLSX template : ' + selTn.length + ' onglets (' + selTn.join(', ') + ')');
 
@@ -227,9 +227,9 @@ const toL1 = b => Buffer.from(b).toString('latin1');
 const pdfFull = toL1(runLazy('__pdf(ws, null)'));
 const pdfSel = toL1(runLazy("__pdf(ws, ['1','15'])"));
 const countPages = s => (s.match(/\/Type\s*\/Page[^s]/g) || []).length;
-for (const t of ['2. Information sur le site', '14. Flux r\u00e9seau', '15. Cablage/Rack'])
+for (const t of ['2. Information sur le site', '5. Flux r\u00e9seau', '6. Cablage/Rack'])
   if (!pdfFull.includes(t)) throw new Error('PDF complet : titre manquant -> ' + t);
-for (const t of ['1. Objectif du document', '15. Cablage/Rack', 'Cablage/Rack'])
+for (const t of ['1. Objectif du document', '6. Cablage/Rack', 'Cablage/Rack'])
   if (!pdfSel.includes(t)) throw new Error('PDF selectif : titre conserve absent -> ' + t);
 for (const t of ['2. Information sur le site', '4. Conception Nomenclature', '5. Conception et Configuration FAI'])
   if (pdfSel.includes(t)) throw new Error('PDF selectif : chapitre non filtre -> ' + t);
