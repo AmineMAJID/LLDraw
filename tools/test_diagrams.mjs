@@ -687,5 +687,32 @@ weval(`document.querySelector('#lc-close').click()`);
 ok(W(`!document.querySelector('#lc-overlay')`), 'gestionnaire fermé');
 ok(W(`Array.isArray(state.devCats)`), 'liste des catégories persistée dans l’état');
 
+/* ---------- 15. Tailles de rack libres + gestion des sites ---------- */
+console.log('\n[15] tailles de rack (11U) + sites (bouton Gérer)');
+// 15a. rack en 11U : option injectée + valeur sélectionnée
+weval(`WS.racks[0].instances = []; WS.racks[0].sizeU = 11; renderBoard();`);
+ok(W(`[...document.querySelectorAll('.rack-size-sel')].some(s => s.value === '11')`), 'rack 11U : select sur la bonne valeur');
+ok(W(`[...document.querySelectorAll('.rack-size-sel option')].some(o => o.value === '11')`), 'option 11U injectée (hors presets)');
+// 15b. parcours « Autre… » → prompt → 17U appliqué
+weval(`(function(){ const s = [...document.querySelectorAll('.rack-size-sel')].find(x => x.value === '11'); s.value = 'custom'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+ok(W(`!!document.querySelector('.lld-dlg-input')`), 'prompt de saisie de taille affiché');
+weval(`document.querySelector('.lld-dlg-input').value = '17'; document.querySelector('.lld-dlg-overlay .lld-dlg-btns .btn:last-child').click()`);
+await tick13(); await tick13();
+ok(W(`WS.racks[0].sizeU`) === 17, 'taille libre 17U appliquée au rack');
+// 15c. taille invalide refusée
+weval(`(function(){ const s = [...document.querySelectorAll('.rack-size-sel')].find(x => x.value === '17'); s.value = 'custom'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+weval(`document.querySelector('.lld-dlg-input').value = 'abc'; document.querySelector('.lld-dlg-overlay .lld-dlg-btns .btn:last-child').click()`);
+await tick13(); await tick13();
+ok(W(`WS.racks[0].sizeU`) === 17, 'saisie invalide ignorée (rack inchangé)');
+weval(`document.querySelector('.lld-dlg-overlay:not(#lc-overlay) .lld-dlg-btns .btn:last-child').click()`);
+// 15d. sites : bouton présent → modale fiche directement sur le bloc Sites
+ok(W(`!!document.querySelector('#site-manage')`), 'bouton « Gérer les sites » présent');
+ok(W(`!document.querySelector('#site-filter-sec').classList.contains('hidden')`), 'section Sites visible (workspace ouvert)');
+weval(`document.querySelector('#site-manage').click()`);
+ok(W(`document.querySelector('#lld-modal') && !document.querySelector('#lld-modal').classList.contains('hidden')`), 'modale fiche ouverte depuis le board');
+ok(W(`[...document.querySelectorAll('#lld-detail-body input')].some(i => i.value === ((WS.sites[0] || {}).name || '§'))`), 'directement sur le bloc « Sites du dossier »');
+weval(`lldCloseModal()`);
+ok(W(`document.querySelector('#lld-modal').classList.contains('hidden')`), 'modale fermée');
+
 console.log(`\n==== ${PASS} PASS, ${FAIL} FAIL ====`);
 process.exit(FAIL ? 1 : 0);

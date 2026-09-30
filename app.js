@@ -159,6 +159,45 @@ loadWatchGuardPhoto();
 // ---------- Constantes ----------
 const STORAGE_KEY = 'dc-rack-planner-v1';
 const DEFAULT_RACK_U = 12;    // taille par défaut d'un rack
+
+/* Tailles de rack LIBRES : injecte une option (preset déjà présent ignoré)
+   dans un select de taille, avant l'entrée « Autre… ». */
+function ensureRackSizeOption(sel, n) {
+  if (sel.querySelector(`option[value="${n}"]`)) return;
+  const o = document.createElement('option');
+  o.value = String(n); o.textContent = `${n}U`;
+  const custom = sel.querySelector('option[value="custom"]');
+  sel.insertBefore(o, custom || null);
+}
+/* Applique un changement de taille de rack — parcours commun entre les
+   tailles prédéfinies et la taille libre (« Autre… »). */
+async function applyRackSize(rack, sizeSel, newSize) {
+  if (!Number.isFinite(newSize) || newSize === rack.sizeU) return;
+
+  // Vérifier que les devices placés tiennent toujours
+  const overflow = rack.instances.filter(i => i.slot + i.sizeU > newSize);
+  if (overflow.length) {
+    const ok = await lldConfirm(
+      `Passer en ${newSize}U va déloger ${overflow.length} device(s) qui ne tient/tiendront plus. Continuer ?`,
+      { title: '⚠️ Changement de taille', okLabel: 'Continuer' });
+    if (!ok) {
+      sizeSel.value = String(rack.sizeU);
+      return;
+    }
+  }
+  pushHistory();
+  rack.sizeU = newSize;
+  // Si le nom n'a jamais été personnalisé (forme "Rack 12U"), suivre la taille
+  if (/^Rack \d+U$/.test(rack.name)) rack.name = `Rack ${newSize}U`;
+  // Repousser les devices qui dépassent
+  rack.instances.forEach(i => {
+    i.slot = Math.min(i.slot, Math.max(0, newSize - i.sizeU));
+  });
+  rack.y = Math.max(0, Math.min(rack.y, BOARD_H - rackHeight(rack)));
+  touchWorkspace(active());
+  saveState();
+  renderBoard();
+}
 const U_H     = 33;          // hauteur d'un U en px (coordonnées board)
 const RACK_W  = 356;         // largeur d'un rack
 const RACK_SIZES = [6, 9, 12, 15, 18, 22, 27, 32, 42];
@@ -2185,6 +2224,26 @@ $('#pal-rack').addEventListener('dragstart', e => {
   e.dataTransfer.setData('application/x-dc-rack', '1');
   e.dataTransfer.effectAllowed = 'copy';
 });
+/* Taille libre à la création : « Autre… » → saisie → option injectée. */
+(function rackSizeCustomInit() {
+  const sel = $('#new-rack-size');
+  if (!sel) return;
+  let last = sel.value || '12';
+  sel.addEventListener('change', async () => {
+    if (sel.value !== 'custom') { last = sel.value; return; }
+    const input = await lldPrompt('Taille du rack à déposer (U) — entier de 1 à 100', '', { okLabel: 'Valider' });
+    if (input === null) { sel.value = last; return; }
+    const n = parseInt(String(input).replace(/[^0-9]/g, ''), 10);
+    if (!Number.isFinite(n) || n < 1 || n > 100) {
+      await lldAlert('Taille attendue : un nombre entier entre 1 et 100.', { title: '📏 Taille du rack' });
+      sel.value = last;
+      return;
+    }
+    ensureRackSizeOption(sel, n);
+    sel.value = String(n);
+    last = String(n);
+  });
+})();
 document.addEventListener('dragend', () => {
   dragPayload = null;
   document.querySelectorAll('.drop-hint').forEach(h => h.classList.add('hidden'));
@@ -2255,13 +2314,20 @@ function renderBoard() {
 
 // Met à jour le sélecteur « Filtrer le board » de la sidebar.
 // Masqué si le workspace courant n'a aucun site déclaré.
+$('#site-manage').addEventListener('click', () => {
+  if (!active()) return;
+  openLldModal('sites');   // fiche du dossier → bloc « Sites du dossier » (ch. 2)
+});
+
 function renderSiteFilter() {
   const sec = $('#site-filter-sec');
   const sel = $('#site-filter');
   if (!sec || !sel) return;
   const ws = active();
   const sites = ws?.sites || [];
-  sec.classList.toggle('hidden', sites.length === 0);
+  // Visible dès qu'un workspace est ouvert (même à 0 site) : le bouton
+  // « Gérer les sites » doit rester atteignable pour recréer un site.
+  sec.classList.toggle('hidden', !ws);
   if (siteFilter !== 'all' && !sites.some(s => s.id === siteFilter)) siteFilter = 'all';
   sel.innerHTML = '<option value="all">Tous les sites</option>' +
     sites.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
@@ -2302,6 +2368,8 @@ function renderRack(rack) {
     <span class="rack-title" title="Double-cliquez pour renommer"></span>
     <select class="rack-size-sel" title="Changer la taille du rack">
       ${RACK_SIZES.map(u => `<option value="${u}">${u}U</option>`).join('')}
+      ${RACK_SIZES.includes(rack.sizeU) ? '' : `<option value="${rack.sizeU}">${rack.sizeU}U</option>`}
+      <option value="custom">Autre…</option>
     </select>
     <span class="rack-metrics"></span>
     <span class="rack-vents"></span>
@@ -2395,32 +2463,23 @@ function renderRack(rack) {
 
   // Changement de taille
   sizeSel.addEventListener('change', async e => {
-    const newSize = parseInt(e.target.value, 10) || rack.sizeU;
-    if (newSize === rack.sizeU) return;
-
-    // Vérifier que les devices placés tiennent toujours
-    const overflow = rack.instances.filter(i => i.slot + i.sizeU > newSize);
-    if (overflow.length) {
-      const ok = await lldConfirm(
-        `Passer en ${newSize}U va déloger ${overflow.length} device(s) qui ne tient/tiendront plus. Continuer ?`,
-        { title: '⚠️ Changement de taille', okLabel: 'Continuer' });
-      if (!ok) {
+    if (e.target.value === 'custom') {
+      const input = await lldPrompt('Nouvelle taille du rack (U) — entier de 1 à 100',
+        String(rack.sizeU), { okLabel: 'Valider' });
+      if (input === null) { sizeSel.value = String(rack.sizeU); return; }
+      const n = parseInt(String(input).replace(/[^0-9]/g, ''), 10);
+      if (!Number.isFinite(n) || n < 1 || n > 100) {
+        await lldAlert('Taille attendue : un nombre entier entre 1 et 100.', { title: '📏 Taille du rack' });
         sizeSel.value = String(rack.sizeU);
         return;
       }
+      ensureRackSizeOption(sizeSel, n);
+      sizeSel.value = String(n);
+      await applyRackSize(rack, sizeSel, n);
+      return;
     }
-    pushHistory();
-    rack.sizeU = newSize;
-    // Si le nom n'a jamais été personnalisé (forme "Rack 12U"), suivre la taille
-    if (/^Rack \d+U$/.test(rack.name)) rack.name = `Rack ${newSize}U`;
-    // Repousser les devices qui dépassent
-    rack.instances.forEach(i => {
-      i.slot = Math.min(i.slot, Math.max(0, newSize - i.sizeU));
-    });
-    rack.y = Math.max(0, Math.min(rack.y, BOARD_H - rackHeight(rack)));
-    touchWorkspace(active());
-    saveState();
-    renderBoard();
+    const newSize = parseInt(e.target.value, 10) || rack.sizeU;
+    await applyRackSize(rack, sizeSel, newSize);
   });
 
   // Déplacement du rack par son en-tête
