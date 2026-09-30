@@ -2234,9 +2234,15 @@ $('#pal-rack').addEventListener('dragstart', e => {
 (function rackSizeCustomInit() {
   const sel = $('#new-rack-size');
   if (!sel) return;
-  let last = sel.value || '12';
+  const rm = $('#new-rack-rm');
+  // Les options présentes au chargement sont les préréglages (+ « custom ») :
+  // tout le reste est une taille libre ajoutée, retirable avec le bouton « − ».
+  const presetVals = new Set([...sel.options].map(o => o.value));
+  const isCustomVal = v => !!v && v !== 'custom' && !presetVals.has(v);
+  const syncRm = () => rm?.classList.toggle('hidden', !isCustomVal(sel.value));
+  let last = sel.value || String(DEFAULT_RACK_U);
   sel.addEventListener('change', async () => {
-    if (sel.value !== 'custom') { last = sel.value; return; }
+    if (sel.value !== 'custom') { last = sel.value; syncRm(); return; }
     const input = await lldPrompt('Taille du rack à déposer (U) — entier de 1 à 100', '', { okLabel: 'Valider' });
     if (input === null) { sel.value = last; return; }
     const n = parseInt(String(input).replace(/[^0-9]/g, ''), 10);
@@ -2248,7 +2254,22 @@ $('#pal-rack').addEventListener('dragstart', e => {
     ensureRackSizeOption(sel, n);
     sel.value = String(n);
     last = String(n);
+    syncRm();
   });
+  /* Retire la taille libre sélectionnée de la liste de création. Les racks
+     existants gardent leur taille : seul ce raccourci disparaît. */
+  rm?.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const o = sel.selectedOptions[0];
+    if (!o || !isCustomVal(o.value)) return;
+    o.remove();
+    sel.value = [...sel.options].some(x => x.value === String(DEFAULT_RACK_U))
+      ? String(DEFAULT_RACK_U) : (sel.options[0]?.value || '');
+    last = sel.value;
+    syncRm();
+  });
+  syncRm();
 })();
 document.addEventListener('dragend', () => {
   dragPayload = null;

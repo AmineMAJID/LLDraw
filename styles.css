@@ -712,6 +712,18 @@ body.cabling .port.connectable {
   text-overflow: ellipsis;
 }
 
+/* Taille libre à la création : sélecteur + bouton de retrait « − » */
+.rack-size-wrap { display: flex; align-items: center; gap: 6px; }
+.rack-size-wrap select { max-width: none; }
+.rack-size-rm {
+  width: 26px; height: 26px; padding: 0; flex: 0 0 auto;
+  border: 1px solid var(--border-2); border-radius: 7px;
+  background: #fff; color: #f87171;
+  font-size: 15px; font-weight: 700; line-height: 1;
+  cursor: pointer;
+}
+.rack-size-rm:hover { background: #7f1d1d; border-color: #dc2626; color: #fff; }
+
 /* ---------- Board (viewport + plan navigable) ---------- */
 .board-viewport {
   flex: 1;

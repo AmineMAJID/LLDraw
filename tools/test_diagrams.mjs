@@ -705,7 +705,18 @@ weval(`document.querySelector('.lld-dlg-input').value = 'abc'; document.querySel
 await tick13(); await tick13();
 ok(W(`WS.racks[0].sizeU`) === 17, 'saisie invalide ignorée (rack inchangé)');
 weval(`document.querySelector('.lld-dlg-overlay:not(#lc-overlay) .lld-dlg-btns .btn:last-child').click()`);
-// 15d. sites : bouton présent → modale fiche directement sur le bloc Sites
+// 15d. liste de création : taille libre injectée → supprimable avec « − »
+weval(`(function(){ const s = document.querySelector('#new-rack-size'); s.value = 'custom'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+ok(W(`!!document.querySelector('.lld-dlg-input')`), 'prompt création : saisie de taille affichée');
+weval(`document.querySelector('.lld-dlg-input').value = '99'; document.querySelector('.lld-dlg-overlay .lld-dlg-btns .btn:last-child').click()`);
+await tick13(); await tick13();
+ok(W(`document.querySelector('#new-rack-size').value`) === '99', 'taille 99U injectée dans la liste de création');
+ok(W(`!document.querySelector('#new-rack-rm').classList.contains('hidden')`), 'bouton « − » visible sur une taille ajoutée');
+weval(`document.querySelector('#new-rack-rm').click()`);
+ok(W(`!document.querySelector('#new-rack-size option[value="99"]')`), 'taille 99U retirée de la liste');
+ok(W(`document.querySelector('#new-rack-size').value`) !== '99', 'sélection retombée sur une taille préréglage');
+ok(W(`document.querySelector('#new-rack-rm').classList.contains('hidden')`), 'bouton « − » masqué après suppression');
+// 15e. sites : bouton présent → modale fiche directement sur le bloc Sites
 ok(W(`!!document.querySelector('#site-manage')`), 'bouton « Gérer les sites » présent');
 ok(W(`!document.querySelector('#site-filter-sec').classList.contains('hidden')`), 'section Sites visible (workspace ouvert)');
 weval(`document.querySelector('#site-manage').click()`);

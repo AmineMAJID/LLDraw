@@ -10,7 +10,7 @@
   <link rel="shortcut icon" href="assets/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#3b82f6">
-  <link rel="stylesheet" href="styles.css?v=78">
+  <link rel="stylesheet" href="styles.css?v=79">
 </head>
 <body>
   <header class="topbar">
@@ -106,21 +106,25 @@
               <small>Rack data center — glisser sur le board</small>
             </div>
           </div>
-          <label class="rack-size-row">
-            Taille du rack à déposer
-            <select id="new-rack-size">
-              <option value="6">6U</option>
-              <option value="9">9U</option>
-              <option value="12" selected>12U</option>
-              <option value="15">15U</option>
-              <option value="18">18U</option>
-              <option value="22">22U</option>
-              <option value="27">27U</option>
-              <option value="32">32U</option>
-              <option value="42">42U</option>
-              <option value="custom">Autre… (U)</option>
-            </select>
-          </label>
+          <div class="rack-size-row">
+            <label for="new-rack-size">Taille du rack à déposer</label>
+            <span class="rack-size-wrap">
+              <select id="new-rack-size">
+                <option value="6">6U</option>
+                <option value="9">9U</option>
+                <option value="12" selected>12U</option>
+                <option value="15">15U</option>
+                <option value="18">18U</option>
+                <option value="22">22U</option>
+                <option value="27">27U</option>
+                <option value="32">32U</option>
+                <option value="42">42U</option>
+                <option value="custom">Autre… (U)</option>
+              </select>
+              <button id="new-rack-rm" type="button" class="rack-size-rm hidden"
+                      title="Retirer cette taille ajoutée de la liste">−</button>
+            </span>
+          </div>
         </div>
       </section>
 
@@ -516,7 +520,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=140"></script>
+  <script src="app.js?v=141"></script>
   <script src="report.js?v=22"></script>
   <script src="hldpptx.js?v=7"></script>
   <script type="importmap">
