@@ -714,5 +714,56 @@ ok(W(`[...document.querySelectorAll('#lld-detail-body input')].some(i => i.value
 weval(`lldCloseModal()`);
 ok(W(`document.querySelector('#lld-modal').classList.contains('hidden')`), 'modale fermée');
 
+/* ---------- 16. Topologie : noeuds libres + liaisons ---------- */
+console.log('\n[16] topologie : noeuds libres, création et suppression de liaisons');
+weval(`setBoardMode('topo')`);
+const N0 = W(`WS.topology.nodes.length`);   // la démo embarque déjà sa topologie
+const T0 = W(`WS.topology.links.length`);
+// 16a. noeud libre via la barre d'outils
+weval(`document.querySelector('#topo-add-node').click()`);
+ok(W(`!!document.querySelector('.lld-dlg-input')`), 'prompt « noeud libre » affiché');
+weval(`document.querySelector('.lld-dlg-input').value = 'Internet'; document.querySelector('.lld-dlg-overlay .lld-dlg-btns .btn:last-child').click()`);
+await tick13(); await tick13();
+ok(W(`WS.topology.nodes.length`) === N0 + 1, 'noeud libre créé sans génération');
+ok(W(`(n => n.manual === true && n.name === 'Internet')(WS.topology.nodes[WS.topology.nodes.length - 1])`), 'marqueur manual + nom enregistrés');
+ok(W(`!!document.querySelector('.topo-node.tn-manual')`), 'rendu du noeud libre (.tn-manual)');
+ok(W(`(pruneTopology(WS), WS.topology.nodes.length)`) === N0 + 1, 'pruneTopology conserve le noeud libre');
+// 16b. second noeud libre
+weval(`document.querySelector('#topo-add-node').click()`);
+weval(`document.querySelector('.lld-dlg-input').value = 'Cloud'; document.querySelector('.lld-dlg-overlay .lld-dlg-btns .btn:last-child').click()`);
+await tick13(); await tick13();
+ok(W(`WS.topology.nodes.length`) === N0 + 2, 'second noeud libre créé');
+// 16c. liaison manuelle entre les deux noeuds (sans génération)
+weval(`document.querySelector('#topo-new-link').click()`);
+ok(W(`document.body.classList.contains('topo-linking')`), 'mode liaison activé avec des noeuds libres');
+weval(`document.querySelectorAll('.topo-node')[0].click()`);
+weval(`document.querySelectorAll('.topo-node')[1].click()`);
+await tick13();
+ok(W(`WS.topology.links.length`) === T0 + 1, 'liaison créée manuellement');
+ok(W(`!document.querySelector('#link-popover').classList.contains('hidden')`), 'fenêtre d\'édition du lien ouverte');
+weval(`document.querySelector('#tl-cancel').click()`);
+// 16d. Échap annule bien le mode liaison
+weval(`document.querySelector('#topo-new-link').click()`);
+ok(W(`document.body.classList.contains('topo-linking')`), 'mode liaison ré-activé');
+weval(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+ok(W(`!document.body.classList.contains('topo-linking')`), 'Échap annule le mode liaison');
+// 16e. suppression de la liaison via clic droit
+weval(`(function(){ const h = document.querySelector('#topo-svg .tl-hit'); h.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); })()`);
+await tick13();
+ok(W(`document.querySelectorAll('.lld-dlg-overlay').length`) === 1, 'confirmation « supprimer ce lien » affichée');
+weval(`document.querySelector('.lld-dlg-overlay .lld-dlg-btns .btn:last-child').click()`);
+await tick13(); await tick13();
+ok(W(`WS.topology.links.length`) === T0, 'liaison supprimée');
+// 16f. suppression d'un noeud (✖ au survol)
+weval(`document.querySelector('.topo-node .tn-del').click()`);
+await tick13();
+ok(W(`document.querySelectorAll('.lld-dlg-overlay').length`) === 1, 'confirmation « retirer ce noeud » affichée');
+weval(`document.querySelector('.lld-dlg-overlay .lld-dlg-btns .btn:last-child').click()`);
+await tick13(); await tick13();
+ok(W(`WS.topology.nodes.length`) === N0 + 1, 'noeud supprimé (avec ses liens)');
+// 16g. retour en élévations
+weval(`setBoardMode('elev')`);
+ok(W(`boardMode`) === 'elev', 'retour en vue élévations');
+
 console.log(`\n==== ${PASS} PASS, ${FAIL} FAIL ====`);
 process.exit(FAIL ? 1 : 0);

@@ -1416,6 +1416,7 @@ let state = emptyState();
 let labelMode = null;          // null | 'create' | 'edit'
 let boardMode = 'elev';        // 'elev' (élévations) | 'topo' (topologie logique)
 let topoLinkPending = null;    // noeud de départ pendant la création d'un lien
+let topoLinkSel = null;        // id du lien sélectionné (suppression au clavier)
 let dragPayload = null;
 let popoverCtx = null;
 let suppressPortClick = false;   // true juste après un glisser-déposer de port
@@ -2082,6 +2083,7 @@ viewport.addEventListener('pointerdown', e => {
   // NB : tout contrôle interactif posé sur le viewport doit figurer ici,
   // sinon setPointerCapture détourne le clic (le bouton ne le reçoit jamais).
   if (e.target.closest('.rack, .zoom-ctrl, .popover, .tooltip, .topo-toolbar, .topo-node, .topo-empty, .cable-panel, .board-empty, #view3d-root')) return;
+  if (boardMode === 'topo' && topoLinkSel) { topoLinkSel = null; renderTopology(active()); }
 
   const startX = e.clientX, startY = e.clientY;
   const ox = view.x, oy = view.y;
@@ -9627,7 +9629,7 @@ function pruneTopology(ws) {
   let changed = false;
   const ids = new Set(ws.racks.flatMap(r => r.instances.map(i => i.id)));
   const before = ws.topology.nodes.length;
-  ws.topology.nodes = ws.topology.nodes.filter(n => ids.has(n.instId));
+  ws.topology.nodes = ws.topology.nodes.filter(n => (n.manual && typeof n.name === 'string') || ids.has(n.instId));
   if (ws.topology.nodes.length !== before) changed = true;
   const nids = new Set(ws.topology.nodes.map(n => n.id));
   const bl = ws.topology.links.length;
@@ -9654,7 +9656,8 @@ function setBoardMode(mode) {
     setLabelMode(null);
     setCablingMode(false);
     exitTopoLinking();
-    $('#mode-hint').textContent = 'Topologie : disposez les noeuds et reliez-les (liens logiques).';
+    topoLinkSel = null;
+    $('#mode-hint').textContent = 'Topologie : double-cliquez le canevas pour un noeud libre, reliez-les — cliquez un lien pour l\u2019éditer ou le supprimer.';
   } else if (mode === '3d') {
     setLabelMode(null);
     setCablingMode(false);
@@ -9690,6 +9693,76 @@ function topoInstOf(ws, node) {
   }
   return null;
 }
+
+/* ---- Noeud libre (sans device) : ajout, renommage, suppression ---- */
+async function topoAddManualNode(ws, at) {
+  if (!ws) return null;
+  const name = await lldPrompt('Nom du noeud libre (ex : Internet, Cloud, FAI principale…)', '', { okLabel: 'Ajouter' });
+  if (name === null) return null;
+  const clean = String(name).trim().slice(0, 40);
+  if (!clean) return null;
+  const rect = viewport.getBoundingClientRect();
+  const cx = at && typeof at.clientX === 'number' ? at.clientX - rect.left : rect.width / 2;
+  const cy = at && typeof at.clientY === 'number' ? at.clientY - rect.top : rect.height / 2;
+  const x = Math.max(0, Math.round((cx - view.x) / view.scale - TOPO_NW / 2));
+  const y = Math.max(0, Math.round((cy - view.y) / view.scale - TOPO_NH / 2));
+  const topo = ensureTopology(ws);
+  pushHistory();
+  const cascade = (topo.nodes.length % 6) * 26;
+  topo.nodes.push({ id: uid(), instId: null, manual: true, name: clean, icon: '🧩',
+                    x: x + cascade, y: y + cascade });
+  touchWorkspace(ws);
+  saveState();
+  renderTopology(ws);
+  if (topo.nodes.length === 1) fitViewToContent();
+  return topo.nodes[topo.nodes.length - 1];
+}
+
+async function topoDeleteNode(ws, node) {
+  if (!ws || !node) return;
+  const topo = ensureTopology(ws);
+  const info = topoInstOf(ws, node);
+  const label = node.manual ? (node.name || 'Noeud libre') : (info?.inst?.name || 'ce noeud');
+  const nLinks = topo.links.filter(l => l.a === node.id || l.b === node.id).length;
+  const msg = `Retirer « ${label} » de la topologie ?`
+    + (nLinks ? `\n${nLinks} lien(s) seront supprimé(s) aussi.` : '')
+    + (node.manual ? '' : '\nLe device reste dans ses racks.');
+  const ok = await lldConfirm(msg, { title: '🗑 Noeud' });
+  if (!ok) return;
+  pushHistory();
+  topo.nodes = topo.nodes.filter(x => x.id !== node.id);
+  topo.links = topo.links.filter(l => l.a !== node.id && l.b !== node.id);
+  if (topoLinkPending === node.id) exitTopoLinking();
+  if (topoLinkSel && !topo.links.some(l => l.id === topoLinkSel)) topoLinkSel = null;
+  if (linkCtx && (linkCtx.link.a === node.id || linkCtx.link.b === node.id)) hideLinkPopover();
+  touchWorkspace(ws);
+  saveState();
+  renderTopology(ws);
+}
+
+// Échap annule la création de lien ; Suppr efface le lien sélectionné
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.body.classList.contains('topo-linking')) {
+    exitTopoLinking();
+    renderTopology(active());
+    return;
+  }
+  if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+  if (boardMode !== 'topo' || !topoLinkSel) return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  if (document.querySelector('.modal:not(.hidden), .lld-dlg-overlay')) return;
+  e.preventDefault();
+  const ws = active();
+  const topo = ensureTopology(ws);
+  pushHistory();
+  topo.links = topo.links.filter(l => l.id !== topoLinkSel);
+  topoLinkSel = null;
+  if (linkCtx) hideLinkPopover();
+  touchWorkspace(ws);
+  saveState();
+  renderTopology(ws);
+});
 
 function renderTopology(ws) {
   board.innerHTML = '';      // les handlers appellent renderTopology directement
@@ -9771,6 +9844,8 @@ function renderTopology(ws) {
         }
 
         const line = document.createElementNS(svgNS, 'line');
+        line.classList.add('tl-vis');
+        if (l.id === topoLinkSel) line.classList.add('sel');
         line.setAttribute('x1', x1); line.setAttribute('y1', y1);
         line.setAttribute('x2', x2); line.setAttribute('y2', y2);
         line.setAttribute('stroke', color);
@@ -9798,14 +9873,37 @@ function renderTopology(ws) {
 
         // Zone cliquable invisible (édition du lien)
         const hit = document.createElementNS(svgNS, 'line');
+        hit.classList.add('tl-hit');
         hit.setAttribute('x1', x1); hit.setAttribute('y1', y1);
         hit.setAttribute('x2', x2); hit.setAttribute('y2', y2);
         hit.setAttribute('stroke', 'rgba(0,0,0,0)');
-        hit.setAttribute('stroke-width', '14');
+        hit.setAttribute('stroke-width', '16');
         hit.style.cursor = 'pointer';
+        hit.addEventListener('mouseenter', () => line.classList.add('hl'));
+        hit.addEventListener('mouseleave', () => line.classList.remove('hl'));
+        // Clic gauche : sélection + fenêtre d'édition (suppression incluse)
         hit.addEventListener('click', e => {
           e.stopPropagation();
+          topoLinkSel = l.id;
+          renderTopology(active());
           openLinkPopover(l, e.clientX, e.clientY, false);
+        });
+        // Clic droit : suppression directe (avec confirmation)
+        hit.addEventListener('contextmenu', async e => {
+          e.preventDefault();
+          e.stopPropagation();
+          const msg = 'Supprimer ce lien ?' + (label ? `\n« ${label} »` : '');
+          const ok = await lldConfirm(msg, { title: '🗑 Lien' });
+          if (!ok) return;
+          const w2 = active();
+          const t2 = ensureTopology(w2);
+          pushHistory();
+          t2.links = t2.links.filter(x => x.id !== l.id);
+          if (topoLinkSel === l.id) topoLinkSel = null;
+          if (linkCtx && linkCtx.link.id === l.id) hideLinkPopover();
+          touchWorkspace(w2);
+          saveState();
+          renderTopology(w2);
         });
         svg.appendChild(hit);
       });
@@ -9816,15 +9914,20 @@ function renderTopology(ws) {
     const info = topoInstOf(ws, n);
     const inst = info?.inst;
     const el = document.createElement('div');
-    el.className = 'topo-node' + (topoLinkPending === n.id ? ' pending' : '');
-    if (flowMatch && !flowMatch.has(n.id)) el.classList.add('topo-dim');
+    const isMan = !!n.manual;
+    el.className = 'topo-node' + (topoLinkPending === n.id ? ' pending' : '') + (isMan ? ' tn-manual' : '');
+    if (flowMatch && !flowMatch.has(n.id) && !isMan) el.classList.add('topo-dim');
     el.dataset.nodeId = n.id;
     el.style.left = n.x + 'px';
     el.style.top = n.y + 'px';
     el.innerHTML = `
-      <div class="tn-head"><span class="tn-led"></span><span class="tn-name">${catIcon(inst?.cat)} ${escapeHtml(inst?.name || '?')}</span></div>
-      <div class="tn-sub">${escapeHtml([inst?.brand, inst?.model].filter(Boolean).join(' ') || '—')}</div>
-      <div class="tn-sub2">${escapeHtml(info ? `${info.rack.name} · U${inst.slot + 1}` : '')}${inst?.ipMgmt ? ' · ' + escapeHtml(inst.ipMgmt) : ''}</div>`;
+      <div class="tn-head"><span class="tn-led"></span><span class="tn-name">${isMan ? escapeHtml(n.icon || '🧩') : catIcon(inst?.cat)} ${escapeHtml(isMan ? (n.name || 'Noeud libre') : (inst?.name || '?'))}</span>
+        <button type="button" class="tn-del" title="Retirer ce noeud de la topologie">✖</button></div>
+      <div class="tn-sub">${isMan ? 'Noeud libre' : escapeHtml([inst?.brand, inst?.model].filter(Boolean).join(' ') || '—')}</div>
+      <div class="tn-sub2">${isMan ? '' : escapeHtml(info ? `${info.rack.name} · U${inst.slot + 1}` : '')}${!isMan && inst?.ipMgmt ? ' · ' + escapeHtml(inst.ipMgmt) : ''}</div>`;
+    el.querySelector('.tn-del').addEventListener('pointerdown', e => e.stopPropagation());
+    el.querySelector('.tn-del').addEventListener('click', e => { e.stopPropagation(); topoDeleteNode(ws, n); });
+    el.querySelector('.tn-del').addEventListener('dblclick', e => e.stopPropagation());
 
     // Déplacement du noeud
     el.addEventListener('pointerdown', e => {
@@ -9882,9 +9985,21 @@ function renderTopology(ws) {
       openLinkPopover(link, e.clientX, e.clientY, true);
     });
 
-    // Double-clic : focus sur le device en vue élévations
-    el.addEventListener('dblclick', e => {
+    // Double-clic : renommer un noeud libre, sinon focus device en élévations
+    el.addEventListener('dblclick', async e => {
       e.stopPropagation();
+      if (n.manual) {
+        const nm = await lldPrompt('Nom du noeud libre', n.name || '', { okLabel: 'Renommer' });
+        if (nm === null) return;
+        const clean = String(nm).trim().slice(0, 40);
+        if (!clean) return;
+        pushHistory();
+        n.name = clean;
+        touchWorkspace(active());
+        saveState();
+        renderTopology(active());
+        return;
+      }
       if (!info) return;
       setBoardMode('elev');
       const rect = viewport.getBoundingClientRect();
@@ -9960,11 +10075,13 @@ $('#topo-new-link').addEventListener('click', () => {
   const ws = active();
   if (!ws) return;
   const topo = ensureTopology(ws);
-  if (!topo.nodes.length) {
-    lldAlert('Aucun noeud pour l\'instant : cliquez « ⚡ Générer depuis les racks » d\'abord.', { title: '🕸️ Nouveau lien' });
+  if (topo.nodes.length < 2) {
+    lldAlert('Il faut au moins 2 noeuds : « ⚡ Générer depuis les racks » ou double-cliquez sur le canevas pour créer un noeud libre.',
+      { title: '🕸️ Nouveau lien' });
     return;
   }
   exitTopoLinking();
+  topoLinkSel = null;
   document.body.classList.add('topo-linking');
   $('#mode-hint').textContent = 'Nouveau lien : cliquez le premier noeud, puis le second (Échap pour annuler).';
 });
@@ -10018,10 +10135,20 @@ $('#tl-delete').addEventListener('click', () => {
   const topo = ensureTopology(ws);
   pushHistory();
   topo.links = topo.links.filter(l => l.id !== linkCtx.link.id);
+  topoLinkSel = null;
   hideLinkPopover();
   touchWorkspace(ws);
   saveState();
   renderTopology(ws);
+});
+
+// --- Noeud libre : bouton barre d'outils + double-clic sur le canevas ---
+$('#topo-add-node').addEventListener('click', () => topoAddManualNode(active()));
+viewport.addEventListener('dblclick', e => {
+  if (boardMode !== 'topo') return;
+  if (e.target.closest('.topo-node, .topo-toolbar, .tt-flow-sel, .zoom-ctrl, .topo-empty, .board-empty')) return;
+  if (document.body.classList.contains('topo-linking')) return;
+  topoAddManualNode(active(), e);
 });
 
 $('#tl-cancel').addEventListener('click', hideLinkPopover);
