@@ -2082,8 +2082,12 @@ viewport.addEventListener('pointerdown', e => {
   if (e.button !== 0 && e.pointerType === 'mouse') return;
   // NB : tout contrôle interactif posé sur le viewport doit figurer ici,
   // sinon setPointerCapture détourne le clic (le bouton ne le reçoit jamais).
-  if (e.target.closest('.rack, .zoom-ctrl, .popover, .tooltip, .topo-toolbar, .topo-node, .topo-empty, .cable-panel, .board-empty, #view3d-root')) return;
-  if (boardMode === 'topo' && topoLinkSel) { topoLinkSel = null; renderTopology(active()); }
+  if (e.target.closest('.rack, .zoom-ctrl, .popover, .tooltip, .topo-toolbar, .topo-node, .tl-hit, .topo-empty, .cable-panel, .board-empty, #view3d-root')) return;
+  if (boardMode === 'topo' && topoLinkSel) {
+    topoLinkSel = null;
+    if (linkCtx) hideLinkPopover();
+    renderTopology(active());
+  }
 
   const startX = e.clientX, startY = e.clientY;
   const ox = view.x, oy = view.y;
@@ -10040,6 +10044,23 @@ $('#topo-gen').addEventListener('click', () => {
       row++;
     });
   });
+  // Recentrage : la topologie générée occupe le milieu du board, pas le coin
+  // haut-gauche. On décale l'ensemble des noeuds d'un même vecteur (positions
+  // relatives conservées) pour que leur boîte englobante soit centrée sur
+  // (BOARD_W/2, BOARD_H/2).
+  if (topo.nodes.length) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    topo.nodes.forEach(n => {
+      minX = Math.min(minX, n.x);
+      minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + TOPO_NW);
+      maxY = Math.max(maxY, n.y + TOPO_NH);
+    });
+    const dx = Math.round(BOARD_W / 2 - (minX + maxX) / 2);
+    const dy = Math.round(BOARD_H / 2 - (minY + maxY) / 2);
+    if (dx) topo.nodes.forEach(n => { n.x += dx; });
+    if (dy) topo.nodes.forEach(n => { n.y += dy; });
+  }
   touchWorkspace(ws);
   saveState();
   renderTopology(ws);

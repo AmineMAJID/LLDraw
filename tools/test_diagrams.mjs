@@ -717,8 +717,9 @@ ok(W(`document.querySelector('#lld-modal').classList.contains('hidden')`), 'moda
 /* ---------- 16. Topologie : noeuds libres + liaisons ---------- */
 console.log('\n[16] topologie : noeuds libres, création et suppression de liaisons');
 weval(`setBoardMode('topo')`);
-const N0 = W(`WS.topology.nodes.length`);   // la démo embarque déjà sa topologie
+const N0 = W(`WS.topology.nodes.length`);   // la démo est vide par défaut (deltas)
 const T0 = W(`WS.topology.links.length`);
+ok(N0 === 0 && T0 === 0, 'demo : topologie vide par défaut');
 // 16a. noeud libre via la barre d'outils
 weval(`document.querySelector('#topo-add-node').click()`);
 ok(W(`!!document.querySelector('.lld-dlg-input')`), 'prompt « noeud libre » affiché');
@@ -741,6 +742,17 @@ weval(`document.querySelectorAll('.topo-node')[1].click()`);
 await tick13();
 ok(W(`WS.topology.links.length`) === T0 + 1, 'liaison créée manuellement');
 ok(W(`!document.querySelector('#link-popover').classList.contains('hidden')`), 'fenêtre d\'édition du lien ouverte');
+weval(`document.querySelector('#tl-cancel').click()`);
+// Clic gauche sur un lien existant : sélection + fenêtre d'édition
+weval(`(h => h.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 120, clientY: 160 })))(document.querySelector('#topo-svg .tl-hit'))`);
+ok(W(`topoLinkSel`) !== null, 'clic gauche sur un lien : sélection');
+ok(W(`!document.querySelector('#link-popover').classList.contains('hidden')`), 'popover d\'édition ouvert au clic');
+weval(`document.querySelector('#tl-cancel').click()`);
+ok(W(`topoLinkSel`) !== null, 'lien sélectionné après fermeture de la fenêtre');
+weval(`(h => h.dispatchEvent(new Event('pointerdown', { bubbles: true })))(document.querySelector('#topo-svg .tl-hit'))`);
+ok(W(`topoLinkSel`) !== null, 'pointerdown sur le lien conserve la sélection (clic non détourné)');
+weval(`(h => h.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 120, clientY: 160 })))(document.querySelector('#topo-svg .tl-hit'))`);
+ok(W(`!document.querySelector('#link-popover').classList.contains('hidden')`), 'popover se rouvre au clic sur un lien déjà sélectionné');
 weval(`document.querySelector('#tl-cancel').click()`);
 // 16d. re-clic sur « Nouveau lien » = sortir du mode ; Échap annule aussi
 weval(`document.querySelector('#topo-new-link').click()`);
@@ -765,6 +777,10 @@ ok(W(`document.querySelectorAll('.lld-dlg-overlay').length`) === 1, 'confirmatio
 weval(`document.querySelector('.lld-dlg-overlay .lld-dlg-btns .btn:last-child').click()`);
 await tick13(); await tick13();
 ok(W(`WS.topology.nodes.length`) === N0 + 1, 'noeud supprimé (avec ses liens)');
+// 16f2. génération depuis les racks : topo centrée au milieu du board
+weval(`document.querySelector('#topo-gen').click()`);
+ok(W(`WS.topology.nodes.length`) > 1, 'génération depuis les racks ajoutée');
+ok(W(`(ns => { let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity; ns.forEach(n=>{a=Math.min(a,n.x);b=Math.min(b,n.y);c=Math.max(c,n.x+TOPO_NW);d=Math.max(d,n.y+TOPO_NH);}); return Math.abs((a+c)/2-BOARD_W/2)<1 && Math.abs((b+d)/2-BOARD_H/2)<1; })(WS.topology.nodes)`), 'topologie générée centrée sur le board');
 // 16g. retour en élévations
 weval(`setBoardMode('elev')`);
 ok(W(`boardMode`) === 'elev', 'retour en vue élévations');
