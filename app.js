@@ -4208,12 +4208,11 @@ function openCatManager() {
   ov.className = 'lld-dlg-overlay';
   ov.id = 'lc-overlay';
   const rowsHtml = () => DEV_CATEGORIES.map(([id, ico, lbl]) => `
-    <div class="lc-row" style="display:flex;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid rgba(148,163,184,.16)">
-      <span style="width:26px;text-align:center;font-size:15px">${ico}</span>
-      <input type="text" data-cat-lbl="${esc(id)}" value="${esc(lbl)}" spellcheck="false"
-             style="flex:1;min-width:0" title="Renommer (Entrée / clic ailleurs pour valider)">
-      <button type="button" class="btn" data-cat-del="${esc(id)}" title="Supprimer cette catégorie"
-              style="padding:3px 8px">🗑</button>
+    <div class="lld-row">
+      <span class="lc-ico">${esc(ico)}</span>
+      <input class="lld-flex" type="text" data-cat-lbl="${esc(id)}" value="${esc(lbl)}" spellcheck="false"
+             title="Renommer (Entrée / clic ailleurs pour valider)">
+      <button type="button" class="lld-row-del" data-cat-del="${esc(id)}" title="Supprimer cette catégorie">🗑</button>
     </div>`).join('');
   ov.innerHTML = `
     <div class="lld-dlg" role="dialog" aria-modal="true" style="min-width:min(430px,92vw)">
@@ -4221,12 +4220,12 @@ function openCatManager() {
       <p class="lld-dlg-msg">Chaque catégorie est un <strong>filtre</strong> de la bibliothèque et une valeur
       du champ « Catégorie » des devices. Renommez une ligne pour corriger une faute,
       🗑 pour la supprimer, ou ajoutez-en une en bas.</p>
-      <div class="lc-rows" style="max-height:44vh;overflow:auto">${rowsHtml()}</div>
-      <div style="display:flex;gap:6px;align-items:center;margin-top:10px">
-        <input id="lc-ico" type="text" maxlength="4" placeholder="📦" spellcheck="false"
-               style="width:54px;text-align:center" title="Emoji (facultatif)">
-        <input id="lc-lbl" type="text" placeholder="Nouvelle catégorie (ex : Cloud)" spellcheck="false"
-               style="flex:1;min-width:0" maxlength="60">
+      <div class="lld-table lc-rows">${rowsHtml()}</div>
+      <div class="lld-row lc-add-row">
+        <input id="lc-ico" class="lc-add-ico" type="text" maxlength="4" placeholder="📦" spellcheck="false"
+               title="Emoji (facultatif)">
+        <input id="lc-lbl" class="lld-flex" type="text" placeholder="Nouvelle catégorie (ex : Cloud)"
+               spellcheck="false" maxlength="60">
         <button id="lc-add" type="button" class="btn lld-dlg-ok">＋ Ajouter</button>
       </div>
       <div class="lld-dlg-btns"><button id="lc-close" type="button" class="btn lld-dlg-ok">Fermer</button></div>
